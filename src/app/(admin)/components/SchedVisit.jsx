@@ -7,7 +7,7 @@ import {
   query,
   doc,
   updateDoc,
-  getDoc,
+  getDoc, // Kept this getDoc import
 } from "firebase/firestore";
 
 import { Monitor } from "lucide-react";
@@ -179,12 +179,31 @@ export default function ClientsPage() {
     fetchOccupiedSeats();
   }, []);
 
+  // Helper function to format Firestore Timestamp or ISO string
+  const formatTimestampToDateString = (timestamp) => {
+    if (!timestamp) return "N/A";
+    let date;
+    if (timestamp.seconds) { // Firestore Timestamp object
+      date = new Date(timestamp.seconds * 1000);
+    } else if (typeof timestamp === 'string') { // ISO string
+      date = new Date(timestamp);
+    } else if (timestamp instanceof Date) { // Already a Date object
+      date = timestamp;
+    } else {
+      console.warn("Unexpected date format:", timestamp); // Log unexpected formats
+      return "N/A";
+    }
+    return date.toLocaleDateString('en-US'); // Format as desired
+  };
+
   const fetchVisitData = async () => {
     const q = query(collection(db, "visitMap"), where("status", "==", "pending"));
     const querySnapshot = await getDocs(q);
     const docs = querySnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
+      // Add requestDate field, converting Firestore Timestamp if necessary
+      requestDate: doc.data().requestDate ? formatTimestampToDateString(doc.data().requestDate) : "N/A",
     }));
     setVisitClients(docs);
   };
@@ -195,6 +214,8 @@ export default function ClientsPage() {
     const docs = querySnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
+      // Add requestDate field, converting Firestore Timestamp if necessary
+      requestDate: doc.data().requestDate ? formatTimestampToDateString(doc.data().requestDate) : "N/A",
     }));
     setOfficeVisitClients(docs);
   };
@@ -205,6 +226,8 @@ export default function ClientsPage() {
     const docs = querySnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
+      // Add requestDate field, converting Firestore Timestamp if necessary
+      requestDate: doc.data().requestDate ? formatTimestampToDateString(doc.data().requestDate) : "N/A",
     }));
     setVirtualOfficeInquiryClients(docs);
   };
@@ -363,12 +386,12 @@ export default function ClientsPage() {
   const responsiveMapCardSx = {
     flexGrow: 1,
     minWidth: { xs: 250, sm: 320, md: 360 },
-    maxWidth: { xs: "90vw", md: 420 },
+    maxWidth: { xs: "90vw", md: 420 }, // Added maxWidth for smaller screens
     flexBasis: { xs: "90vw", sm: "auto" },
     flexShrink: 1,
     width: "100%",
     m: 0,
-    overflowX: "auto"
+    overflowX: "auto" // Crucial for horizontal scrolling of maps on small screens
   };
 
   const renderSeatMap = (groupPairs, mapType, title) => (
@@ -385,7 +408,7 @@ export default function ClientsPage() {
                   <Typography variant="caption" fontWeight="medium">
                     {rowLabel} Row
                   </Typography>
-                  <Stack direction="row" spacing={0.5} mt={0.5} sx={{ width: "100%" }}>
+                  <Stack direction="row" spacing={0.5} mt={0.5} sx={{ width: "100%" }}> {/* Reduced spacing */}
                     {seats.map((seat) => {
                       const seatKey = `${mapType}-${seat.number}`;
                       const reserved = isReservedSeat(seat, mapType);
@@ -459,7 +482,7 @@ export default function ClientsPage() {
         <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
           Office Information
         </Typography>
-        <TableContainer component={Paper} sx={{ maxWidth: 500, borderRadius: 2, boxShadow: 0, mb: 2 }}>
+        <TableContainer component={Paper} sx={{ maxWidth: { xs: '100%', sm: 500 }, borderRadius: 2, boxShadow: 0, mb: 2 }}> {/* Added maxWidth */}
           <Table
             sx={{
               borderCollapse: "collapse",
@@ -469,7 +492,7 @@ export default function ClientsPage() {
           >
             <TableBody>
               <TableRow>
-                <TableCell sx={{ fontWeight: 600, width: 180 }}>Office</TableCell>
+                <TableCell sx={{ fontWeight: 600, width: { xs: 120, sm: 180 } }}>Office</TableCell> {/* Adjusted width */}
                 <TableCell>{office.office || "N/A"}</TableCell>
               </TableRow>
               <TableRow>
@@ -498,6 +521,12 @@ export default function ClientsPage() {
                     : "N/A"}
                 </TableCell>
               </TableRow>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 600 }}>Request Date</TableCell>
+                <TableCell>
+                  {office.requestDate || "N/A"}
+                </TableCell>
+              </TableRow>
             </TableBody>
           </Table>
         </TableContainer>
@@ -512,7 +541,7 @@ export default function ClientsPage() {
         <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
           Virtual Office Inquiry Details
         </Typography>
-        <TableContainer component={Paper} sx={{ maxWidth: 500, borderRadius: 2, boxShadow: 0, mb: 2 }}>
+        <TableContainer component={Paper} sx={{ maxWidth: { xs: '100%', sm: 500 }, borderRadius: 2, boxShadow: 0, mb: 2 }}> {/* Added maxWidth */}
           <Table
             sx={{
               borderCollapse: "collapse",
@@ -522,7 +551,7 @@ export default function ClientsPage() {
           >
             <TableBody>
               <TableRow>
-                <TableCell sx={{ fontWeight: 600, width: 180 }}>Company</TableCell>
+                <TableCell sx={{ fontWeight: 600, width: { xs: 120, sm: 180 } }}>Company</TableCell> {/* Adjusted width */}
                 <TableCell>{inquiry.company || "N/A"}</TableCell>
               </TableRow>
               <TableRow>
@@ -555,6 +584,12 @@ export default function ClientsPage() {
                 <TableCell sx={{ fontWeight: 600 }}>Inquiry Time</TableCell>
                 <TableCell>{inquiry.time || "N/A"}</TableCell>
               </TableRow>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 600 }}>Request Date</TableCell>
+                <TableCell>
+                  {inquiry.requestDate || "N/A"}
+                </TableCell>
+              </TableRow>
             </TableBody>
           </Table>
         </TableContainer>
@@ -564,9 +599,23 @@ export default function ClientsPage() {
 
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'grey.50' }}>
+    <Box sx={{
+      display: 'flex',
+      flexDirection: { xs: 'column', md: 'row' }, // Stacks vertically on small screens, horizontally on medium and up
+      minHeight: '100vh',
+      bgcolor: 'grey.50'
+    }}>
       {/* Sidebar */}
-      <Paper sx={{ width: 280, flexShrink: 0, overflow: 'auto', boxShadow: 2 }}>
+      <Paper sx={{
+        width: { xs: '100%', md: 280 }, // Full width on xs, fixed width on md and up
+        minHeight: { xs: 'auto', md: '100vh' }, // Auto height on xs, full viewport height on md and up
+        flexShrink: 0,
+        overflow: 'auto',
+        boxShadow: 2,
+        position: { xs: 'static', md: 'sticky' }, // Static on xs, sticky on md and up
+        top: { xs: 'auto', md: 0 }, // Sticks to top on md and up
+        zIndex: 1 // Ensure sidebar is above main content if any z-index issues
+      }}>
         <Box p={2} borderBottom={1} borderColor="divider">
           <Typography fontWeight="medium">
             Visit Requests
@@ -575,9 +624,9 @@ export default function ClientsPage() {
             {activeTab === 0
               ? `${allClientsForCurrentTab.length} seat requests`
               : activeTab === 1
-              ? `${allClientsForCurrentTab.length} office requests`
-              : `${allClientsForCurrentTab.length} virtual office inquiries`}
-            {totalPages > 1 && ` (Page ${currentPage} of ${totalPages})`} {/* Added page info */}
+                ? `${allClientsForCurrentTab.length} office requests`
+                : `${allClientsForCurrentTab.length} virtual office inquiries`}
+            {totalPages > 1 && ` (Page ${currentPage} of ${totalPages})`}
           </Typography>
         </Box>
 
@@ -613,9 +662,17 @@ export default function ClientsPage() {
                       </Typography>
                     }
                     secondary={
-                      <Typography variant="body2" color="text.secondary" noWrap>
-                        {client.company}
-                      </Typography>
+                      <>
+                        <Typography variant="body2" color="text.secondary" noWrap>
+                          {client.company}
+                        </Typography>
+                        {/* Display Request Date in the sidebar list */}
+                        {client.requestDate && (
+                          <Typography variant="caption" color="text.secondary" noWrap>
+                            Requested: {client.requestDate}
+                          </Typography>
+                        )}
+                      </>
                     }
                   />
                   {client.reservedSeats?.length > 0 && activeTab === 0 && (
@@ -676,18 +733,18 @@ export default function ClientsPage() {
       </Paper>
 
       {/* Main Content */}
-      <Box component="main" sx={{ flexGrow: 1, p: { xs: 1, sm: 2, md: 3 } }}>
+      <Box component="main" sx={{ flexGrow: 1, p: { xs: 1, sm: 2, md: 3 } }}> {/* Responsive padding */}
         {selectedClient ? (
           <Card sx={{ width: '100%' }}>
             <CardContent>
               <Box
                 sx={{
                   display: 'flex',
-                  flexDirection: { xs: 'column', sm: 'row' },
+                  flexDirection: { xs: 'column', sm: 'row' }, // Stacks on xs, row on sm and up
                   justifyContent: 'space-between',
                   alignItems: { xs: 'flex-start', sm: 'center' },
                   mb: 3,
-                  gap: 2
+                  gap: 2 // Gap between stacked items
                 }}
               >
                 <Box>
@@ -701,7 +758,7 @@ export default function ClientsPage() {
                     </Typography>
                   </Stack>
                 </Box>
-                <Stack direction="row" spacing={1}>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}> {/* Stacks buttons on xs, row on sm */}
                   <Button
                     variant="contained"
                     color="success"
@@ -726,7 +783,7 @@ export default function ClientsPage() {
               </Box>
 
               <Grid container spacing={3} mb={3}>
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12} md={6}> {/* Full width on xs, half on md */}
                   <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
                     Contact Information
                   </Typography>
@@ -745,7 +802,7 @@ export default function ClientsPage() {
                     </Stack>
                   </Stack>
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12} md={6}> {/* Full width on xs, half on md */}
                   <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
                     Request Overview
                   </Typography>
@@ -753,7 +810,7 @@ export default function ClientsPage() {
                     <Stack direction="row" spacing={1} alignItems="center">
                       <EventIcon fontSize="small" color="action" />
                       <Typography variant="body2">
-                        Date:{" "}
+                        Visit Date:{" "}
                         {selectedClient.date
                           ? selectedClient.date.seconds
                             ? new Date(selectedClient.date.seconds * 1000).toLocaleDateString()
@@ -762,6 +819,15 @@ export default function ClientsPage() {
                         {activeTab === 2 && selectedClient.time && `, Time: ${selectedClient.time}`}
                       </Typography>
                     </Stack>
+                    {/* Add Request Date here for Seat Tab */}
+                    {activeTab === 0 && selectedClient.requestDate && (
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <EventIcon fontSize="small" color="action" />
+                        <Typography variant="body2">
+                          Request Date: {selectedClient.requestDate}
+                        </Typography>
+                      </Stack>
+                    )}
                     {activeTab === 0 && selectedClient.reservedSeats?.length > 0 && (
                       <Stack direction="row" spacing={1} alignItems="center">
                         <SeatIcon fontSize="small" color="action" />
@@ -806,61 +872,46 @@ export default function ClientsPage() {
                 </Grid>
               </Grid>
 
+              {activeTab === 0 && (
+                <Grid container spacing={2} justifyContent="center">
+                  <Grid item xs={12} sm={6} lg={4}> {/* Responsive grid for seat maps */}
+                    {renderSeatMap(groupPairs1, "map1", "Map 1")}
+                  </Grid>
+                  <Grid item xs={12} sm={6} lg={4}>
+                    {renderSeatMap(groupPairs2, "map2", "Map 2")}
+                  </Grid>
+                  <Grid item xs={12} sm={6} lg={4}>
+                    {renderSeatMap(groupPairs3, "map3", "Map 3")}
+                  </Grid>
+                  <Grid item xs={12} sm={6} lg={4}>
+                    {renderSeatMap(groupPairs4, "map4", "Map 4")}
+                  </Grid>
+                  <Grid item xs={12} sm={6} lg={4}>
+                    {renderSeatMap(groupPairs5, "map5", "Map 5")}
+                  </Grid>
+                </Grid>
+              )}
+
               {activeTab === 1 && renderOfficeDetails(selectedClient)}
               {activeTab === 2 && renderVirtualOfficeInquiryDetails(selectedClient)}
 
-              {activeTab === 0 && (
-                <Box>
-                  <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
-                    Seat Assignment
-                  </Typography>
-                  <Paper variant="outlined" sx={{ p: 2 }}>
-                    <Stack direction="row" spacing={2} mb={2} flexWrap="wrap">
-                      <Chip
-                        icon={<Box sx={{ width: 14, height: 14, bgcolor: 'primary.main' }} />}
-                        label="Scheduled for visit"
-                        size="small"
-                      />
-                      <Chip
-                        icon={<Box sx={{ width: 14, height: 14, bgcolor: 'error.light' }} />}
-                        label="Occupied seat"
-                        size="small"
-                      />
-                      <Chip
-                        icon={<Box sx={{ width: 14, height: 14, bgcolor: 'grey.100', border: 1, borderColor: 'grey.300' }} />}
-                        label="Vacant seat"
-                        size="small"
-                      />
-                    </Stack>
-                    <Box sx={{ overflowX: "auto", py: 1, width: "100%" }}>
-                      <Stack
-                        direction="row"
-                        spacing={2}
-                        sx={{
-                          width: "100%",
-                          flexWrap: { xs: "wrap", md: "nowrap" },
-                          justifyContent: { xs: "center", md: "flex-start" },
-                          alignItems: "stretch"
-                        }}
-                      >
-                        {renderSeatMap(groupPairs1, "map1", "Seat Map 1")}
-                        {renderSeatMap(groupPairs2, "map2", "Seat Map 2")}
-                        {renderSeatMap(groupPairs3, "map3", "Seat Map 3")}
-                        {renderSeatMap(groupPairs4, "map4", "Seat Map 4")}
-                        {renderSeatMap(groupPairs5, "map5", "Seat Map 5")}
-                      </Stack>
-                    </Box>
-                  </Paper>
-                </Box>
-              )}
             </CardContent>
           </Card>
         ) : (
-          <Paper sx={{ p: 4, textAlign: 'center' }}>
-            <Typography variant="body1" color="text.secondary">
-              Select a client from the sidebar to view details
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              height: '80%',
+              textAlign: 'center',
+              color: 'text.secondary'
+            }}
+          >
+            <Typography variant="h6">
+              Select a client from the sidebar to view their details.
             </Typography>
-          </Paper>
+          </Box>
         )}
       </Box>
 
@@ -868,7 +919,6 @@ export default function ClientsPage() {
         open={showRejectModal}
         onClose={handleCloseRejectModal}
         onConfirm={handleConfirmReject}
-        isSubmitting={isRejecting}
       />
     </Box>
   );

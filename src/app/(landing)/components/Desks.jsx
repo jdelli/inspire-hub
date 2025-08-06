@@ -26,7 +26,7 @@ const services = [
   },
   {
     title: "Virtual Office",
-    image: "/images/virtual.png ",
+    image: "/images/virtual_office1.png ",
     description:
       "A virtual office provides businesses with a professional address, mail handling, and access to administrative support—without the cost of maintaining a physical workspace.",
    

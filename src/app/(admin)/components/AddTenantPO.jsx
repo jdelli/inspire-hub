@@ -36,6 +36,12 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  useTheme,
+  useMediaQuery,
+  Fade,
+  Zoom,
+  Alert,
+  LinearProgress,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import {
@@ -53,6 +59,10 @@ import {
   MeetingRoom as MeetingRoomIcon,
   AttachMoney as AttachMoneyIcon,
   Receipt as ReceiptIcon,
+  Add as AddIcon,
+  CheckCircle as CheckCircleIcon,
+  Warning as WarningIcon,
+  Info as InfoIcon,
 } from "@mui/icons-material";
 
 // Helper to format number as PHP currency with thousands separator
@@ -82,6 +92,8 @@ export default function AddTenantPO({
   setShowAddModal,
   refreshClients,
 }) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [newTenant, setNewTenant] = useState({
     name: "",
     company: "",
@@ -99,6 +111,8 @@ export default function AddTenantPO({
       billingAddress: "",
       monthsToAvail: 1,
       total: 0,
+      cusaFee: 0,
+      parkingFee: 0,
     },
   });
   const [tempSelectedOffices, setTempSelectedOffices] = useState([]);
@@ -114,7 +128,7 @@ export default function AddTenantPO({
     offices: false,
     billingRate: false,
     monthsToAvail: false,
-    staus: "active",
+    
   });
 
   // Tabs state
@@ -175,7 +189,22 @@ export default function AddTenantPO({
     const rate = parseFloat(newTenant.billing.rate) || 0;
     const officeCount = tempSelectedOffices.length;
     const months = parseInt(newTenant.billing.monthsToAvail) || 1;
-    return rate * officeCount * months;
+    const cusaFee = parseFloat(newTenant.billing.cusaFee) || 0;
+    const parkingFee = parseFloat(newTenant.billing.parkingFee) || 0;
+    
+    const subtotal = (rate * officeCount * months) + (cusaFee * months) + (parkingFee * months);
+    const vat = subtotal * 0.12; // 12% VAT
+    return subtotal + vat;
+  };
+
+  const calculateSubtotal = () => {
+    const rate = parseFloat(newTenant.billing.rate) || 0;
+    const officeCount = tempSelectedOffices.length;
+    const months = parseInt(newTenant.billing.monthsToAvail) || 1;
+    const cusaFee = parseFloat(newTenant.billing.cusaFee) || 0;
+    const parkingFee = parseFloat(newTenant.billing.parkingFee) || 0;
+    
+    return (rate * officeCount * months) + (cusaFee * months) + (parkingFee * months);
   };
 
   const validateForm = () => {
@@ -211,6 +240,7 @@ export default function AddTenantPO({
         },
         officeType: "private office",
         type: "private",
+        status: "active"
       };
 
       await addDoc(collection(db, "privateOffice"), tenantWithOffices);
@@ -226,25 +256,27 @@ export default function AddTenantPO({
 
   const handleClose = () => {
     setShowAddModal(false);
-    setNewTenant({
-      name: "",
-      company: "",
-      email: "",
-      phone: "",
-      address: "",
-      selectedPO: [],
-      billing: {
-        plan: "monthly",
-        rate: 0,
-        currency: "PHP",
-        startDate: new Date().toISOString().split('T')[0],
-        billingEndDate: "",
-        paymentMethod: "credit",
-        billingAddress: "",
-        monthsToAvail: 1,
-        total: 0,
-      },
-    });
+          setNewTenant({
+        name: "",
+        company: "",
+        email: "",
+        phone: "",
+        address: "",
+        selectedPO: [],
+        billing: {
+          plan: "monthly",
+          rate: 0,
+          currency: "PHP",
+          startDate: new Date().toISOString().split('T')[0],
+          billingEndDate: "",
+          paymentMethod: "credit",
+          billingAddress: "",
+          monthsToAvail: 1,
+          total: 0,
+          cusaFee: 0,
+          parkingFee: 0,
+        },
+      });
     setTempSelectedOffices([]);
     setTabIndex(0);
     setErrors({
@@ -315,7 +347,11 @@ export default function AddTenantPO({
       maxWidth="xl"
       fullWidth
       PaperProps={{
-        sx: { maxHeight: "90vh", borderRadius: 3 },
+        sx: { 
+          maxHeight: "95vh", 
+          borderRadius: 4,
+          boxShadow: 24
+        },
       }}
     >
       <DialogTitle
@@ -323,50 +359,103 @@ export default function AddTenantPO({
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          bgcolor: blue[50],
-          borderBottom: `1px solid ${grey[200]}`,
+          background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+          color: 'white',
+          borderBottom: `1px solid ${theme.palette.divider}`,
+          py: 3,
+          px: 4,
         }}
       >
         <Box display="flex" alignItems="center">
-          <Avatar sx={{ bgcolor: blue[500], mr: 2, width: 32, height: 32 }}>
-            <PersonIcon fontSize="small" />
+          <Avatar 
+            sx={{ 
+              bgcolor: 'rgba(255,255,255,0.2)', 
+              mr: 2, 
+              width: 40, 
+              height: 40,
+              backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255,255,255,0.3)'
+            }}
+          >
+            <MeetingRoomIcon fontSize="medium" />
           </Avatar>
-          <Typography variant="h6" fontWeight={700}>
-            Add New Private Office Tenant
-          </Typography>
+          <Box>
+            <Typography variant="h5" fontWeight={700} sx={{ mb: 0.5 }}>
+              Add New Private Office Tenant
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.9 }}>
+              Private Office Rental
+            </Typography>
+          </Box>
         </Box>
         <IconButton
           onClick={handleClose}
           aria-label="close"
-          size="small"
+          size="large"
           sx={{
-            "&:hover": { bgcolor: grey[100] },
+            color: 'white',
+            "&:hover": { 
+              bgcolor: 'rgba(255,255,255,0.1)',
+              transform: 'scale(1.1)',
+              transition: 'all 0.2s ease'
+            },
           }}
         >
           <CloseIcon />
         </IconButton>
       </DialogTitle>
-      <DialogContent dividers>
+      <DialogContent sx={{ p: 0 }}>
         {isLoading ? (
           <Box
             display="flex"
+            flexDirection="column"
             justifyContent="center"
             alignItems="center"
-            minHeight={256}
+            minHeight={400}
+            gap={2}
           >
-            <CircularProgress color="primary" size={56} thickness={4} />
+            <CircularProgress color="primary" size={64} thickness={4} />
+            <Typography variant="h6" color="text.secondary">
+              Loading office data...
+            </Typography>
+            <LinearProgress sx={{ width: '60%', mt: 2 }} />
           </Box>
         ) : (
-          <>
-            <Tabs
-              value={tabIndex}
-              onChange={(_, v) => setTabIndex(v)}
-              sx={{ mb: 3 }}
-              variant="fullWidth"
-              centered
-              indicatorColor="primary"
-              textColor="primary"
-            >
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: 'column',
+            height: '100%'
+          }}>
+            <Paper sx={{ borderRadius: 0, boxShadow: 'none' }}>
+              <Tabs
+                value={tabIndex}
+                onChange={(_, v) => setTabIndex(v)}
+                sx={{ 
+                  px: 3,
+                  pt: 2,
+                  bgcolor: 'background.paper',
+                  borderBottom: `1px solid ${theme.palette.divider}`,
+                  '& .MuiTab-root': {
+                    minHeight: 64,
+                    fontSize: '0.95rem',
+                    fontWeight: 600,
+                    textTransform: 'none',
+                    color: 'text.secondary',
+                    '&.Mui-selected': {
+                      color: 'primary.main',
+                      fontWeight: 700
+                    }
+                  },
+                  '& .MuiTabs-indicator': {
+                    height: 3,
+                    borderRadius: '3px 3px 0 0'
+                  }
+                }}
+                variant={isMobile ? "scrollable" : "fullWidth"}
+                scrollButtons="auto"
+                indicatorColor="primary"
+                textColor="primary"
+              >
               <Tab
                 label={
                   <Box display="flex" alignItems="center">
@@ -392,8 +481,15 @@ export default function AddTenantPO({
                 }
               />
             </Tabs>
+            </Paper>
 
-            {/* Tenant Details Tab */}
+            {/* Tab Content Container */}
+            <Box sx={{ 
+              flex: 1, 
+              overflow: 'auto', 
+              p: 3
+            }}>
+              {/* Tenant Details Tab */}
             {tabIndex === 0 && (
               <Box>
                 <Grid container spacing={3} mb={3} direction="column">
@@ -773,6 +869,40 @@ export default function AddTenantPO({
                     />
 
                     <TextField
+                      label="CUSA Fee"
+                      fullWidth
+                      margin="normal"
+                      type="number"
+                      value={newTenant.billing.cusaFee}
+                      onChange={(e) => handleBillingChange('cusaFee', parseFloat(e.target.value))}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <span>₱</span>
+                          </InputAdornment>
+                        ),
+                      }}
+                      disabled={isSubmitting}
+                    />
+
+                    <TextField
+                      label="Parking Fee"
+                      fullWidth
+                      margin="normal"
+                      type="number"
+                      value={newTenant.billing.parkingFee}
+                      onChange={(e) => handleBillingChange('parkingFee', parseFloat(e.target.value))}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <span>₱</span>
+                          </InputAdornment>
+                        ),
+                      }}
+                      disabled={isSubmitting}
+                    />
+
+                    <TextField
                       label="Billing Start Date"
                       fullWidth
                       margin="normal"
@@ -824,7 +954,7 @@ export default function AddTenantPO({
                       <TableHead>
                         <TableRow>
                           <TableCell>Item</TableCell>
-                          <TableCell align="right">Quantity</TableCell>
+                          <TableCell align="right">Quantity (Offices × Months)</TableCell>
                           <TableCell align="right">Unit Price</TableCell>
                           <TableCell align="right">Amount</TableCell>
                         </TableRow>
@@ -832,22 +962,66 @@ export default function AddTenantPO({
                       <TableBody>
                         <TableRow>
                           <TableCell>Private Office Rental</TableCell>
-                          <TableCell align="right">{tempSelectedOffices.length}</TableCell>
+                          <TableCell align="right">{tempSelectedOffices.length} × {newTenant.billing.monthsToAvail}</TableCell>
                           <TableCell align="right">
                             {formatPHP(newTenant.billing.rate)}
                           </TableCell>
                           <TableCell align="right">
-                            {formatPHP(newTenant.billing.rate * tempSelectedOffices.length)}
+                            {formatPHP(newTenant.billing.rate * tempSelectedOffices.length * newTenant.billing.monthsToAvail)}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>CUSA Fee</TableCell>
+                          <TableCell align="right">{newTenant.billing.monthsToAvail}</TableCell>
+                          <TableCell align="right">
+                            {formatPHP(newTenant.billing.cusaFee)}
+                          </TableCell>
+                          <TableCell align="right">
+                            {formatPHP(newTenant.billing.cusaFee * newTenant.billing.monthsToAvail)}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Parking Fee</TableCell>
+                          <TableCell align="right">{newTenant.billing.monthsToAvail}</TableCell>
+                          <TableCell align="right">
+                            {formatPHP(newTenant.billing.parkingFee)}
+                          </TableCell>
+                          <TableCell align="right">
+                            {formatPHP(newTenant.billing.parkingFee * newTenant.billing.monthsToAvail)}
                           </TableCell>
                         </TableRow>
                         <TableRow>
                           <TableCell colSpan={3} align="right">
                             <Typography variant="subtitle1">
+                              Subtotal ({newTenant.billing.monthsToAvail} {newTenant.billing.monthsToAvail > 1 ? 'months' : 'month'})
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography variant="subtitle1">
+                              {formatPHP(calculateSubtotal())}
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell colSpan={3} align="right">
+                            <Typography variant="subtitle1">
+                              VAT (12%)
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography variant="subtitle1">
+                              {formatPHP(calculateSubtotal() * 0.12)}
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell colSpan={3} align="right">
+                            <Typography variant="h6" fontWeight="bold">
                               Total ({newTenant.billing.monthsToAvail} {newTenant.billing.monthsToAvail > 1 ? 'months' : 'month'})
                             </Typography>
                           </TableCell>
                           <TableCell align="right">
-                            <Typography variant="subtitle1" fontWeight="bold">
+                            <Typography variant="h6" fontWeight="bold">
                               {formatPHP(calculateTotal())}
                             </Typography>
                           </TableCell>
@@ -871,18 +1045,34 @@ export default function AddTenantPO({
                 </Paper>
               </Box>
             )}
-          </>
+            </Box>
+          </Box>
         )}
       </DialogContent>
-      <DialogActions sx={{ p: 3, borderTop: `1px solid ${grey[200]}` }}>
+      <DialogActions sx={{ 
+        p: 4, 
+        borderTop: `1px solid ${theme.palette.divider}`,
+        bgcolor: 'background.paper',
+        gap: 2
+      }}>
         <Button
           onClick={handleClose}
+          variant="outlined"
+          startIcon={<CloseIcon />}
           sx={{
-            px: 3,
-            py: 1.2,
-            borderRadius: 2,
-            color: grey[700],
-            "&:hover": { bgcolor: grey[100] },
+            px: 4,
+            py: 1.5,
+            borderRadius: 3,
+            textTransform: 'none',
+            fontWeight: 600,
+            fontSize: '1rem',
+            borderWidth: 2,
+            "&:hover": { 
+              borderWidth: 2,
+              transform: 'translateY(-1px)',
+              boxShadow: 2
+            },
+            transition: 'all 0.2s ease'
           }}
           disabled={isSubmitting}
         >
@@ -891,13 +1081,27 @@ export default function AddTenantPO({
         <Button
           onClick={handleAddTenant}
           variant="contained"
+          startIcon={isSubmitting ? <CircularProgress size={20} color="inherit" /> : <AddIcon />}
           disableElevation
           sx={{
-            px: 3,
-            py: 1.2,
-            borderRadius: 2,
-            bgcolor: blue[600],
-            "&:hover": { bgcolor: blue[700] },
+            px: 4,
+            py: 1.5,
+            borderRadius: 3,
+            background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+            textTransform: 'none',
+            fontWeight: 600,
+            fontSize: '1rem',
+            "&:hover": { 
+              background: 'linear-gradient(135deg, #3d9be8 0%, #00d4e0 100%)',
+              transform: 'translateY(-1px)',
+              boxShadow: 4
+            },
+            "&:disabled": {
+              background: 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)',
+              transform: 'none',
+              boxShadow: 'none'
+            },
+            transition: 'all 0.2s ease'
           }}
           disabled={isSubmitting}
         >

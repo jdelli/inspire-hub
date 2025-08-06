@@ -5,7 +5,7 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '../../../../script/firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 
-export default function Login({ closeModal }) {
+export default function Login({ closeModal, showSignupModal }) { // Added showSignupModal prop
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -17,7 +17,7 @@ export default function Login({ closeModal }) {
 
     try {
       const trimmedEmail = email.trim().toLowerCase();
-      setLoading(true);  // Show loading spinner
+      setLoading(true); // Show loading spinner
       const userCredential = await signInWithEmailAndPassword(auth, trimmedEmail, password);
       setErrorMessage('');
 
@@ -64,6 +64,11 @@ export default function Login({ closeModal }) {
           setErrorMessage('Login failed. Please check your credentials.');
       }
     }
+  };
+
+  const handleSignupClick = () => {
+    if (closeModal) closeModal(); // Close the login modal
+    if (showSignupModal) showSignupModal(); // Open the signup modal
   };
 
   return (
@@ -127,6 +132,16 @@ export default function Login({ closeModal }) {
                   className="w-1/2 bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-3 rounded text-sm"
                 >
                   Close
+                </button>
+              </div>
+              <div className="mt-4 text-center text-sm">
+                Don't have an account yet?{' '}
+                <button
+                  type="button"
+                  onClick={handleSignupClick}
+                  className="text-blue-600 hover:underline font-bold focus:outline-none"
+                >
+                  Sign up
                 </button>
               </div>
             </form>

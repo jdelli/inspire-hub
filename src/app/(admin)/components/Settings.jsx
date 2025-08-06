@@ -1,16 +1,24 @@
+"use client"; // Assuming you need this directive
+
 import React, { useState, useEffect } from 'react';
 import { db, auth } from "../../../../script/firebaseConfig";
-import { updateProfile, updatePassword, reauthenticateWithCredential, EmailAuthProvider, updateEmail } from 'firebase/auth';
+import {
+  updateProfile,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
+  updateEmail,
+  sendEmailVerification // Import sendEmailVerification
+} from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 const SettingsPage = () => {
   // User profile state
   const [profile, setProfile] = useState({
-    name: '',
+    firstName: '', // Changed from 'name'
+    lastName: '',  // New field
     email: '',
-    phone: '', // Stored in Firestore, not directly in Firebase Auth
-    notifications: true,
-    darkMode: false,
+    phone: '', // Stored in Firestore
   });
 
   // Loading and error states
@@ -33,7 +41,7 @@ const SettingsPage = () => {
     currentPasswordForEmail: '',
   });
   const [emailChangeError, setEmailChangeError] = useState('');
-  const [emailChangeSuccess, setEmailChangeSuccess] = useState(false);
+  const [emailVerificationSent, setEmailVerificationSent] = useState(false); // New state for email verification status
 
   // --- Fetch User Data on Component Mount ---
   useEffect(() => {
@@ -41,17 +49,18 @@ const SettingsPage = () => {
       if (auth.currentUser) {
         setLoading(true);
         try {
-          // Get user details from Firebase Auth
           const user = auth.currentUser;
           let currentProfile = {
-            name: user.displayName || '',
+            // Note: Firebase Auth's displayName isn't typically split into first/last.
+            // You might manage this entirely in Firestore or parse displayName if it
+            // contains both names (e.g., "John Doe" -> firstName: "John", lastName: "Doe").
+            // For now, we'll try to populate from Firestore first, then fallback.
+            firstName: '',
+            lastName: '',
             email: user.email || '',
-            phone: '', // Default, will be overwritten if exists in Firestore
-            notifications: true, // Default
-            darkMode: false, // Default
+            phone: '',
           };
 
-          // Get additional user data from Firestore
           const userDocRef = doc(db, 'users', user.uid);
           const userDocSnap = await getDoc(userDocRef);
 
@@ -59,13 +68,20 @@ const SettingsPage = () => {
             const firestoreData = userDocSnap.data();
             currentProfile = {
               ...currentProfile,
+              firstName: firestoreData.firstName || '',
+              lastName: firestoreData.lastName || '',
               phone: firestoreData.phone || '',
-              notifications: firestoreData.notifications !== undefined ? firestoreData.notifications : true,
-              darkMode: firestoreData.darkMode !== undefined ? firestoreData.darkMode : false,
             };
+          } else {
+            // If no Firestore data, try to parse from displayName if it exists
+            if (user.displayName) {
+              const nameParts = user.displayName.split(' ');
+              currentProfile.firstName = nameParts[0] || '';
+              currentProfile.lastName = nameParts.slice(1).join(' ') || '';
+            }
           }
           setProfile(currentProfile);
-          setEmailChangeData(prev => ({ ...prev, newEmail: user.email || '' })); // Initialize newEmail with current email
+          setEmailChangeData(prev => ({ ...prev, newEmail: prev.newEmail || user.email || '' }));
         } catch (error) {
           console.error("Error fetching user data:", error);
           setProfileError("Failed to load user data.");
@@ -74,20 +90,19 @@ const SettingsPage = () => {
         }
       } else {
         setLoading(false);
-        // Handle case where no user is logged in (e.g., redirect to login)
         console.log("No user logged in.");
       }
     };
 
     fetchUserData();
-  }, []); // Run once on component mount
+  }, []);
 
   // --- Handle Profile Changes (local state) ---
   const handleProfileChange = (e) => {
-    const { name, value, type, checked } = e.target;
+    const { name, value } = e.target; // Removed type, checked as checkboxes are gone
     setProfile(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: value
     }));
   };
 
@@ -124,18 +139,20 @@ const SettingsPage = () => {
     try {
       const user = auth.currentUser;
 
-      // Update display name in Firebase Auth
+      // You can still update displayName in Firebase Auth if you want,
+      // perhaps by combining firstName and lastName.
       await updateProfile(user, {
-        displayName: profile.name
+        displayName: `${profile.firstName} ${profile.lastName}`.trim()
       });
 
       // Update additional profile data in Firestore
       const userDocRef = doc(db, 'users', user.uid);
       await setDoc(userDocRef, {
+        firstName: profile.firstName,
+        lastName: profile.lastName,
         phone: profile.phone,
-        notifications: profile.notifications,
-        darkMode: profile.darkMode,
-      }, { merge: true }); // Use merge: true to avoid overwriting other fields
+        // Removed notifications and darkMode
+      }, { merge: true });
 
       setProfileSaveMessage('Profile updated successfully!');
     } catch (error) {
@@ -143,7 +160,7 @@ const SettingsPage = () => {
       setProfileError(`Failed to update profile: ${error.message}`);
     } finally {
       setLoading(false);
-      setTimeout(() => { // Clear messages after a few seconds
+      setTimeout(() => {
         setProfileSaveMessage('');
         setProfileError('');
       }, 3000);
@@ -154,7 +171,8 @@ const SettingsPage = () => {
   const handleEmailChangeSubmit = async (e) => {
     e.preventDefault();
     setEmailChangeError('');
-    setEmailChangeSuccess(false);
+    setEmailVerificationSent(false);
+    setProfileSaveMessage('');
 
     if (!auth.currentUser) {
       setEmailChangeError("No user logged in.");
@@ -181,25 +199,38 @@ const SettingsPage = () => {
       const user = auth.currentUser;
       const credential = EmailAuthProvider.credential(user.email, emailChangeData.currentPasswordForEmail);
 
-      // Re-authenticate the user
       await reauthenticateWithCredential(user, credential);
-
-      // Update email
       await updateEmail(user, emailChangeData.newEmail);
+      await sendEmailVerification(user);
 
-      setProfile(prev => ({ ...prev, email: emailChangeData.newEmail })); // Update local state
-      setEmailChangeSuccess(true);
-      setEmailChangeData(prev => ({ ...prev, currentPasswordForEmail: '' })); // Clear password field
-      setEmailChangeError(''); // Clear any previous errors
+      // Update the email field in Firestore
+      const userDocRef = doc(db, 'users', user.uid);
+      await setDoc(userDocRef, {
+        email: emailChangeData.newEmail
+      }, { merge: true });
+
+      setProfile(prev => ({ ...prev, email: emailChangeData.newEmail }));
+
+      setEmailVerificationSent(true);
+      setEmailChangeData(prev => ({ ...prev, currentPasswordForEmail: '' }));
+      setEmailChangeError('');
+
     } catch (error) {
       console.error("Error updating email:", error);
       setEmailChangeError(`Failed to update email: ${error.message}`);
+
+      if (error.code === 'auth/operation-not-allowed') {
+        setEmailChangeError("Email change requires verification. Please check the new email's inbox for a verification link.");
+      } else if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
+        setEmailChangeError("Incorrect current password.");
+      } else if (error.code === 'auth/email-already-in-use') {
+        setEmailChangeError("The new email address is already in use by another account.");
+      }
     } finally {
       setLoading(false);
       setTimeout(() => {
-        setEmailChangeSuccess(false);
         setEmailChangeError('');
-      }, 3000);
+      }, 10000);
     }
   };
 
@@ -214,7 +245,6 @@ const SettingsPage = () => {
       return;
     }
 
-    // Validation
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       setPasswordError("New passwords don't match");
       return;
@@ -233,7 +263,6 @@ const SettingsPage = () => {
     setLoading(true);
     try {
       const user = auth.currentUser;
-      // Re-authenticate the user before changing password
       const credential = EmailAuthProvider.credential(user.email, passwordData.currentPassword);
       await reauthenticateWithCredential(user, credential);
 
@@ -246,7 +275,6 @@ const SettingsPage = () => {
       });
     } catch (error) {
       console.error("Error changing password:", error);
-      // Firebase error codes for password changes
       if (error.code === 'auth/wrong-password') {
         setPasswordError("Incorrect current password.");
       } else if (error.code === 'auth/weak-password') {
@@ -256,7 +284,7 @@ const SettingsPage = () => {
       }
     } finally {
       setLoading(false);
-      setTimeout(() => { // Clear messages after a few seconds
+      setTimeout(() => {
         setPasswordSuccess(false);
         setPasswordError('');
       }, 3000);
@@ -282,12 +310,23 @@ const SettingsPage = () => {
           <form onSubmit={handleUpdateProfile} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
                 <input
                   type="text"
-                  id="name"
-                  name="name"
-                  value={profile.name}
+                  id="firstName"
+                  name="firstName"
+                  value={profile.firstName}
+                  onChange={handleProfileChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                <input
+                  type="text"
+                  id="lastName"
+                  name="lastName"
+                  value={profile.lastName}
                   onChange={handleProfileChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                 />
@@ -364,8 +403,12 @@ const SettingsPage = () => {
             {emailChangeError && (
               <div className="text-red-600 text-sm">{emailChangeError}</div>
             )}
-            {emailChangeSuccess && (
-              <div className="text-green-600 text-sm">Email updated successfully! Please re-login with your new email.</div>
+            {emailVerificationSent && (
+              <div className="text-green-600 text-sm">
+                A verification email has been sent to **{emailChangeData.newEmail}**.
+                Please check your inbox and spam folder to verify the new email address and complete the change.
+                You may need to log in again after successful verification.
+              </div>
             )}
             <div className="flex justify-end">
               <button

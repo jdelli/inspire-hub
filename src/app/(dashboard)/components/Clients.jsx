@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "../../../../script/firebaseConfig";
-import { collection, addDoc, getDocs } from "firebase/firestore";
+import { collection, addDoc, getDocs, serverTimestamp } from "firebase/firestore";
 import { Monitor } from "lucide-react";
 import seatMap1 from "../../(admin)/seatMap1.json";
 import seatMap2 from "../../(admin)/seatMap2.json";
@@ -181,6 +181,7 @@ function SeatReservationForm() {
         status: "pending",
         date: form.date ? new Date(form.date) : null,
         createdAt: new Date(),
+        requestDate: serverTimestamp(),
       });
 
       // 2. Send email to admin using the utility function

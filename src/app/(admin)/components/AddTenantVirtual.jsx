@@ -28,6 +28,12 @@ import {
   TableHead,
   TableRow,
   CircularProgress,
+  useTheme,
+  useMediaQuery,
+  Fade,
+  Zoom,
+  Alert,
+  LinearProgress,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import {
@@ -44,6 +50,11 @@ import {
   Home as HomeIcon,
   AttachMoney as AttachMoneyIcon,
   Receipt as ReceiptIcon,
+  Add as AddIcon,
+  CheckCircle as CheckCircleIcon,
+  Warning as WarningIcon,
+  Info as InfoIcon,
+  BusinessCenter as BusinessCenterIcon,
 } from "@mui/icons-material";
 
 // Helper to format number as PHP currency with thousands separator
@@ -68,6 +79,8 @@ export default function AddVirtualOfficeTenantModal({
   setShowAddModal,
   refreshClients,
 }) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [newTenant, setNewTenant] = useState({
     name: "",
     company: "",
@@ -84,7 +97,8 @@ export default function AddVirtualOfficeTenantModal({
       billingAddress: "",
       monthsToAvail: 1,
       total: 0,
-      staus: "active",
+      cusaFee: 0,
+      parkingFee: 0,
     },
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -117,7 +131,21 @@ export default function AddVirtualOfficeTenantModal({
   const calculateTotal = () => {
     const rate = parseFloat(`${newTenant.billing.rate}`) || 0;
     const months = parseInt(`${newTenant.billing.monthsToAvail}`) || 1;
-    return rate * months;
+    const cusaFee = parseFloat(newTenant.billing.cusaFee) || 0;
+    const parkingFee = parseFloat(newTenant.billing.parkingFee) || 0;
+    
+    const subtotal = (rate * months) + (cusaFee * months) + (parkingFee * months);
+    const vat = subtotal * 0.12; // 12% VAT
+    return subtotal + vat;
+  };
+
+  const calculateSubtotal = () => {
+    const rate = parseFloat(`${newTenant.billing.rate}`) || 0;
+    const months = parseInt(`${newTenant.billing.monthsToAvail}`) || 1;
+    const cusaFee = parseFloat(newTenant.billing.cusaFee) || 0;
+    const parkingFee = parseFloat(newTenant.billing.parkingFee) || 0;
+    
+    return (rate * months) + (cusaFee * months) + (parkingFee * months);
   };
 
   const validateForm = () => {
@@ -149,6 +177,7 @@ export default function AddVirtualOfficeTenantModal({
           total: computedTotal,
         },
         type: "virtual-office", // Optionally tag as virtual office
+        status: "active",
       };
       await addDoc(collection(db, "virtualOffice"), tenantData);
 
@@ -179,6 +208,8 @@ export default function AddVirtualOfficeTenantModal({
         billingAddress: "",
         monthsToAvail: 1,
         total: 0,
+        cusaFee: 0,
+        parkingFee: 0,
       },
     });
     setErrors({
@@ -231,7 +262,11 @@ export default function AddVirtualOfficeTenantModal({
       maxWidth="md"
       fullWidth
       PaperProps={{
-        sx: { maxHeight: "90vh", borderRadius: 3 },
+        sx: { 
+          maxHeight: "95vh", 
+          borderRadius: 4,
+          boxShadow: 24
+        },
       }}
     >
       <DialogTitle
@@ -239,38 +274,69 @@ export default function AddVirtualOfficeTenantModal({
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          bgcolor: blue[50],
-          borderBottom: `1px solid ${grey[200]}`,
+          background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+          color: 'white',
+          borderBottom: `1px solid ${theme.palette.divider}`,
+          py: 3,
+          px: 4,
         }}
       >
         <Box display="flex" alignItems="center">
-          <Avatar sx={{ bgcolor: blue[500], mr: 2, width: 32, height: 32 }}>
-            <PersonIcon fontSize="small" />
+          <Avatar 
+            sx={{ 
+              bgcolor: 'rgba(255,255,255,0.2)', 
+              mr: 2, 
+              width: 40, 
+              height: 40,
+              backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255,255,255,0.3)'
+            }}
+          >
+            <BusinessCenterIcon fontSize="medium" />
           </Avatar>
-          <Typography variant="h6" fontWeight={700}>
-            Add Virtual Office Tenant
-          </Typography>
+          <Box>
+            <Typography variant="h5" fontWeight={700} sx={{ mb: 0.5 }}>
+              Add Virtual Office Tenant
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.9 }}>
+              Virtual Office Services
+            </Typography>
+          </Box>
         </Box>
         <IconButton
           onClick={handleClose}
           aria-label="close"
-          size="small"
+          size="large"
           sx={{
-            "&:hover": { bgcolor: grey[100] },
+            color: 'white',
+            "&:hover": { 
+              bgcolor: 'rgba(255,255,255,0.1)',
+              transform: 'scale(1.1)',
+              transition: 'all 0.2s ease'
+            },
           }}
         >
           <CloseIcon />
         </IconButton>
       </DialogTitle>
-      <DialogContent dividers>
+      <DialogContent sx={{ 
+        p: 4, 
+        overflow: 'auto'
+      }}>
         {isLoading ? (
           <Box
             display="flex"
+            flexDirection="column"
             justifyContent="center"
             alignItems="center"
-            minHeight={256}
+            minHeight={400}
+            gap={2}
           >
-            <CircularProgress color="primary" size={56} thickness={4} />
+            <CircularProgress color="primary" size={64} thickness={4} />
+            <Typography variant="h6" color="text.secondary">
+              Loading virtual office data...
+            </Typography>
+            <LinearProgress sx={{ width: '60%', mt: 2 }} />
           </Box>
         ) : (
           <Box>
@@ -442,6 +508,40 @@ export default function AddVirtualOfficeTenantModal({
                   />
 
                   <TextField
+                    label="CUSA Fee"
+                    fullWidth
+                    margin="normal"
+                    type="number"
+                    value={newTenant.billing.cusaFee}
+                    onChange={(e) => handleBillingChange('cusaFee', parseFloat(e.target.value))}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <span>₱</span>
+                        </InputAdornment>
+                      ),
+                    }}
+                    disabled={isSubmitting}
+                  />
+
+                  <TextField
+                    label="Parking Fee"
+                    fullWidth
+                    margin="normal"
+                    type="number"
+                    value={newTenant.billing.parkingFee}
+                    onChange={(e) => handleBillingChange('parkingFee', parseFloat(e.target.value))}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <span>₱</span>
+                        </InputAdornment>
+                      ),
+                    }}
+                    disabled={isSubmitting}
+                  />
+
+                  <TextField
                     label="Billing Start Date"
                     fullWidth
                     margin="normal"
@@ -491,17 +591,17 @@ export default function AddVirtualOfficeTenantModal({
                 <TableContainer>
                   <Table>
                     <TableHead>
-                      <TableRow>
-                        <TableCell>Item</TableCell>
-                        <TableCell align="right">Quantity</TableCell>
-                        <TableCell align="right">Unit Price</TableCell>
-                        <TableCell align="right">Amount</TableCell>
-                      </TableRow>
+                                              <TableRow>
+                          <TableCell>Item</TableCell>
+                          <TableCell align="right">Quantity (Months)</TableCell>
+                          <TableCell align="right">Unit Price</TableCell>
+                          <TableCell align="right">Amount</TableCell>
+                        </TableRow>
                     </TableHead>
                     <TableBody>
                       <TableRow>
                         <TableCell>Virtual Office Rental</TableCell>
-                        <TableCell align="right">{newTenant.billing.monthsToAvail}</TableCell>
+                        <TableCell align="right">1 × {newTenant.billing.monthsToAvail}</TableCell>
                         <TableCell align="right">
                           {formatPHP(newTenant.billing.rate)}
                         </TableCell>
@@ -510,13 +610,57 @@ export default function AddVirtualOfficeTenantModal({
                         </TableCell>
                       </TableRow>
                       <TableRow>
+                        <TableCell>CUSA Fee</TableCell>
+                        <TableCell align="right">{newTenant.billing.monthsToAvail}</TableCell>
+                        <TableCell align="right">
+                          {formatPHP(newTenant.billing.cusaFee)}
+                        </TableCell>
+                        <TableCell align="right">
+                          {formatPHP(newTenant.billing.cusaFee * newTenant.billing.monthsToAvail)}
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Parking Fee</TableCell>
+                        <TableCell align="right">{newTenant.billing.monthsToAvail}</TableCell>
+                        <TableCell align="right">
+                          {formatPHP(newTenant.billing.parkingFee)}
+                        </TableCell>
+                        <TableCell align="right">
+                          {formatPHP(newTenant.billing.parkingFee * newTenant.billing.monthsToAvail)}
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
                         <TableCell colSpan={3} align="right">
                           <Typography variant="subtitle1">
+                            Subtotal ({newTenant.billing.monthsToAvail} {newTenant.billing.monthsToAvail > 1 ? 'months' : 'month'})
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="subtitle1">
+                            {formatPHP(calculateSubtotal())}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell colSpan={3} align="right">
+                          <Typography variant="subtitle1">
+                            VAT (12%)
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="subtitle1">
+                            {formatPHP(calculateSubtotal() * 0.12)}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell colSpan={3} align="right">
+                          <Typography variant="h6" fontWeight="bold">
                             Total ({newTenant.billing.monthsToAvail} {newTenant.billing.monthsToAvail > 1 ? 'months' : 'month'})
                           </Typography>
                         </TableCell>
                         <TableCell align="right">
-                          <Typography variant="subtitle1" fontWeight="bold">
+                          <Typography variant="h6" fontWeight="bold">
                             {formatPHP(calculateTotal())}
                           </Typography>
                         </TableCell>
@@ -541,15 +685,30 @@ export default function AddVirtualOfficeTenantModal({
           </Box>
         )}
       </DialogContent>
-      <DialogActions sx={{ p: 3, borderTop: `1px solid ${grey[200]}` }}>
+      <DialogActions sx={{ 
+        p: 4, 
+        borderTop: `1px solid ${theme.palette.divider}`,
+        bgcolor: 'background.paper',
+        gap: 2
+      }}>
         <Button
           onClick={handleClose}
+          variant="outlined"
+          startIcon={<CloseIcon />}
           sx={{
-            px: 3,
-            py: 1.2,
-            borderRadius: 2,
-            color: grey[700],
-            "&:hover": { bgcolor: grey[100] },
+            px: 4,
+            py: 1.5,
+            borderRadius: 3,
+            textTransform: 'none',
+            fontWeight: 600,
+            fontSize: '1rem',
+            borderWidth: 2,
+            "&:hover": { 
+              borderWidth: 2,
+              transform: 'translateY(-1px)',
+              boxShadow: 2
+            },
+            transition: 'all 0.2s ease'
           }}
           disabled={isSubmitting}
         >
@@ -558,13 +717,27 @@ export default function AddVirtualOfficeTenantModal({
         <Button
           onClick={handleAddTenant}
           variant="contained"
+          startIcon={isSubmitting ? <CircularProgress size={20} color="inherit" /> : <AddIcon />}
           disableElevation
           sx={{
-            px: 3,
-            py: 1.2,
-            borderRadius: 2,
-            bgcolor: blue[600],
-            "&:hover": { bgcolor: blue[700] },
+            px: 4,
+            py: 1.5,
+            borderRadius: 3,
+            background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+            textTransform: 'none',
+            fontWeight: 600,
+            fontSize: '1rem',
+            "&:hover": { 
+              background: 'linear-gradient(135deg, #e55a8a 0%, #e6d130 100%)',
+              transform: 'translateY(-1px)',
+              boxShadow: 4
+            },
+            "&:disabled": {
+              background: 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)',
+              transform: 'none',
+              boxShadow: 'none'
+            },
+            transition: 'all 0.2s ease'
           }}
           disabled={isSubmitting}
         >

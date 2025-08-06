@@ -6,7 +6,7 @@ import "react-datepicker/dist/react-datepicker.css";
 // Corrected import: Removed FiBuilding, added FaBuilding
 import { FiCalendar, FiClock, FiPhone, FiArrowLeft, FiMapPin, FiSearch, FiUser, FiMail } from "react-icons/fi"; 
 import { FaBuilding } from "react-icons/fa"; // Import FaBuilding from Font Awesome icons
-import { collection, addDoc, getDocs, query, where } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, where, serverTimestamp } from "firebase/firestore";
 import { db } from "../../../../script/firebaseConfig";
 import { auth } from "../../../../script/auth";
 import { toast, ToastContainer } from "react-toastify";
@@ -136,6 +136,7 @@ export default function BookingForm() {
         office: selectedOffices,
         timestamp: new Date(),
         status: "pending",
+        requestDate: serverTimestamp(),
       });
 
       // 2. Prepare booking details for the new email function
@@ -251,7 +252,7 @@ export default function BookingForm() {
               {/* Date */}
               <div className="space-y-1">
                 <label className="block text-sm font-medium text-gray-700 flex items-center">
-                  <FiCalendar className="mr-2" /> Date *
+                  <FiCalendar className="mr-2" />Visit Date *
                 </label>
                 <div className="relative">
                  <DatePicker
@@ -286,7 +287,7 @@ export default function BookingForm() {
               {/* Time */}
               <div className="space-y-1">
                 <label className="block text-sm font-medium text-gray-700 flex items-center">
-                  <FiClock className="mr-2" /> Time *
+                  <FiClock className="mr-2" />Visit Time *
                 </label>
                 <select
                   value={selectedTime}

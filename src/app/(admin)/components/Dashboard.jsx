@@ -50,6 +50,12 @@ const Dashboard = () => {
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [expiringTenants, setExpiringTenants] = useState([]);
   const [allPendingVisits, setAllPendingVisits] = useState([]); // New state for all pending visits
+  const [meetingRoomBookings, setMeetingRoomBookings] = useState({
+    pending: [],
+    accepted: [],
+    ongoing: [],
+  }); // New state for meeting room bookings
+  const [activeMeetingRoomTab, setActiveMeetingRoomTab] = useState('pending'); // New state for active tab
 
   // Format time helper
   const formatTime = useCallback((timeString) => {
@@ -101,12 +107,14 @@ const Dashboard = () => {
           { name: "visitMap", isTenant: false, visitType: "Dedicated Desk Visit" },
           { name: "privateOfficeVisits", isTenant: false, visitType: "Private Office Visit" },
           { name: "virtualOfficeInquiry", isTenant: false, visitType: "Virtual Office Inquiry" },
+          { name: "meeting room", isMeetingRoom: true } // Added for meeting room bookings
         ];
 
         let allSelectedSeats = [];
         let allSelectedPO = [];
         let currentExpiringTenants = [];
         let pendingVisitsAcrossCollections = [];
+        let currentMeetingRoomBookings = { pending: [], accepted: [], ongoing: [] };
 
         for (const config of collectionsToFetch) {
           const querySnapshot = await getDocs(collection(db, config.name));
@@ -121,7 +129,8 @@ const Dashboard = () => {
 
           if (config.isTenant) {
             docs.forEach(tenant => {
-              if (tenant.billing && tenant.billing.billingEndDate) {
+              // Added check for tenant.status === "active"
+              if (tenant.status === "active" && tenant.billing && tenant.billing.billingEndDate) {
                 const daysRemaining = calculateDaysRemaining(tenant.billing.billingEndDate);
                 if (daysRemaining !== null && daysRemaining <= 30 && daysRemaining >= 0) {
                   currentExpiringTenants.push({
@@ -163,8 +172,8 @@ const Dashboard = () => {
                   formattedDate = typeof visit.date === 'string'
                     ? visit.date
                     : (visit.date instanceof Date
-                        ? visit.date.toLocaleDateString()
-                        : '');
+                      ? visit.date.toLocaleDateString()
+                      : '');
                 }
               }
               return {
@@ -177,11 +186,43 @@ const Dashboard = () => {
               };
             });
             pendingVisitsAcrossCollections.push(...pending);
+          } else if (config.isMeetingRoom) {
+            docs.forEach(booking => {
+              let formattedDate = '';
+              if (booking.date) {
+                if (typeof booking.date.toDate === "function") {
+                  formattedDate = booking.date.toDate().toLocaleDateString();
+                } else {
+                  formattedDate = typeof booking.date === 'string'
+                    ? booking.date
+                    : (booking.date instanceof Date
+                      ? booking.date.toLocaleDateString()
+                      : '');
+                }
+              }
+
+              const bookingDetails = {
+                id: booking.id,
+                ...booking,
+                date: formattedDate,
+                startTime: formatTime(booking.from_time), // Using from_time
+                endTime: formatTime(booking.to_time),     // Using to_time
+              };
+
+              if (booking.status === "pending") {
+                currentMeetingRoomBookings.pending.push(bookingDetails);
+              } else if (booking.status === "accepted") {
+                currentMeetingRoomBookings.accepted.push(bookingDetails);
+              } else if (booking.status === "ongoing") {
+                currentMeetingRoomBookings.ongoing.push(bookingDetails);
+              }
+            });
           }
         }
         setExpiringTenants(currentExpiringTenants.sort((a, b) => a.daysRemaining - b.daysRemaining));
         setAllPendingVisits(pendingVisitsAcrossCollections); // Set the new state for all pending visits
         setVisitData(pendingVisitsAcrossCollections); // Keep this for existing visit data usage in charts/lists
+        setMeetingRoomBookings(currentMeetingRoomBookings); // Set meeting room bookings
 
         setLastUpdated(new Date());
         setLoading(false);
@@ -214,8 +255,8 @@ const Dashboard = () => {
             formattedDate = typeof visitData.date === 'string'
               ? visitData.date
               : (visitData.date instanceof Date
-                  ? visitData.date.toLocaleDateString()
-                  : '');
+                ? visitData.date.toLocaleDateString()
+                : '');
           }
         }
 
@@ -454,7 +495,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* --- Expiring Tenants Section (NEW) --- */}
+      {/* --- Expiring Tenants Section --- */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-8">
         <div className="px-6 py-5 border-b border-gray-200">
           <div className="flex items-center justify-between">
@@ -501,11 +542,96 @@ const Dashboard = () => {
             <div className="px-6 py-12 text-center">
               <HiOutlineCalendar className="mx-auto h-12 w-12 text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900">No tenants expiring soon</h3>
-              <p className="mt-1 text-sm text-gray-500">Keep up the good work!</p>
             </div>
           )}
         </div>
       </div>
+
+      ---
+
+      {/* --- Meeting Room Bookings Section (UI/UX Enhanced) --- */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-8">
+        <div className="px-6 py-5 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">Meeting Room Bookings</h2>
+        </div>
+
+        <div className="p-6">
+          <div className="flex border-b border-gray-200 mb-4">
+            {['pending', 'accepted'].map((status) => (
+              <button
+                key={status}
+                onClick={() => setActiveMeetingRoomTab(status)}
+                className={`py-2 px-4 text-sm font-medium capitalize border-b-2
+                  ${activeMeetingRoomTab === status
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }
+                  focus:outline-none transition-colors duration-200`}
+              >
+                {status} ({meetingRoomBookings[status].length})
+              </button>
+            ))}
+          </div>
+
+          {/* Table for the active tab */}
+          <div className="overflow-x-auto">
+            {meetingRoomBookings[activeMeetingRoomTab].length > 0 ? (
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Room
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Booked By
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Time
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Attendees
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {meetingRoomBookings[activeMeetingRoomTab].map(booking => (
+                    <tr key={booking.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {booking.room || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {booking.userName || booking.name || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {booking.date || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {booking.startTime} - {booking.endTime} {/* Using formatted startTime/endTime */}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {booking.guests || 'N/A'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
+                <MdMeetingRoom className="mx-auto h-12 w-12 text-gray-400 mb-3" />
+                <h3 className="mt-2 text-lg font-medium text-gray-900">No {activeMeetingRoomTab} bookings found.</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  There are currently no meeting room bookings with the status "{activeMeetingRoomTab}".
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      ---
 
       {/* Pending Visits Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">

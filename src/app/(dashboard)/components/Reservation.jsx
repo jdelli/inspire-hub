@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { db } from "../../../../script/firebaseConfig";
-import { collection, addDoc, query, where, getDocs } from "firebase/firestore";
+import { collection, addDoc, query, where, getDocs, serverTimestamp } from "firebase/firestore";
 import { FiPlus, FiTrash2, FiClock, FiUser, FiMail, FiPhone, FiCalendar, FiInfo, FiArrowLeft } from "react-icons/fi";
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -70,11 +70,22 @@ export default function TimeSlotSchedule() {
   const roomKey = (searchParams.get("room") || "boracay").toLowerCase();
   const room = MEETING_ROOMS[roomKey] || MEETING_ROOMS.boracay;
 
+  // Helper function to get today's date in YYYY-MM-DD format
+  const getTodayFormatted = () => {
+    const today = new Date();
+    // Ensure the date is treated as local for consistency
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     phone: "",
-    date: "",
+    // FIX: Initialize date with today's date
+    date: getTodayFormatted(),
     time: "",
     duration: "",
     guests: [],
@@ -138,6 +149,7 @@ export default function TimeSlotSchedule() {
 
   // useEffect to fetch booked slots when date or room changes
   useEffect(() => {
+    // FIX: This useEffect will now trigger on initial render because formData.date is initialized
     if (formData.date && room.name) {
       fetchBookedSlots(formData.date);
     } else {
@@ -148,6 +160,7 @@ export default function TimeSlotSchedule() {
   const updateSelectedSlots = (startTime, duration) => {
     // If startTime or duration are empty, revert slots to their fetched (booked) state
     if (!startTime || !duration) {
+      // FIX: Ensure fetchBookedSlots is called with the current date to reflect actual bookings
       fetchBookedSlots(formData.date);
       return;
     }
@@ -166,7 +179,10 @@ export default function TimeSlotSchedule() {
     }
 
     let hasConflict = false;
-    const newSlots = slots.map((slot) => {
+    // Create a copy of the current slots to base updates on
+    const currentSlotsCopy = [...slots];
+
+    const newSlots = currentSlotsCopy.map((slot) => {
       const slotHour = parseInt(slot.time);
       if (slotHour >= startHour && slotHour < endHour) {
         // If the slot is reserved or tentative, it's a conflict
@@ -178,10 +194,11 @@ export default function TimeSlotSchedule() {
         }
       }
       // If a slot was previously selected but is now outside the new selection, revert it
+      // This part needs to be careful not to override existing reserved/tentative statuses.
       if (slot.status === "selected") {
-          // Determine its original status by re-evaluating against all booked slots
-          const isReserved = slots.some(s => s.time === slot.time && s.status === "reserved");
-          const isTentative = slots.some(s => s.time === slot.time && s.status === "tentative");
+          // Re-evaluate its original status based on current reserved/tentative data
+          const isReserved = currentSlotsCopy.some(s => s.time === slot.time && s.status === "reserved");
+          const isTentative = currentSlotsCopy.some(s => s.time === slot.time && s.status === "tentative");
 
           if (isReserved) return { ...slot, status: "reserved" };
           if (isTentative) return { ...slot, status: "tentative" };
@@ -226,6 +243,7 @@ export default function TimeSlotSchedule() {
           position: "top-center",
           autoClose: 3000,
         });
+        // Do not update formData.date if it's a weekend
         return;
       }
     }
@@ -241,13 +259,12 @@ export default function TimeSlotSchedule() {
             updatedFormData.time,
             updatedFormData.duration
           );
-        } else {
-          // If no time/duration selected yet, just update based on new date's availability
-          fetchBookedSlots(updatedFormData.date);
         }
+        // If time/duration are not set, fetchBookedSlots already handled setting the slots
       });
     } else if ((name === "time" && updatedFormData.duration) || (name === "duration" && updatedFormData.time)) {
       // If both time and duration are set, update selected slots
+      // Using a setTimeout of 0 to allow state update to batch or for the next render cycle to pick up latest slots
       setTimeout(() => {
         updateSelectedSlots(
           updatedFormData.time,
@@ -256,6 +273,7 @@ export default function TimeSlotSchedule() {
       }, 0);
     } else if (name === "time" || name === "duration") {
       // If only one of time/duration changed, and the other is not set, revert to fetched slots
+      // Ensure we re-fetch to clear any previous "selected" states if time/duration combination is no longer valid
       fetchBookedSlots(updatedFormData.date);
     }
   };
@@ -361,6 +379,7 @@ export default function TimeSlotSchedule() {
       timestamp: new Date(),
       status: "pending", // Initially set as pending
       totalCost: calculateTotalCost(),
+      requestDate: serverTimestamp(),
     };
 
     try {
@@ -375,19 +394,20 @@ export default function TimeSlotSchedule() {
         toast.error("Failed to send confirmation email.", { position: "top-center" });
       }
 
-      // Clear form data
+      // Clear form data and re-fetch booked slots to update the UI
       setFormData({
         name: "",
         email: "",
         phone: "",
-        date: "",
+        // After submission, keep the date selected or reset to today's date
+        date: formData.date, // Keep the current date to show updated availability for it
         time: "",
         duration: "",
         guests: [],
         specialRequests: "",
       });
       // After successful submission, re-fetch booked and tentative slots for the selected date
-      fetchBookedSlots(formData.date); // Use formData.date as it was the selected date for the booking
+      fetchBookedSlots(formData.date);
     } catch (error) {
       console.error("Error adding reservation or sending email: ", error);
       toast.error("Failed to submit reservation. Please try again.", { position: "top-center" });

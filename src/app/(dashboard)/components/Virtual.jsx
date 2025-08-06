@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { FiArrowLeft } from "react-icons/fi"; // Import the back arrow icon
 import { db } from "../../../../script/firebaseConfig";
-import { collection, addDoc } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import emailjs from "@emailjs/browser";
 import { sendVirtualOfficeInquiryEmail } from "../../(admin)/utils/email"; // Make sure this path is correct
 
@@ -76,6 +76,7 @@ const BookSeatsForm = () => {
         ...form,
         timestamp: new Date(),
         status: "pending", // Ensure status is set upon initial submission
+        requestDate: serverTimestamp(),
       });
 
       // 2. Send email to admin using the new dedicated function
