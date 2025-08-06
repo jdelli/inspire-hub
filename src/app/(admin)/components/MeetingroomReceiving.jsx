@@ -30,11 +30,34 @@ import {
   DialogContentText,
   DialogActions,
   useTheme,
+  useMediaQuery,
   Tabs,
   Tab,
-  Chip
+  Chip,
+  Grid,
+  Card,
+  CardContent,
+  Fade,
+  Zoom,
+  LinearProgress,
+  Alert,
+  Divider
 } from "@mui/material";
-import { Save, Close, Event, Schedule, InfoOutlined } from "@mui/icons-material";
+import { 
+  Save, 
+  Close, 
+  Event, 
+  Schedule, 
+  InfoOutlined,
+  MeetingRoom,
+  Refresh,
+  TrendingUp,
+  People,
+  CheckCircle,
+  Warning,
+  Error,
+  AccessTime
+} from "@mui/icons-material";
 
 import RejectReasonModal from "./RejectReason";
 
@@ -119,16 +142,19 @@ const AdminDashboard = () => {
   const [detailsDialog, setDetailsDialog] = useState({ open: false, data: null });
   const [cancelConfirmationOpen, setCancelConfirmationOpen] = useState(false);
   const [reservationToCancel, setReservationToCancel] = useState(null);
-
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Use a ref to store the "current" local time, updated periodically
   const nowLocalRef = useRef(truncateToMinutes(new Date()));
 
   const itemsPerPage = 10;
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   // Function to fetch and update reservations
   const fetchAndUpdateReservations = async () => {
+    setIsRefreshing(true);
+    try {
     const snapshot = await getDocs(collection(db, "meeting room"));
     const docs = snapshot.docs.map((doc) => {
       const d = doc.data();
@@ -156,6 +182,11 @@ const AdminDashboard = () => {
     if (updates.length > 0) await Promise.all(updates);
 
     setReservations(docs);
+    } catch (error) {
+      console.error("Error fetching reservations:", error);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   useEffect(() => {
@@ -307,127 +338,463 @@ const AdminDashboard = () => {
   const handleOpenDetails = (data) => setDetailsDialog({ open: true, data });
   const handleCloseDetails = () => setDetailsDialog({ open: false, data: null });
 
-  return (
-    <Box p={{ xs: 1, sm: 2, md: 4 }} sx={{ background: "#f3f4f6", minHeight: "10vh" }}>
-      <Typography variant="h5" gutterBottom sx={{ mb: 3, fontWeight: 'bold' }}>
-        Meeting Room Reservations
-      </Typography>
+  // Calculate statistics
+  const stats = {
+    total: reservations.length,
+    accepted: reservations.filter(r => r.status === "accepted" && !isCurrentMeeting(r, nowLocalRef.current) && r.status !== "done").length,
+    pending: reservations.filter(r => r.status === "pending").length,
+    ongoing: reservations.filter(r => r.status === "accepted" && isCurrentMeeting(r, nowLocalRef.current)).length,
+    done: reservations.filter(r => r.status === "done").length,
+    rejected: reservations.filter(r => r.status === "rejected").length
+  };
 
-      <Paper sx={{ mb: 3, borderRadius: 2 }}>
-        <Tabs value={tabValue} onChange={handleTabChange} variant="fullWidth">
+  return (
+    <Box 
+      sx={{ 
+        minHeight: '100vh',
+        width: '100%',
+        bgcolor: 'background.default',
+        py: { xs: 2, sm: 3, md: 4 },
+        px: { xs: 1, sm: 2, md: 3 }
+      }}
+    >
+      {/* Header Section */}
+      <Box sx={{ mb: 4 }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
+          <Stack direction="row" alignItems="center" spacing={2}>
+            <Box
+              sx={{
+                p: 1.5,
+                borderRadius: 2,
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <MeetingRoom sx={{ fontSize: 28 }} />
+            </Box>
+            <Box>
+              <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                Meeting Room Management
+      </Typography>
+              <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
+                Manage and monitor all meeting room reservations
+              </Typography>
+            </Box>
+          </Stack>
+          <Button
+            variant="outlined"
+            startIcon={<Refresh />}
+            onClick={fetchAndUpdateReservations}
+            disabled={isRefreshing}
+            sx={{
+              borderRadius: 2,
+              px: 3,
+              py: 1,
+              textTransform: 'none',
+              fontWeight: 600,
+              '&:hover': {
+                transform: 'translateY(-1px)',
+                boxShadow: 2
+              }
+            }}
+          >
+            {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
+          </Button>
+        </Stack>
+
+        {/* Statistics Cards */}
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12} sm={6} md={2}>
+            <Fade in timeout={300}>
+              <Card
+                sx={{
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: 'white',
+                  borderRadius: 3,
+                  boxShadow: 3,
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: 6,
+                    transition: 'all 0.3s ease'
+                  }
+                }}
+              >
+                <CardContent sx={{ p: 3, textAlign: 'center' }}>
+                  <TrendingUp sx={{ fontSize: 32, mb: 1 }} />
+                  <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
+                    {stats.total}
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                    Total Reservations
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Fade>
+          </Grid>
+          <Grid item xs={12} sm={6} md={2}>
+            <Fade in timeout={400}>
+              <Card
+                sx={{
+                  background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+                  color: 'white',
+                  borderRadius: 3,
+                  boxShadow: 3,
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: 6,
+                    transition: 'all 0.3s ease'
+                  }
+                }}
+              >
+                <CardContent sx={{ p: 3, textAlign: 'center' }}>
+                  <CheckCircle sx={{ fontSize: 32, mb: 1 }} />
+                  <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
+                    {stats.accepted}
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                    Accepted
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Fade>
+          </Grid>
+          <Grid item xs={12} sm={6} md={2}>
+            <Fade in timeout={500}>
+              <Card
+                sx={{
+                  background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+                  color: 'white',
+                  borderRadius: 3,
+                  boxShadow: 3,
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: 6,
+                    transition: 'all 0.3s ease'
+                  }
+                }}
+              >
+                <CardContent sx={{ p: 3, textAlign: 'center' }}>
+                  <Warning sx={{ fontSize: 32, mb: 1 }} />
+                  <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
+                    {stats.pending}
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                    Pending
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Fade>
+          </Grid>
+          <Grid item xs={12} sm={6} md={2}>
+            <Fade in timeout={600}>
+              <Card
+                sx={{
+                  background: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+                  color: 'text.primary',
+                  borderRadius: 3,
+                  boxShadow: 3,
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: 6,
+                    transition: 'all 0.3s ease'
+                  }
+                }}
+              >
+                <CardContent sx={{ p: 3, textAlign: 'center' }}>
+                  <AccessTime sx={{ fontSize: 32, mb: 1 }} />
+                  <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
+                    {stats.ongoing}
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                    Ongoing
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Fade>
+          </Grid>
+          <Grid item xs={12} sm={6} md={2}>
+            <Fade in timeout={700}>
+              <Card
+                sx={{
+                  background: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
+                  color: 'text.primary',
+                  borderRadius: 3,
+                  boxShadow: 3,
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: 6,
+                    transition: 'all 0.3s ease'
+                  }
+                }}
+              >
+                <CardContent sx={{ p: 3, textAlign: 'center' }}>
+                  <CheckCircle sx={{ fontSize: 32, mb: 1 }} />
+                  <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
+                    {stats.done}
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                    Completed
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Fade>
+          </Grid>
+          <Grid item xs={12} sm={6} md={2}>
+            <Fade in timeout={800}>
+              <Card
+                sx={{
+                  background: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
+                  color: 'white',
+                  borderRadius: 3,
+                  boxShadow: 3,
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: 6,
+                    transition: 'all 0.3s ease'
+                  }
+                }}
+              >
+                <CardContent sx={{ p: 3, textAlign: 'center' }}>
+                  <Error sx={{ fontSize: 32, mb: 1 }} />
+                  <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
+                    {stats.rejected}
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                    Rejected
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Fade>
+          </Grid>
+        </Grid>
+      </Box>
+
+      {/* Enhanced Tabs */}
+      <Paper 
+        sx={{ 
+          mb: 3, 
+          borderRadius: 3,
+          boxShadow: 2,
+          overflow: 'hidden'
+        }}
+      >
+        <Tabs 
+          value={tabValue} 
+          onChange={handleTabChange} 
+          variant={isMobile ? "scrollable" : "fullWidth"}
+          scrollButtons="auto"
+          sx={{
+            bgcolor: 'background.paper',
+            '& .MuiTab-root': {
+              minHeight: 64,
+              fontSize: '0.95rem',
+              fontWeight: 600,
+              textTransform: 'none',
+              color: 'text.secondary',
+              '&.Mui-selected': {
+                color: 'primary.main',
+                fontWeight: 700
+              }
+            },
+            '& .MuiTabs-indicator': {
+              height: 3,
+              borderRadius: '3px 3px 0 0'
+            }
+          }}
+        >
           <Tab
-            label="Accepted Meetings"
-            icon={<Schedule fontSize="small" />}
+            label={
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <Schedule />
+                <Box>
+                  <Typography variant="body2">Accepted Meetings</Typography>
+                  <Chip 
+                    label={stats.accepted} 
+                    size="small" 
+                    color="primary" 
+                    sx={{ height: 20, fontSize: '0.7rem' }}
+                  />
+                </Box>
+              </Stack>
+            }
             iconPosition="start"
           />
           <Tab
-            label="Meeting Requests"
-            icon={<Event fontSize="small" />}
+            label={
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <Event />
+                <Box>
+                  <Typography variant="body2">Meeting Requests</Typography>
+                  <Chip 
+                    label={stats.pending} 
+                    size="small" 
+                    color="warning" 
+                    sx={{ height: 20, fontSize: '0.7rem' }}
+                  />
+                </Box>
+              </Stack>
+            }
             iconPosition="start"
           />
           <Tab
-            label="Ongoing Meeting"
-            icon={<Event fontSize="small" />}
+            label={
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <AccessTime />
+                <Box>
+                  <Typography variant="body2">Ongoing Meeting</Typography>
+                  <Chip 
+                    label={stats.ongoing} 
+                    size="small" 
+                    color="info" 
+                    sx={{ height: 20, fontSize: '0.7rem' }}
+                  />
+                </Box>
+              </Stack>
+            }
             iconPosition="start"
           />
         </Tabs>
       </Paper>
 
-      <TableContainer component={Paper} sx={{ borderRadius: 3, boxShadow: 3 }}>
+      {/* Enhanced Table */}
+      <Zoom in timeout={300}>
+        <TableContainer 
+          component={Paper} 
+          sx={{ 
+            borderRadius: 3, 
+            boxShadow: 3,
+            overflow: 'hidden',
+            border: `1px solid ${theme.palette.divider}`
+          }}
+        >
         <Table
           sx={{
             borderCollapse: "collapse",
-            minWidth: 900,
-            "& .MuiTableCell-root": { border: "1px solid #bdbdbd" },
-            "& .MuiTableHead-root .MuiTableCell-root": { backgroundColor: theme.palette.grey[100], fontWeight: 600 }
+              minWidth: isMobile ? 300 : 900,
+              "& .MuiTableCell-root": { 
+                border: `1px solid ${theme.palette.divider}`,
+                fontSize: '0.875rem'
+              },
+              "& .MuiTableHead-root .MuiTableCell-root": { 
+                backgroundColor: theme.palette.primary.main,
+                color: 'white',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                textAlign: 'center'
+              },
+              "& .MuiTableRow-root:hover": {
+                backgroundColor: theme.palette.action.hover,
+                transition: 'background-color 0.2s ease'
+              }
           }}
         >
           <TableHead>
             <TableRow>
-              <TableCell align="center">Name</TableCell>
-              <TableCell align="center">Email</TableCell>
-              <TableCell align="center">Room</TableCell>{/* Added Room column */}
-              <TableCell align="center">Date</TableCell>
-              <TableCell align="center">From</TableCell>
-              <TableCell align="center">To</TableCell>
-              <TableCell align="center">Duration</TableCell>
-              <TableCell align="center">Guests</TableCell>
-              <TableCell align="center">Status</TableCell>
-              <TableCell align="center">Request Date</TableCell>
-              <TableCell align="center">Actions</TableCell>
+                <TableCell>Name</TableCell>
+                <TableCell>Email</TableCell>
+                <TableCell>Room</TableCell>
+                <TableCell>Date</TableCell>
+                <TableCell>From</TableCell>
+                <TableCell>To</TableCell>
+                <TableCell>Duration</TableCell>
+                <TableCell>Guests</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Request Date</TableCell>
+                <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {currentItems.map((res) => {
               let chipLabel = "-";
               let chipColor = "default";
+                let chipVariant = "outlined";
+                
               if (res.status === "accepted" && !isCurrentMeeting(res, nowLocalRef.current)) {
                 chipLabel = "Accepted";
                 chipColor = "success";
+                  chipVariant = "filled";
               } else if (res.status === "pending") {
                 chipLabel = "Pending";
                 chipColor = "warning";
+                  chipVariant = "filled";
               } else if (res.status === "accepted" && isCurrentMeeting(res, nowLocalRef.current)) {
                 chipLabel = "Ongoing";
                 chipColor = "info";
-              }
-              if (res.status === "done") {
+                  chipVariant = "filled";
+                } else if (res.status === "done") {
                 chipLabel = "Done";
                 chipColor = "primary";
+                  chipVariant = "filled";
               } else if (res.status === "rejected") {
                 chipLabel = "Rejected";
                 chipColor = "error";
+                  chipVariant = "filled";
               }
 
               return (
-                <TableRow key={res.id} hover selected={editId === res.id}>
+                  <Zoom in timeout={200} key={res.id}>
+                    <TableRow hover selected={editId === res.id}>
                   <TableCell align="center">
                     {editId === res.id ? (
                       <TextField
-                        variant="standard"
+                            variant="outlined"
                         value={editedData.name || ""}
                         onChange={(e) =>
                           setEditedData({ ...editedData, name: e.target.value })
                         }
                         size="small"
+                            sx={{ minWidth: 120 }}
                       />
                     ) : (
-                      res.name
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                            {res.name}
+                          </Typography>
                     )}
                   </TableCell>
                   <TableCell align="center">
                     {editId === res.id ? (
                       <TextField
-                        variant="standard"
+                            variant="outlined"
                         value={editedData.email || ""}
                         onChange={(e) =>
                           setEditedData({ ...editedData, email: e.target.value })
                         }
                         size="small"
+                            sx={{ minWidth: 150 }}
                       />
                     ) : (
-                      res.email
+                          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                            {res.email}
+                          </Typography>
                     )}
                   </TableCell>
-                  {/* New TableCell for Room */}
                   <TableCell align="center">
                     {editId === res.id ? (
                       <TextField
-                        variant="standard"
+                            variant="outlined"
                         value={editedData.room || ""}
                         onChange={(e) =>
                           setEditedData({ ...editedData, room: e.target.value })
                         }
                         size="small"
+                            sx={{ minWidth: 100 }}
                       />
                     ) : (
-                      res.room || "-"
+                          <Chip 
+                            label={res.room || "-"} 
+                            size="small" 
+                            variant="outlined"
+                            color="primary"
+                          />
                     )}
                   </TableCell>
                   <TableCell align="center">
                     {editId === res.id ? (
                       <TextField
-                        variant="standard"
+                            variant="outlined"
                         type="date"
                         value={editedData.date || ""}
                         onChange={(e) =>
@@ -437,11 +804,13 @@ const AdminDashboard = () => {
                         InputLabelProps={{ shrink: true }}
                       />
                     ) : res.date ? (
-                      new Date(res.date + 'T00:00:00').toLocaleDateString("en-US", {
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                            {new Date(res.date + 'T00:00:00').toLocaleDateString("en-US", {
                         year: "numeric",
                         month: "short",
                         day: "numeric",
-                      })
+                            })}
+                          </Typography>
                     ) : (
                       "-"
                     )}
@@ -449,7 +818,7 @@ const AdminDashboard = () => {
                   <TableCell align="center">
                     {editId === res.id ? (
                       <TextField
-                        variant="standard"
+                            variant="outlined"
                         type="time"
                         value={editedData.from_time || ""}
                         onChange={(e) =>
@@ -459,13 +828,15 @@ const AdminDashboard = () => {
                         InputLabelProps={{ shrink: true }}
                       />
                     ) : (
-                      res.from_time || "-"
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                            {res.from_time || "-"}
+                          </Typography>
                     )}
                   </TableCell>
                   <TableCell align="center">
                     {editId === res.id ? (
                       <TextField
-                        variant="standard"
+                            variant="outlined"
                         type="time"
                         value={editedData.to_time || ""}
                         onChange={(e) =>
@@ -475,13 +846,15 @@ const AdminDashboard = () => {
                         InputLabelProps={{ shrink: true }}
                       />
                     ) : (
-                      res.to_time || "-"
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                            {res.to_time || "-"}
+                          </Typography>
                     )}
                   </TableCell>
                   <TableCell align="center">
                     {editId === res.id ? (
                       <TextField
-                        variant="standard"
+                            variant="outlined"
                         value={editedData.duration || ""}
                         onChange={(e) =>
                           setEditedData({ ...editedData, duration: e.target.value })
@@ -489,7 +862,12 @@ const AdminDashboard = () => {
                         size="small"
                       />
                     ) : res.duration ? (
-                      res.duration
+                          <Chip 
+                            label={res.duration} 
+                            size="small" 
+                            variant="outlined"
+                            color="secondary"
+                          />
                     ) : (
                       "-"
                     )}
@@ -497,7 +875,7 @@ const AdminDashboard = () => {
                   <TableCell align="center">
                     {editId === res.id ? (
                       <TextField
-                        variant="standard"
+                            variant="outlined"
                         value={editedData.guests || ""}
                         onChange={(e) =>
                           setEditedData({ ...editedData, guests: e.target.value })
@@ -505,41 +883,65 @@ const AdminDashboard = () => {
                         size="small"
                       />
                     ) : (
+                          <Chip 
+                            label={
                       Array.isArray(res.guests)
                         ? res.guests.length
                         : (typeof res.guests === "string"
                           ? res.guests.split(",").filter(Boolean).length
                           : 0)
+                            } 
+                            size="small" 
+                            variant="outlined"
+                            color="default"
+                            icon={<People sx={{ fontSize: 16 }} />}
+                          />
                     )}
                   </TableCell>
                   <TableCell align="center">
                     <Chip
                       label={chipLabel}
                       color={chipColor}
+                          variant={chipVariant}
                       size="small"
+                          sx={{ 
+                            fontWeight: 600,
+                            minWidth: 80
+                          }}
                     />
                   </TableCell>
-                  {/* New TableCell for Request Date */}
                   <TableCell align="center">
+                        <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
                     {res.requestDate || "-"}
+                        </Typography>
                   </TableCell>
                   <TableCell align="center">
                     {editId === res.id ? (
                       <Stack direction="row" spacing={1} justifyContent="center">
-                        <Tooltip title="Save">
+                            <Tooltip title="Save Changes">
                           <IconButton
                             color="success"
                             onClick={handleSave}
                             size="small"
+                                sx={{ 
+                                  bgcolor: 'success.main',
+                                  color: 'white',
+                                  '&:hover': { bgcolor: 'success.dark' }
+                                }}
                           >
                             <Save />
                           </IconButton>
                         </Tooltip>
-                        <Tooltip title="Cancel">
+                            <Tooltip title="Cancel Edit">
                           <IconButton
-                            color="inherit"
+                                color="error"
                             onClick={handleCancel}
                             size="small"
+                                sx={{ 
+                                  bgcolor: 'error.main',
+                                  color: 'white',
+                                  '&:hover': { bgcolor: 'error.dark' }
+                                }}
                           >
                             <Close />
                           </IconButton>
@@ -549,94 +951,128 @@ const AdminDashboard = () => {
                       <Stack direction="row" spacing={1} justifyContent="center">
                         {tabValue === 1 && res.status === "pending" && (
                           <>
-                            <Tooltip title="Accept">
                               <Button
                                 color="success"
                                 onClick={() => handleAccept(res)}
                                 size="small"
                                 variant="contained"
-                                sx={{ minWidth: 0, px: 2, fontSize: "0.85rem", textTransform: "none" }}
+                                  startIcon={<CheckCircle />}
+                                  sx={{ 
+                                    minWidth: 0, 
+                                    px: 2, 
+                                    fontSize: "0.75rem", 
+                                    textTransform: "none",
+                                    borderRadius: 2,
+                                    fontWeight: 600
+                                  }}
                                 disabled={isSubmitting}
                               >
                                 Accept
                               </Button>
-                            </Tooltip>
-                            <Tooltip title="Reject">
                               <Button
                                 color="error"
                                 onClick={() => handleOpenRejectReasonModal(res)}
                                 size="small"
                                 variant="contained"
+                                  startIcon={<Error />}
                                 sx={{
                                   minWidth: 0,
                                   px: 2,
-                                  fontSize: "0.85rem",
+                                    fontSize: "0.75rem",
                                   textTransform: "none",
+                                    borderRadius: 2,
+                                    fontWeight: 600
                                 }}
                                 disabled={isSubmitting}
                               >
                                 Reject
                               </Button>
-                            </Tooltip>
                           </>
                         )}
                         {tabValue === 0 && res.status === "accepted" && !isCurrentMeeting(res, nowLocalRef.current) && (
-                          <Tooltip title="Cancel Meeting">
                             <Button
                               color="error"
                               onClick={() => handleOpenCancelConfirmation(res)}
                               size="small"
                               variant="contained"
-                              sx={{ minWidth: 0, px: 2, fontSize: "0.85rem", textTransform: "none" }}
+                                startIcon={<Close />}
+                                sx={{ 
+                                  minWidth: 0, 
+                                  px: 2, 
+                                  fontSize: "0.75rem", 
+                                  textTransform: "none",
+                                  borderRadius: 2,
+                                  fontWeight: 600
+                                }}
                               disabled={isSubmitting}
                             >
                               Cancel
                             </Button>
-                          </Tooltip>
                         )}
                         {(tabValue === 0 || tabValue === 1) && (
-                          <Tooltip title="Details">
+                              <Tooltip title="View Details">
                             <IconButton
                               color="primary"
                               onClick={() => handleOpenDetails(res)}
                               size="small"
+                                  sx={{ 
+                                    bgcolor: 'primary.main',
+                                    color: 'white',
+                                    '&:hover': { bgcolor: 'primary.dark' }
+                                  }}
                             >
                               <InfoOutlined />
                             </IconButton>
                           </Tooltip>
                         )}
-                        <Tooltip title="Edit">
                           <Button
                             color="warning"
                             onClick={() => handleEdit(res)}
                             size="small"
                             variant="contained"
-                            sx={{ minWidth: 0, px: 2, fontSize: "0.85rem", textTransform: "none" }}
+                              startIcon={<Save />}
+                              sx={{ 
+                                minWidth: 0, 
+                                px: 2, 
+                                fontSize: "0.75rem", 
+                                textTransform: "none",
+                                borderRadius: 2,
+                                fontWeight: 600
+                              }}
                           >
                             Edit
                           </Button>
-                        </Tooltip>
                       </Stack>
                     )}
                   </TableCell>
                 </TableRow>
+                  </Zoom>
               );
             })}
             {currentItems.length === 0 && (
               <TableRow>
-                <TableCell colSpan={11} align="center" sx={{ py: 4 }}> {/* Increased colspan */}
-                  <Typography color="text.secondary">
+                  <TableCell colSpan={11} align="center" sx={{ py: 6 }}>
+                    <Stack spacing={2} alignItems="center">
+                      <Event sx={{ fontSize: 48, color: 'text.secondary', opacity: 0.5 }} />
+                      <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 500 }}>
+                        No reservations found
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
                     No reservations found for this category.
                   </Typography>
+                    </Stack>
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </TableContainer>
+      </Zoom>
 
+      {/* Enhanced Pagination */}
       {filteredReservations.length > 0 && (
-        <Stack direction="row" justifyContent="center" mt={3}>
+        <Stack direction="row" justifyContent="center" mt={4}>
+          <Paper sx={{ borderRadius: 3, px: 2, py: 1 }}>
           <Pagination
             count={totalPages}
             page={currentPage}
@@ -644,41 +1080,120 @@ const AdminDashboard = () => {
             color="primary"
             showFirstButton
             showLastButton
-          />
+              size={isMobile ? "small" : "medium"}
+              sx={{
+                '& .MuiPaginationItem-root': {
+                  borderRadius: 2,
+                  fontWeight: 600
+                }
+              }}
+            />
+          </Paper>
         </Stack>
       )}
 
-      <Dialog open={detailsDialog.open} onClose={handleCloseDetails} maxWidth="sm" fullWidth>
-        <DialogTitle>Reservation Details</DialogTitle>
-        <DialogContent dividers>
+      {/* Enhanced Details Dialog */}
+      <Dialog 
+        open={detailsDialog.open} 
+        onClose={handleCloseDetails} 
+        maxWidth="sm" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: 6
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          bgcolor: 'primary.main', 
+          color: 'white',
+          fontWeight: 700,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1
+        }}>
+          <InfoOutlined />
+          Reservation Details
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: 3 }}>
           {detailsDialog.data && (
-            <Stack spacing={2}>
-              <Typography>
-                <strong>Name:</strong> {detailsDialog.data.name || "-"}
+            <Stack spacing={3}>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Name
               </Typography>
-              <Typography>
-                <strong>Email:</strong> {detailsDialog.data.email || "-"}
+                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    {detailsDialog.data.name || "-"}
               </Typography>
-              <Typography>
-                <strong>Room:</strong> {detailsDialog.data.room || "-"}{/* Added Room to details */}
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Email
               </Typography>
-              <Typography>
-                <strong>Date:</strong> {detailsDialog.data.date ? new Date(detailsDialog.data.date + 'T00:00:00').toLocaleDateString("en-US") : "-"}
+                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    {detailsDialog.data.email || "-"}
               </Typography>
-              <Typography>
-                <strong>From Time:</strong> {detailsDialog.data.from_time || "-"}
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Room
               </Typography>
-              <Typography>
-                <strong>To Time:</strong> {detailsDialog.data.to_time || "-"}
+                  <Chip 
+                    label={detailsDialog.data.room || "-"} 
+                    color="primary" 
+                    variant="outlined"
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Date
               </Typography>
-              <Typography>
-                <strong>Duration:</strong> {detailsDialog.data.duration || "-"}
+                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    {detailsDialog.data.date ? new Date(detailsDialog.data.date + 'T00:00:00').toLocaleDateString("en-US") : "-"}
               </Typography>
-              <Typography>
-                <strong>Cost:</strong> {detailsDialog.data.totalCost || "-"}
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    From Time
               </Typography>
-              <Typography>
-                <strong>Guests:</strong> {
+                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    {detailsDialog.data.from_time || "-"}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    To Time
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    {detailsDialog.data.to_time || "-"}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Duration
+                  </Typography>
+                  <Chip 
+                    label={detailsDialog.data.duration || "-"} 
+                    color="secondary" 
+                    variant="outlined"
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Cost
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 600, color: 'success.main' }}>
+                    {detailsDialog.data.totalCost || "-"}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Guests
+                  </Typography>
+                  <Typography variant="body1">
+                    {
                   Array.isArray(detailsDialog.data.guests)
                     ? detailsDialog.data.guests.join(", ")
                     : (typeof detailsDialog.data.guests === "string"
@@ -686,40 +1201,111 @@ const AdminDashboard = () => {
                       : "-")
                 }
               </Typography>
-              <Typography>
-                <strong>Status:</strong> {detailsDialog.data.status || "-"}
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Status
               </Typography>
-              <Typography>
-                <strong>Request Date:</strong> {detailsDialog.data.requestDate || "-"}
+                  <Chip 
+                    label={detailsDialog.data.status || "-"} 
+                    color={
+                      detailsDialog.data.status === "accepted" ? "success" :
+                      detailsDialog.data.status === "pending" ? "warning" :
+                      detailsDialog.data.status === "rejected" ? "error" :
+                      "default"
+                    }
+                    variant="filled"
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Request Date
               </Typography>
+                  <Typography variant="body1" sx={{ color: 'text.secondary' }}>
+                    {detailsDialog.data.requestDate || "-"}
+                  </Typography>
+                </Grid>
+              </Grid>
             </Stack>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDetails} color="primary" variant="outlined">
+        <DialogActions sx={{ p: 3 }}>
+          <Button 
+            onClick={handleCloseDetails} 
+            color="primary" 
+            variant="contained"
+            sx={{ 
+              borderRadius: 2,
+              px: 3,
+              textTransform: 'none',
+              fontWeight: 600
+            }}
+          >
             Close
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Cancel Confirmation Dialog */}
+      {/* Enhanced Cancel Confirmation Dialog */}
       <Dialog
         open={cancelConfirmationOpen}
         onClose={handleCloseCancelConfirmation}
         aria-labelledby="cancel-dialog-title"
         aria-describedby="cancel-dialog-description"
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: 6
+          }
+        }}
       >
-        <DialogTitle id="cancel-dialog-title">Confirm Cancellation</DialogTitle>
-        <DialogContent>
-          <DialogContentText id="cancel-dialog-description">
+        <DialogTitle 
+          id="cancel-dialog-title"
+          sx={{ 
+            bgcolor: 'warning.main', 
+            color: 'white',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1
+          }}
+        >
+          <Warning />
+          Confirm Cancellation
+        </DialogTitle>
+        <DialogContent sx={{ p: 3 }}>
+          <DialogContentText id="cancel-dialog-description" sx={{ fontSize: '1rem' }}>
             Are you sure you want to change this meeting's status to "Pending"? This action cannot be undone.
           </DialogContentText>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseCancelConfirmation} color="primary" disabled={isSubmitting}>
-            No
+        <DialogActions sx={{ p: 3 }}>
+          <Button 
+            onClick={handleCloseCancelConfirmation} 
+            color="primary" 
+            variant="outlined"
+            disabled={isSubmitting}
+            sx={{ 
+              borderRadius: 2,
+              px: 3,
+              textTransform: 'none',
+              fontWeight: 600
+            }}
+          >
+            No, Keep
           </Button>
-          <Button onClick={handleConfirmCancel} color="error" autoFocus disabled={isSubmitting}>
+          <Button 
+            onClick={handleConfirmCancel} 
+            color="error" 
+            variant="contained"
+            autoFocus 
+            disabled={isSubmitting}
+            sx={{ 
+              borderRadius: 2,
+              px: 3,
+              textTransform: 'none',
+              fontWeight: 600
+            }}
+          >
             Yes, Change to Pending
           </Button>
         </DialogActions>
