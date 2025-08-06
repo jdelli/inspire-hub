@@ -27,9 +27,21 @@ import {
   Tabs,
   Tab,
   Pagination,
+  Grid,
+  Fade,
+  Zoom,
+  LinearProgress,
+  Alert,
+  IconButton,
 } from "@mui/material";
 import { green, red, blue, orange, grey } from "@mui/material/colors";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import AssessmentIcon from "@mui/icons-material/Assessment";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import BusinessIcon from "@mui/icons-material/Business";
+import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";
+import PersonIcon from "@mui/icons-material/Person";
+import GroupIcon from "@mui/icons-material/Group";
 
 // --- Common status chip props ---
 const statusChipProps = {
@@ -543,29 +555,195 @@ export default function ReservationMeetingReportTabs() {
   );
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
-      <Tabs
-        value={tab}
-        onChange={(_, v) => {
-          setTab(v);
-          setResPage(1);
-          setMeetPage(1);
-          setOfficePage(1);
-          setVirtualOfficePage(1);
-          setDeactivatedPage(1); // Reset deactivated tenants page when changing tabs
-        }}
-        sx={{ mb: 3 }}
-      >
-        <Tab label="Dedicated Desk Visit Schedule Report" />
-        <Tab label="Private Office Visit Report" />
-        <Tab label="Meeting Room Report" />
-        <Tab label="Virtual Office Report" />
-        <Tab label="Deactivated Tenants" /> {/* NEW TAB ADDED HERE */}
-      </Tabs>
+    <Box sx={{ 
+      minHeight: '100vh',
+      width: '100%',
+      bgcolor: 'background.default',
+      py: { xs: 2, sm: 3, md: 4 },
+      px: { xs: 1, sm: 2, md: 3 }
+    }}>
+      {/* Professional Header */}
+      <Box sx={{ mb: 4 }}>
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
+          mb: 3,
+          flexWrap: 'wrap',
+          gap: 2
+        }}>
+          <Box>
+            <Typography 
+              variant="h4" 
+              sx={{ 
+                fontWeight: 800,
+                color: 'primary.main',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                mb: 1
+              }}
+            >
+              <AssessmentIcon sx={{ fontSize: 32 }} />
+              Reports & Analytics
+            </Typography>
+            <Typography 
+              variant="body1" 
+              sx={{ 
+                color: 'text.secondary',
+                fontWeight: 500
+              }}
+            >
+              Comprehensive workspace analytics and reporting dashboard
+            </Typography>
+          </Box>
+          
+          <Button
+            variant="outlined"
+            startIcon={<RefreshIcon />}
+            onClick={() => {
+              // Refresh all data
+              fetchReservations();
+              fetchOfficeVisits();
+              fetchMeetings();
+              fetchVirtualOfficeVisits();
+              fetchDeactivatedData();
+            }}
+            disabled={isLoadingRes || isLoadingOffice || isLoadingMeet || isLoadingVirtualOffice || isLoadingDeactivated}
+            sx={{
+              borderColor: 'primary.main',
+              color: 'primary.main',
+              '&:hover': {
+                borderColor: 'primary.dark',
+                bgcolor: 'primary.50'
+              }
+            }}
+          >
+            Refresh Data
+          </Button>
+        </Box>
+
+        {/* Statistics Cards */}
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={12} sm={6} md={3}>
+            <Paper sx={{ 
+              p: 2, 
+              textAlign: 'center',
+              bgcolor: 'primary.50',
+              border: '1px solid',
+              borderColor: 'primary.200',
+              borderRadius: 2
+            }}>
+              <Typography variant="h3" sx={{ color: 'primary.main', fontWeight: 800, mb: 1 }}>
+                {reservations.length}
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'primary.700', fontWeight: 600 }}>
+                Total Reservations
+              </Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Paper sx={{ 
+              p: 2, 
+              textAlign: 'center',
+              bgcolor: 'success.50',
+              border: '1px solid',
+              borderColor: 'success.200',
+              borderRadius: 2
+            }}>
+              <Typography variant="h3" sx={{ color: 'success.main', fontWeight: 800, mb: 1 }}>
+                {meetings.length}
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'success.700', fontWeight: 600 }}>
+                Meeting Bookings
+              </Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Paper sx={{ 
+              p: 2, 
+              textAlign: 'center',
+              bgcolor: 'warning.50',
+              border: '1px solid',
+              borderColor: 'warning.200',
+              borderRadius: 2
+            }}>
+              <Typography variant="h3" sx={{ color: 'warning.main', fontWeight: 800, mb: 1 }}>
+                {officeVisits.length}
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'warning.700', fontWeight: 600 }}>
+                Office Visits
+              </Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Paper sx={{ 
+              p: 2, 
+              textAlign: 'center',
+              bgcolor: 'info.50',
+              border: '1px solid',
+              borderColor: 'info.200',
+              borderRadius: 2
+            }}>
+              <Typography variant="h3" sx={{ color: 'info.main', fontWeight: 800, mb: 1 }}>
+                {virtualOfficeVisits.length}
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'info.700', fontWeight: 600 }}>
+                Virtual Office Inquiries
+              </Typography>
+            </Paper>
+          </Grid>
+        </Grid>
+      </Box>
+
+      {/* Enhanced Tabs */}
+      <Paper sx={{ mb: 3, borderRadius: 2, overflow: 'hidden' }}>
+        <Tabs
+          value={tab}
+          onChange={(_, v) => {
+            setTab(v);
+            setResPage(1);
+            setMeetPage(1);
+            setOfficePage(1);
+            setVirtualOfficePage(1);
+            setDeactivatedPage(1);
+          }}
+          sx={{ 
+            bgcolor: 'primary.50',
+            '& .MuiTab-root': {
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              textTransform: 'none',
+              minHeight: 64,
+              '&.Mui-selected': {
+                color: 'primary.main',
+                bgcolor: 'white'
+              }
+            }
+          }}
+          indicatorColor="primary"
+          textColor="primary"
+          variant="scrollable"
+          scrollButtons="auto"
+        >
+          <Tab label="Dedicated Desk Visit Schedule Report" />
+          <Tab label="Private Office Visit Report" />
+          <Tab label="Meeting Room Report" />
+          <Tab label="Virtual Office Report" />
+          <Tab label="Deactivated Tenants" />
+        </Tabs>
+      </Paper>
 
       {/* --- Dedicated Desk Visit Schedule Report Tab --- */}
       {tab === 0 && (
-        <Card variant="outlined" sx={{ boxShadow: 2 }}>
+        <Fade in={true} timeout={500}>
+          <Card variant="outlined" sx={{ 
+            boxShadow: 3,
+            borderRadius: 3,
+            border: '1px solid',
+            borderColor: 'divider',
+            overflow: 'hidden'
+          }}>
           <CardContent>
             <Box
               display="flex"
@@ -573,25 +751,44 @@ export default function ReservationMeetingReportTabs() {
               alignItems={{ xs: "start", sm: "center" }}
               flexDirection={{ xs: "column", sm: "row" }}
               mb={3}
+              sx={{
+                pb: 2,
+                borderBottom: '2px solid',
+                borderColor: 'primary.200'
+              }}
             >
-              <Typography
-                variant="h5"
-                fontWeight="bold"
-                color="text.primary"
-                gutterBottom
-              >
-                Dedicated Desk Visit Schedule Report
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <BusinessIcon sx={{ fontSize: 28, color: 'primary.main' }} />
+                <Typography
+                  variant="h5"
+                  fontWeight="bold"
+                  color="primary.main"
+                  gutterBottom
+                >
+                  Dedicated Desk Visit Schedule Report
+                </Typography>
+              </Box>
+              <Chip 
+                label={`${reservations.length} Total Records`}
+                color="primary"
+                variant="outlined"
+                sx={{ fontWeight: 600 }}
+              />
             </Box>
 
             {isLoadingRes ? (
               <Box
                 display="flex"
+                flexDirection="column"
                 justifyContent="center"
                 alignItems="center"
                 minHeight={256}
+                gap={2}
               >
                 <CircularProgress color="primary" size={56} thickness={4} />
+                <Typography variant="h6" color="text.secondary">
+                  Loading reservation data...
+                </Typography>
               </Box>
             ) : (
               <Box sx={{ overflowX: "auto" }}>
@@ -710,11 +907,19 @@ export default function ReservationMeetingReportTabs() {
             )}
           </CardContent>
         </Card>
+        </Fade>
       )}
 
       {/* --- Private Office Visit Report Tab --- */}
       {tab === 1 && (
-        <Card variant="outlined" sx={{ boxShadow: 2 }}>
+        <Fade in={true} timeout={500}>
+          <Card variant="outlined" sx={{ 
+            boxShadow: 3,
+            borderRadius: 3,
+            border: '1px solid',
+            borderColor: 'divider',
+            overflow: 'hidden'
+          }}>
           <CardContent>
             <Box
               display="flex"
@@ -722,25 +927,44 @@ export default function ReservationMeetingReportTabs() {
               alignItems={{ xs: "start", sm: "center" }}
               flexDirection={{ xs: "column", sm: "row" }}
               mb={3}
+              sx={{
+                pb: 2,
+                borderBottom: '2px solid',
+                borderColor: 'warning.200'
+              }}
             >
-              <Typography
-                variant="h5"
-                fontWeight="bold"
-                color="text.primary"
-                gutterBottom
-              >
-                Private Office Visit Report
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <MeetingRoomIcon sx={{ fontSize: 28, color: 'warning.main' }} />
+                <Typography
+                  variant="h5"
+                  fontWeight="bold"
+                  color="warning.main"
+                  gutterBottom
+                >
+                  Private Office Visit Report
+                </Typography>
+              </Box>
+              <Chip 
+                label={`${officeVisits.length} Total Records`}
+                color="warning"
+                variant="outlined"
+                sx={{ fontWeight: 600 }}
+              />
             </Box>
 
             {isLoadingOffice ? (
               <Box
                 display="flex"
+                flexDirection="column"
                 justifyContent="center"
                 alignItems="center"
                 minHeight={256}
+                gap={2}
               >
-                <CircularProgress color="primary" size={56} thickness={4} />
+                <CircularProgress color="warning" size={56} thickness={4} />
+                <Typography variant="h6" color="text.secondary">
+                  Loading office visit data...
+                </Typography>
               </Box>
             ) : (
               <Box sx={{ overflowX: "auto" }}>
@@ -869,6 +1093,7 @@ export default function ReservationMeetingReportTabs() {
             )}
           </CardContent>
         </Card>
+        </Fade>
       )}
 
       {/* --- Meeting Room Report Tab --- */}
@@ -1507,6 +1732,6 @@ export default function ReservationMeetingReportTabs() {
         </DialogActions>
       </Dialog>
 
-    </Container>
+    </Box>
   );
 }

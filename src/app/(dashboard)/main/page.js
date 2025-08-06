@@ -75,7 +75,7 @@ const Page = () => {
       }
     }, 5000);
     return () => clearInterval(interval);
-  }, [currentIndex, isAnimating]);
+  }, [currentIndex, isAnimating, goToNextSlide]);
 
   return (
     <div className="relative w-full min-h-screen bg-gray-900 overflow-hidden">
@@ -105,10 +105,11 @@ const Page = () => {
                 {/* Content Overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/70 to-transparent flex flex-col justify-end p-6 sm:p-8 md:p-10">
                   <div className="absolute top-4 left-1/2 -translate-x-1/2 w-[200px] h-[60px] sm:top-1 sm:w-[320px] sm:h-[320px] md:w-[500px] md:h-[400px] z-10">
-                    <img
+                    <Image
                       src="/images/logogogo.png"
                       alt="Company Logo"
-                      className="w-full h-full object-contain"
+                      fill
+                      className="object-contain"
                     />
                   </div>
 

@@ -42,7 +42,7 @@ const withUserRole = (WrappedComponent, allowedRoles = ["admin"]) => {
       if (!allowedRoles.includes(role)) {
         router.replace("/notauthorize");
       }
-    }, [loading, user, role, router, allowedRoles]);
+    }, [loading, user, role, router]);
 
     return (
       <WrappedComponent
