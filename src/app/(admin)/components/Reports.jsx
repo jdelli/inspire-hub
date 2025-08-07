@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { db } from "../../../../script/firebaseConfig"; // Ensure this path is correct
+import { db } from "../../../../script/firebaseConfig";
 import { collection, getDocs, where, query } from "firebase/firestore";
 import {
   Box,
@@ -16,7 +16,6 @@ import {
   TableRow,
   Chip,
   Paper,
-  Container,
   Button,
   Dialog,
   DialogTitle,
@@ -33,6 +32,10 @@ import {
   LinearProgress,
   Alert,
   IconButton,
+  Avatar,
+  Tooltip,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import { green, red, blue, orange, grey } from "@mui/material/colors";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
@@ -42,6 +45,7 @@ import BusinessIcon from "@mui/icons-material/Business";
 import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";
 import PersonIcon from "@mui/icons-material/Person";
 import GroupIcon from "@mui/icons-material/Group";
+import CloseIcon from "@mui/icons-material/Close";
 
 // --- Common status chip props ---
 const statusChipProps = {
@@ -145,6 +149,8 @@ function formatTime24h(timeValue) {
 const ITEMS_PER_PAGE = 10;
 
 export default function ReservationMeetingReportTabs() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [tab, setTab] = useState(0);
 
   // --- State for Dedicated Desk Visit Schedule ---
@@ -555,149 +561,137 @@ export default function ReservationMeetingReportTabs() {
   );
 
   return (
-    <Box sx={{ 
-      minHeight: '100vh',
-      width: '100%',
-      bgcolor: 'background.default',
-      py: { xs: 2, sm: 3, md: 4 },
-      px: { xs: 1, sm: 2, md: 3 }
-    }}>
-      {/* Professional Header */}
+    <Box sx={{ py: 4, px: { xs: 2, sm: 3, md: 4 }, width: "100%" }}>
+      {/* Header Section */}
       <Box sx={{ mb: 4 }}>
-        <Box sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'space-between',
-          mb: 3,
-          flexWrap: 'wrap',
-          gap: 2
-        }}>
+        <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3 }}>
+          <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56 }}>
+            <AssessmentIcon sx={{ fontSize: 28 }} />
+          </Avatar>
           <Box>
-            <Typography 
-              variant="h4" 
-              sx={{ 
-                fontWeight: 800,
-                color: 'primary.main',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-                mb: 1
-              }}
-            >
-              <AssessmentIcon sx={{ fontSize: 32 }} />
+            <Typography variant="h5" fontWeight={700} color="text.primary">
               Reports & Analytics
             </Typography>
-            <Typography 
-              variant="body1" 
-              sx={{ 
-                color: 'text.secondary',
-                fontWeight: 500
-              }}
-            >
+            <Typography variant="body1" color="text.secondary">
               Comprehensive workspace analytics and reporting dashboard
             </Typography>
           </Box>
-          
-          <Button
-            variant="outlined"
-            startIcon={<RefreshIcon />}
-            onClick={() => {
-              // Refresh all data
-              fetchReservations();
-              fetchOfficeVisits();
-              fetchMeetings();
-              fetchVirtualOfficeVisits();
-              fetchDeactivatedData();
-            }}
-            disabled={isLoadingRes || isLoadingOffice || isLoadingMeet || isLoadingVirtualOffice || isLoadingDeactivated}
-            sx={{
-              borderColor: 'primary.main',
-              color: 'primary.main',
-              '&:hover': {
-                borderColor: 'primary.dark',
-                bgcolor: 'primary.50'
-              }
-            }}
-          >
-            Refresh Data
-          </Button>
-        </Box>
+        </Stack>
 
         {/* Statistics Cards */}
-        <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid container spacing={2} sx={{ mb: 4 }}>
           <Grid item xs={12} sm={6} md={3}>
-            <Paper sx={{ 
-              p: 2, 
-              textAlign: 'center',
-              bgcolor: 'primary.50',
-              border: '1px solid',
-              borderColor: 'primary.200',
-              borderRadius: 2
-            }}>
-              <Typography variant="h3" sx={{ color: 'primary.main', fontWeight: 800, mb: 1 }}>
-                {reservations.length}
-              </Typography>
-              <Typography variant="body2" sx={{ color: 'primary.700', fontWeight: 600 }}>
-                Total Reservations
-              </Typography>
-            </Paper>
+            <Card 
+              elevation={0} 
+              sx={{ 
+                backgroundColor: 'background.paper',
+                border: `1px solid ${grey[200]}`,
+                borderRadius: 1,
+              }}
+            >
+              <CardContent sx={{ p: 2 }}>
+                <Stack direction="row" alignItems="center" justifyContent="space-between">
+                  <Box>
+                    <Typography variant="h5" fontWeight={700}>
+                      {reservations.length}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Total Reservations
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: grey[100], width: 40, height: 40 }}>
+                    <BusinessIcon sx={{ fontSize: 20, color: grey[800] }} />
+                  </Avatar>
+                </Stack>
+              </CardContent>
+            </Card>
           </Grid>
+          
           <Grid item xs={12} sm={6} md={3}>
-            <Paper sx={{ 
-              p: 2, 
-              textAlign: 'center',
-              bgcolor: 'success.50',
-              border: '1px solid',
-              borderColor: 'success.200',
-              borderRadius: 2
-            }}>
-              <Typography variant="h3" sx={{ color: 'success.main', fontWeight: 800, mb: 1 }}>
-                {meetings.length}
-              </Typography>
-              <Typography variant="body2" sx={{ color: 'success.700', fontWeight: 600 }}>
-                Meeting Bookings
-              </Typography>
-            </Paper>
+            <Card 
+              elevation={0} 
+              sx={{ 
+                backgroundColor: 'background.paper',
+                border: `1px solid ${grey[200]}`,
+                borderRadius: 1,
+              }}
+            >
+              <CardContent sx={{ p: 2 }}>
+                <Stack direction="row" alignItems="center" justifyContent="space-between">
+                  <Box>
+                    <Typography variant="h5" fontWeight={700}>
+                      {meetings.length}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Meeting Bookings
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: grey[100], width: 40, height: 40 }}>
+                    <MeetingRoomIcon sx={{ fontSize: 20, color: grey[800] }} />
+                  </Avatar>
+                </Stack>
+              </CardContent>
+            </Card>
           </Grid>
+          
           <Grid item xs={12} sm={6} md={3}>
-            <Paper sx={{ 
-              p: 2, 
-              textAlign: 'center',
-              bgcolor: 'warning.50',
-              border: '1px solid',
-              borderColor: 'warning.200',
-              borderRadius: 2
-            }}>
-              <Typography variant="h3" sx={{ color: 'warning.main', fontWeight: 800, mb: 1 }}>
-                {officeVisits.length}
-              </Typography>
-              <Typography variant="body2" sx={{ color: 'warning.700', fontWeight: 600 }}>
-                Office Visits
-              </Typography>
-            </Paper>
+            <Card 
+              elevation={0} 
+              sx={{ 
+                backgroundColor: 'background.paper',
+                border: `1px solid ${grey[200]}`,
+                borderRadius: 1,
+              }}
+            >
+              <CardContent sx={{ p: 2 }}>
+                <Stack direction="row" alignItems="center" justifyContent="space-between">
+                  <Box>
+                    <Typography variant="h5" fontWeight={700}>
+                      {officeVisits.length}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Office Visits
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: grey[100], width: 40, height: 40 }}>
+                    <PersonIcon sx={{ fontSize: 20, color: grey[800] }} />
+                  </Avatar>
+                </Stack>
+              </CardContent>
+            </Card>
           </Grid>
+          
           <Grid item xs={12} sm={6} md={3}>
-            <Paper sx={{ 
-              p: 2, 
-              textAlign: 'center',
-              bgcolor: 'info.50',
-              border: '1px solid',
-              borderColor: 'info.200',
-              borderRadius: 2
-            }}>
-              <Typography variant="h3" sx={{ color: 'info.main', fontWeight: 800, mb: 1 }}>
-                {virtualOfficeVisits.length}
-              </Typography>
-              <Typography variant="body2" sx={{ color: 'info.700', fontWeight: 600 }}>
-                Virtual Office Inquiries
-              </Typography>
-            </Paper>
+            <Card 
+              elevation={0} 
+              sx={{ 
+                backgroundColor: 'background.paper',
+                border: `1px solid ${grey[200]}`,
+                borderRadius: 1,
+              }}
+            >
+              <CardContent sx={{ p: 2 }}>
+                <Stack direction="row" alignItems="center" justifyContent="space-between">
+                  <Box>
+                    <Typography variant="h5" fontWeight={700}>
+                      {virtualOfficeVisits.length}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Virtual Office Inquiries
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: grey[100], width: 40, height: 40 }}>
+                    <GroupIcon sx={{ fontSize: 20, color: grey[800] }} />
+                  </Avatar>
+                </Stack>
+              </CardContent>
+            </Card>
           </Grid>
         </Grid>
       </Box>
 
       {/* Enhanced Tabs */}
-      <Paper sx={{ mb: 3, borderRadius: 2, overflow: 'hidden' }}>
+      <Card elevation={0} sx={{ border: `1px solid ${grey[200]}`, borderRadius: 1, mb: 2 }}>
         <Tabs
           value={tab}
           onChange={(_, v) => {
@@ -709,204 +703,244 @@ export default function ReservationMeetingReportTabs() {
             setDeactivatedPage(1);
           }}
           sx={{ 
-            bgcolor: 'primary.50',
             '& .MuiTab-root': {
-              fontWeight: 600,
-              fontSize: '0.9rem',
+              minHeight: 48,
+              fontSize: '0.875rem',
+              fontWeight: 500,
               textTransform: 'none',
-              minHeight: 64,
               '&.Mui-selected': {
-                color: 'primary.main',
-                bgcolor: 'white'
+                fontWeight: 600,
               }
             }
           }}
           indicatorColor="primary"
           textColor="primary"
-          variant="scrollable"
-          scrollButtons="auto"
+          variant="fullWidth"
         >
-          <Tab label="Dedicated Desk Visit Schedule Report" />
-          <Tab label="Private Office Visit Report" />
-          <Tab label="Meeting Room Report" />
-          <Tab label="Virtual Office Report" />
-          <Tab label="Deactivated Tenants" />
+          <Tab 
+            label={
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <BusinessIcon fontSize="small" />
+                <span>Dedicated Desk</span>
+              </Stack>
+            } 
+          />
+          <Tab 
+            label={
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <PersonIcon fontSize="small" />
+                <span>Private Office</span>
+              </Stack>
+            } 
+          />
+          <Tab 
+            label={
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <MeetingRoomIcon fontSize="small" />
+                <span>Meeting Room</span>
+              </Stack>
+            } 
+          />
+          <Tab 
+            label={
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <GroupIcon fontSize="small" />
+                <span>Virtual Office</span>
+              </Stack>
+            } 
+          />
+          <Tab 
+            label={
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <InfoOutlinedIcon fontSize="small" />
+                <span>Deactivated</span>
+              </Stack>
+            } 
+          />
         </Tabs>
-      </Paper>
+      </Card>
 
       {/* --- Dedicated Desk Visit Schedule Report Tab --- */}
       {tab === 0 && (
         <Fade in={true} timeout={500}>
-          <Card variant="outlined" sx={{ 
-            boxShadow: 3,
-            borderRadius: 3,
-            border: '1px solid',
-            borderColor: 'divider',
-            overflow: 'hidden'
-          }}>
-          <CardContent>
-            <Box
-              display="flex"
-              justifyContent="space-between"
-              alignItems={{ xs: "start", sm: "center" }}
-              flexDirection={{ xs: "column", sm: "row" }}
-              mb={3}
-              sx={{
-                pb: 2,
-                borderBottom: '2px solid',
-                borderColor: 'primary.200'
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <BusinessIcon sx={{ fontSize: 28, color: 'primary.main' }} />
-                <Typography
-                  variant="h5"
-                  fontWeight="bold"
-                  color="primary.main"
-                  gutterBottom
-                >
-                  Dedicated Desk Visit Schedule Report
-                </Typography>
-              </Box>
-              <Chip 
-                label={`${reservations.length} Total Records`}
-                color="primary"
-                variant="outlined"
-                sx={{ fontWeight: 600 }}
-              />
-            </Box>
-
-            {isLoadingRes ? (
-              <Box
-                display="flex"
-                flexDirection="column"
-                justifyContent="center"
-                alignItems="center"
-                minHeight={256}
-                gap={2}
-              >
-                <CircularProgress color="primary" size={56} thickness={4} />
-                <Typography variant="h6" color="text.secondary">
-                  Loading reservation data...
-                </Typography>
-              </Box>
-            ) : (
-              <Box sx={{ overflowX: "auto" }}>
-                <TableContainer component={Paper}>
-                  <Table
-                    size="medium"
-                    sx={{
-                      borderCollapse: "collapse",
-                      "& .MuiTableCell-root": { border: "1px solid #bdbdbd" },
-                    }}
-                  >
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>
-                          <Typography variant="subtitle2" color="text.secondary">
-                            Client
+          <Card elevation={0} sx={{ border: `1px solid ${grey[200]}`, borderRadius: 1, overflow: 'hidden' }}>
+            <TableContainer>
+              <Table sx={{ minWidth: 750 }}>
+                <TableHead>
+                  <TableRow sx={{ backgroundColor: grey[50] }}>
+                    <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                      <Typography variant="subtitle2" fontWeight={600}>
+                        Client Name
+                      </Typography>
+                    </TableCell>
+                    <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                      <Typography variant="subtitle2" fontWeight={600}>
+                        Company
+                      </Typography>
+                    </TableCell>
+                    <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                      <Typography variant="subtitle2" fontWeight={600}>
+                        Contact Info
+                      </Typography>
+                    </TableCell>
+                    <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                      <Typography variant="subtitle2" fontWeight={600}>
+                        Date & Time
+                      </Typography>
+                    </TableCell>
+                    <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                      <Typography variant="subtitle2" fontWeight={600}>
+                        Status
+                      </Typography>
+                    </TableCell>
+                    <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                      <Typography variant="subtitle2" fontWeight={600}>
+                        Actions
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {isLoadingRes ? (
+                    <TableRow>
+                      <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+                        <Stack spacing={2} alignItems="center">
+                          <CircularProgress color="primary" size={40} />
+                          <Typography variant="body2" color="text.secondary">
+                            Loading reservation data...
                           </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="subtitle2" color="text.secondary">
-                            Date &amp; Time
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  ) : paginatedReservations.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+                        <Stack spacing={2} alignItems="center">
+                          <BusinessIcon sx={{ fontSize: 48, color: 'text.secondary', opacity: 0.5 }} />
+                          <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 500 }}>
+                            No reservations found
                           </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="subtitle2" color="text.secondary">
-                            Status
+                          <Typography variant="body2" color="text.secondary">
+                            No dedicated desk reservations found.
                           </Typography>
-                        </TableCell>
-                        <TableCell />
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {paginatedReservations.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={4} align="center">
-                            <Typography color="text.secondary">
-                              No dedicated desk reservations found.
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        paginatedReservations.map((reservation) => {
-                          const statusProps = getStatusProps(reservation.status); // Use the helper
-                          return (
-                            <TableRow
-                              key={reservation.id}
-                              hover
-                              sx={{
-                                "&:hover": {
-                                  backgroundColor: "action.hover",
-                                },
-                              }}
-                            >
-                              <TableCell>
-                                <Typography variant="body2" fontWeight={500}>
-                                  {reservation.name}
-                                </Typography>
-                              </TableCell>
-                              <TableCell>
-                                <Typography variant="body2" color="text.secondary">
-                                  {reservation.date
-                                    ? format(reservation.date, "PPPpp")
-                                    : "N/A"}
-                                </Typography>
-                              </TableCell>
-                              <TableCell>
-                                <Chip
-                                  label={statusProps.label}
-                                  sx={{
-                                    ...statusProps.style,
-                                    fontSize: "0.875rem",
-                                    borderRadius: "999px",
-                                    px: 1.5,
-                                  }}
-                                  size="small"
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <Button
-                                  size="small"
-                                  variant="outlined"
-                                  onClick={() => handleOpenModalRes(reservation)}
-                                  startIcon={<InfoOutlinedIcon />}
-                                  sx={{
-                                    fontWeight: 600,
-                                    borderRadius: "999px",
-                                    textTransform: "none",
-                                    borderColor: blue[100],
-                                    color: blue[700],
-                                    "&:hover": {
-                                      backgroundColor: blue[50],
-                                    },
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    paginatedReservations.map((reservation, index) => {
+                      const statusProps = getStatusProps(reservation.status);
+                      return (
+                        <Zoom in={true} timeout={300 + (index * 100)} key={reservation.id}>
+                          <TableRow 
+                            hover 
+                            sx={{ 
+                              '&:hover': { backgroundColor: grey[50] },
+                            }}
+                          >
+                            <TableCell sx={{ py: 2, px: 3 }}>
+                              <Stack direction="row" spacing={1.5} alignItems="center">
+                                <Avatar 
+                                  sx={{ 
+                                    bgcolor: grey[200], 
+                                    color: grey[800],
+                                    width: 36, 
+                                    height: 36, 
+                                    fontSize: 14,
+                                    fontWeight: 500
                                   }}
                                 >
-                                  View Details
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-                <Stack direction="row" justifyContent="center" mt={3}>
+                                  {reservation.name?.[0]?.toUpperCase() || "?"}
+                                </Avatar>
+                                <Box>
+                                  <Typography variant="body1" fontWeight={500}>
+                                    {reservation.name || "N/A"}
+                                  </Typography>
+                                </Box>
+                              </Stack>
+                            </TableCell>
+                            <TableCell sx={{ py: 2, px: 3 }}>
+                              <Typography variant="body2" color="text.secondary">
+                                {reservation.company || "N/A"}
+                              </Typography>
+                            </TableCell>
+                            <TableCell sx={{ py: 2, px: 3 }}>
+                              <Stack spacing={0.5}>
+                                <Typography variant="body2">
+                                  {reservation.email || "N/A"}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary" fontSize="0.875rem">
+                                  {reservation.phone || "N/A"}
+                                </Typography>
+                              </Stack>
+                            </TableCell>
+                            <TableCell sx={{ py: 2, px: 3 }}>
+                              <Typography variant="body2" color="text.secondary">
+                                {reservation.date
+                                  ? format(reservation.date, "PPPpp")
+                                  : "N/A"}
+                              </Typography>
+                            </TableCell>
+                            <TableCell sx={{ py: 2, px: 3 }}>
+                              <Chip
+                                label={statusProps.label}
+                                size="small"
+                                sx={{
+                                  bgcolor: statusProps.style.backgroundColor,
+                                  color: statusProps.style.color,
+                                  fontWeight: 500,
+                                  fontSize: '0.75rem'
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell sx={{ py: 2, px: 3 }}>
+                              <Tooltip title="View Details">
+                                <IconButton
+                                  size="small"
+                                  sx={{ 
+                                    color: grey[700],
+                                    '&:hover': { 
+                                      bgcolor: grey[100],
+                                    },
+                                  }}
+                                  onClick={() => handleOpenModalRes(reservation)}
+                                >
+                                  <InfoOutlinedIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </TableCell>
+                          </TableRow>
+                        </Zoom>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            
+            {/* Pagination */}
+            {paginatedReservations.length > 0 && (
+              <Box sx={{ p: 2, borderTop: `1px solid ${grey[200]}` }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="body2" color="text.secondary">
+                    Showing {((resPage - 1) * ITEMS_PER_PAGE) + 1} to {Math.min(resPage * ITEMS_PER_PAGE, reservations.length)} of {reservations.length} reservations
+                  </Typography>
                   <Pagination
                     count={Math.ceil(reservations.length / ITEMS_PER_PAGE)}
                     page={resPage}
                     onChange={(_, val) => setResPage(val)}
                     color="primary"
-                    showFirstButton
-                    showLastButton
+                    size={isMobile ? "small" : "medium"}
+                    sx={{
+                      '& .MuiPaginationItem-root': {
+                        borderRadius: 1,
+                        fontWeight: 500,
+                      }
+                    }}
                   />
                 </Stack>
               </Box>
             )}
-          </CardContent>
-        </Card>
+          </Card>
         </Fade>
       )}
 
@@ -1580,29 +1614,116 @@ export default function ReservationMeetingReportTabs() {
         </Card>
       )}
 
-      {/* --- Modals for Details (omitted for brevity, assume they are correct) --- */}
+      {/* --- Modals for Details --- */}
       {/* Dedicated Desk Reservation Details Modal */}
-      <Dialog open={modalOpenRes} onClose={handleCloseModalRes} maxWidth="sm" fullWidth>
-        <DialogTitle>Dedicated Desk Reservation Details</DialogTitle>
-        <DialogContent dividers>
+      <Dialog 
+        open={modalOpenRes} 
+        onClose={handleCloseModalRes} 
+        maxWidth="sm" 
+        fullWidth
+        PaperProps={{
+          sx: { 
+            maxHeight: '90vh',
+            borderRadius: 1,
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          display: "flex", 
+          justifyContent: "space-between", 
+          alignItems: "center",
+          borderBottom: `1px solid ${grey[200]}`
+        }}>
+          <Box>
+            <Typography variant="h6" fontWeight={600}>
+              Dedicated Desk Reservation Details
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {selectedClient?.company}
+            </Typography>
+          </Box>
+          <IconButton
+            onClick={handleCloseModalRes}
+            aria-label="close"
+            size="small"
+            sx={{ 
+              color: grey[600],
+              '&:hover': { bgcolor: grey[100] }
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: 2 }}>
           {selectedClient && (
-            <>
-              <Typography variant="subtitle1" fontWeight="bold">Client Information:</Typography>
-              <Typography>Name: {selectedClient.name}</Typography>
-              <Typography>Email: {selectedClient.email}</Typography>
-              <Typography>Phone: {selectedClient.phone}</Typography>
-              <Typography>Company: {selectedClient.company}</Typography>
-              <Divider sx={{ my: 2 }} />
-              <Typography variant="subtitle1" fontWeight="bold">Reservation Details:</Typography>
-              <Typography>Date & Time: {selectedClient.date ? format(selectedClient.date, "PPPpp") : "N/A"}</Typography>
-              <Typography>Reserved Seats: {selectedClient.reservedSeats.join(", ") || "N/A"}</Typography>
-              <Typography>Status: <Chip label={getStatusProps(selectedClient.status).label} sx={{...getStatusProps(selectedClient.status).style}} size="small" /></Typography>
-              <Typography>Details: {selectedClient.details}</Typography>
-            </>
+            <Stack spacing={3}>
+              <Box>
+                <Typography variant="subtitle2" fontWeight={600} color="text.secondary" gutterBottom>
+                  Client Information
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.secondary">Name</Typography>
+                    <Typography variant="body1" fontWeight={500}>{selectedClient.name}</Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.secondary">Email</Typography>
+                    <Typography variant="body1" fontWeight={500}>{selectedClient.email}</Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.secondary">Phone</Typography>
+                    <Typography variant="body1" fontWeight={500}>{selectedClient.phone}</Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.secondary">Company</Typography>
+                    <Typography variant="body1" fontWeight={500}>{selectedClient.company}</Typography>
+                  </Grid>
+                </Grid>
+              </Box>
+              <Divider />
+              <Box>
+                <Typography variant="subtitle2" fontWeight={600} color="text.secondary" gutterBottom>
+                  Reservation Details
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.secondary">Date & Time</Typography>
+                    <Typography variant="body1" fontWeight={500}>
+                      {selectedClient.date ? format(selectedClient.date, "PPPpp") : "N/A"}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.secondary">Status</Typography>
+                    <Chip 
+                      label={getStatusProps(selectedClient.status).label} 
+                      sx={{...getStatusProps(selectedClient.status).style}} 
+                      size="small" 
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Typography variant="body2" color="text.secondary">Reserved Seats</Typography>
+                    <Typography variant="body1" fontWeight={500}>
+                      {selectedClient.reservedSeats?.join(", ") || "N/A"}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Typography variant="body2" color="text.secondary">Details</Typography>
+                    <Typography variant="body1" fontWeight={500}>{selectedClient.details}</Typography>
+                  </Grid>
+                </Grid>
+              </Box>
+            </Stack>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseModalRes}>Close</Button>
+        <DialogActions sx={{ p: 2, pt: 0 }}>
+          <Button 
+            onClick={handleCloseModalRes} 
+            color="primary" 
+            variant="outlined"
+            sx={{ borderRadius: 1, fontWeight: 500 }}
+          >
+            Close
+          </Button>
         </DialogActions>
       </Dialog>
 

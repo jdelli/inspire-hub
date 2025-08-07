@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react"; // Import useRef
+import React, { useEffect, useState, useRef } from "react";
 import {
   collection,
   getDocs,
@@ -41,7 +41,8 @@ import {
   Zoom,
   LinearProgress,
   Alert,
-  Divider
+  Divider,
+  Avatar
 } from "@mui/material";
 import { 
   Save, 
@@ -58,6 +59,7 @@ import {
   Error,
   AccessTime
 } from "@mui/icons-material";
+import { grey } from "@mui/material/colors";
 
 import RejectReasonModal from "./RejectReason";
 
@@ -349,363 +351,289 @@ const AdminDashboard = () => {
   };
 
   return (
-    <Box 
-      sx={{ 
-        minHeight: '100vh',
-        width: '100%',
-        bgcolor: 'background.default',
-        py: { xs: 2, sm: 3, md: 4 },
-        px: { xs: 1, sm: 2, md: 3 }
-      }}
-    >
+    <Box sx={{ py: 4, px: { xs: 2, sm: 3, md: 4 }, width: "100%" }}>
       {/* Header Section */}
       <Box sx={{ mb: 4 }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
-          <Stack direction="row" alignItems="center" spacing={2}>
-            <Box
-              sx={{
-                p: 1.5,
-                borderRadius: 2,
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                color: 'white',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <MeetingRoom sx={{ fontSize: 28 }} />
-            </Box>
-            <Box>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary' }}>
-                Meeting Room Management
-      </Typography>
-              <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-                Manage and monitor all meeting room reservations
-              </Typography>
-            </Box>
-          </Stack>
-          <Button
-            variant="outlined"
-            startIcon={<Refresh />}
-            onClick={fetchAndUpdateReservations}
-            disabled={isRefreshing}
-            sx={{
-              borderRadius: 2,
-              px: 3,
-              py: 1,
-              textTransform: 'none',
-              fontWeight: 600,
-              '&:hover': {
-                transform: 'translateY(-1px)',
-                boxShadow: 2
-              }
-            }}
-          >
-            {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
-          </Button>
+        <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3 }}>
+          <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56 }}>
+            <MeetingRoom sx={{ fontSize: 28 }} />
+          </Avatar>
+          <Box>
+            <Typography variant="h5" fontWeight={700} color="text.primary">
+              Meeting Room Management
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              Manage and monitor all meeting room reservations
+            </Typography>
+          </Box>
         </Stack>
 
         {/* Statistics Cards */}
-        <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid container spacing={2} sx={{ mb: 4 }}>
           <Grid item xs={12} sm={6} md={2}>
-            <Fade in timeout={300}>
-              <Card
-                sx={{
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  color: 'white',
-                  borderRadius: 3,
-                  boxShadow: 3,
-                  '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: 6,
-                    transition: 'all 0.3s ease'
-                  }
-                }}
-              >
-                <CardContent sx={{ p: 3, textAlign: 'center' }}>
-                  <TrendingUp sx={{ fontSize: 32, mb: 1 }} />
-                  <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
-                    {stats.total}
-                  </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Total Reservations
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Fade>
+            <Card 
+              elevation={0} 
+              sx={{ 
+                backgroundColor: 'background.paper',
+                border: `1px solid ${grey[200]}`,
+                borderRadius: 1,
+              }}
+            >
+              <CardContent sx={{ p: 2 }}>
+                <Stack direction="row" alignItems="center" justifyContent="space-between">
+                  <Box>
+                    <Typography variant="h5" fontWeight={700}>
+                      {stats.total}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Total Reservations
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: grey[100], width: 40, height: 40 }}>
+                    <TrendingUp sx={{ fontSize: 20, color: grey[800] }} />
+                  </Avatar>
+                </Stack>
+              </CardContent>
+            </Card>
           </Grid>
+          
           <Grid item xs={12} sm={6} md={2}>
-            <Fade in timeout={400}>
-              <Card
-                sx={{
-                  background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-                  color: 'white',
-                  borderRadius: 3,
-                  boxShadow: 3,
-                  '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: 6,
-                    transition: 'all 0.3s ease'
-                  }
-                }}
-              >
-                <CardContent sx={{ p: 3, textAlign: 'center' }}>
-                  <CheckCircle sx={{ fontSize: 32, mb: 1 }} />
-                  <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
-                    {stats.accepted}
-                  </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Accepted
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Fade>
+            <Card 
+              elevation={0} 
+              sx={{ 
+                backgroundColor: 'background.paper',
+                border: `1px solid ${grey[200]}`,
+                borderRadius: 1,
+              }}
+            >
+              <CardContent sx={{ p: 2 }}>
+                <Stack direction="row" alignItems="center" justifyContent="space-between">
+                  <Box>
+                    <Typography variant="h5" fontWeight={700}>
+                      {stats.accepted}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Accepted
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: grey[100], width: 40, height: 40 }}>
+                    <CheckCircle sx={{ fontSize: 20, color: grey[800] }} />
+                  </Avatar>
+                </Stack>
+              </CardContent>
+            </Card>
           </Grid>
+          
           <Grid item xs={12} sm={6} md={2}>
-            <Fade in timeout={500}>
-              <Card
-                sx={{
-                  background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-                  color: 'white',
-                  borderRadius: 3,
-                  boxShadow: 3,
-                  '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: 6,
-                    transition: 'all 0.3s ease'
-                  }
-                }}
-              >
-                <CardContent sx={{ p: 3, textAlign: 'center' }}>
-                  <Warning sx={{ fontSize: 32, mb: 1 }} />
-                  <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
-                    {stats.pending}
-                  </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Pending
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Fade>
+            <Card 
+              elevation={0} 
+              sx={{ 
+                backgroundColor: 'background.paper',
+                border: `1px solid ${grey[200]}`,
+                borderRadius: 1,
+              }}
+            >
+              <CardContent sx={{ p: 2 }}>
+                <Stack direction="row" alignItems="center" justifyContent="space-between">
+                  <Box>
+                    <Typography variant="h5" fontWeight={700}>
+                      {stats.pending}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Pending
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: grey[100], width: 40, height: 40 }}>
+                    <Warning sx={{ fontSize: 20, color: grey[800] }} />
+                  </Avatar>
+                </Stack>
+              </CardContent>
+            </Card>
           </Grid>
+          
           <Grid item xs={12} sm={6} md={2}>
-            <Fade in timeout={600}>
-              <Card
-                sx={{
-                  background: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
-                  color: 'text.primary',
-                  borderRadius: 3,
-                  boxShadow: 3,
-                  '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: 6,
-                    transition: 'all 0.3s ease'
-                  }
-                }}
-              >
-                <CardContent sx={{ p: 3, textAlign: 'center' }}>
-                  <AccessTime sx={{ fontSize: 32, mb: 1 }} />
-                  <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
-                    {stats.ongoing}
-                  </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.7 }}>
-                    Ongoing
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Fade>
+            <Card 
+              elevation={0} 
+              sx={{ 
+                backgroundColor: 'background.paper',
+                border: `1px solid ${grey[200]}`,
+                borderRadius: 1,
+              }}
+            >
+              <CardContent sx={{ p: 2 }}>
+                <Stack direction="row" alignItems="center" justifyContent="space-between">
+                  <Box>
+                    <Typography variant="h5" fontWeight={700}>
+                      {stats.ongoing}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Ongoing
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: grey[100], width: 40, height: 40 }}>
+                    <AccessTime sx={{ fontSize: 20, color: grey[800] }} />
+                  </Avatar>
+                </Stack>
+              </CardContent>
+            </Card>
           </Grid>
+          
           <Grid item xs={12} sm={6} md={2}>
-            <Fade in timeout={700}>
-              <Card
-                sx={{
-                  background: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
-                  color: 'text.primary',
-                  borderRadius: 3,
-                  boxShadow: 3,
-                  '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: 6,
-                    transition: 'all 0.3s ease'
-                  }
-                }}
-              >
-                <CardContent sx={{ p: 3, textAlign: 'center' }}>
-                  <CheckCircle sx={{ fontSize: 32, mb: 1 }} />
-                  <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
-                    {stats.done}
-                  </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.7 }}>
-                    Completed
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Fade>
+            <Card 
+              elevation={0} 
+              sx={{ 
+                backgroundColor: 'background.paper',
+                border: `1px solid ${grey[200]}`,
+                borderRadius: 1,
+              }}
+            >
+              <CardContent sx={{ p: 2 }}>
+                <Stack direction="row" alignItems="center" justifyContent="space-between">
+                  <Box>
+                    <Typography variant="h5" fontWeight={700}>
+                      {stats.done}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Completed
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: grey[100], width: 40, height: 40 }}>
+                    <CheckCircle sx={{ fontSize: 20, color: grey[800] }} />
+                  </Avatar>
+                </Stack>
+              </CardContent>
+            </Card>
           </Grid>
+          
           <Grid item xs={12} sm={6} md={2}>
-            <Fade in timeout={800}>
-              <Card
-                sx={{
-                  background: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
-                  color: 'white',
-                  borderRadius: 3,
-                  boxShadow: 3,
-                  '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: 6,
-                    transition: 'all 0.3s ease'
-                  }
-                }}
-              >
-                <CardContent sx={{ p: 3, textAlign: 'center' }}>
-                  <Error sx={{ fontSize: 32, mb: 1 }} />
-                  <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
-                    {stats.rejected}
-                  </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Rejected
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Fade>
+            <Card 
+              elevation={0} 
+              sx={{ 
+                backgroundColor: 'background.paper',
+                border: `1px solid ${grey[200]}`,
+                borderRadius: 1,
+              }}
+            >
+              <CardContent sx={{ p: 2 }}>
+                <Stack direction="row" alignItems="center" justifyContent="space-between">
+                  <Box>
+                    <Typography variant="h5" fontWeight={700}>
+                      {stats.rejected}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Rejected
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: grey[100], width: 40, height: 40 }}>
+                    <Error sx={{ fontSize: 20, color: grey[800] }} />
+                  </Avatar>
+                </Stack>
+              </CardContent>
+            </Card>
           </Grid>
         </Grid>
       </Box>
 
       {/* Enhanced Tabs */}
-      <Paper 
-        sx={{ 
-          mb: 3, 
-          borderRadius: 3,
-          boxShadow: 2,
-          overflow: 'hidden'
-        }}
-      >
-        <Tabs 
-          value={tabValue} 
-          onChange={handleTabChange} 
-          variant={isMobile ? "scrollable" : "fullWidth"}
-          scrollButtons="auto"
-          sx={{
-            bgcolor: 'background.paper',
+      <Card elevation={0} sx={{ border: `1px solid ${grey[200]}`, borderRadius: 1, mb: 2 }}>
+        <Tabs
+          value={tabValue}
+          onChange={handleTabChange}
+          sx={{ 
             '& .MuiTab-root': {
-              minHeight: 64,
-              fontSize: '0.95rem',
-              fontWeight: 600,
+              minHeight: 48,
+              fontSize: '0.875rem',
+              fontWeight: 500,
               textTransform: 'none',
-              color: 'text.secondary',
               '&.Mui-selected': {
-                color: 'primary.main',
-                fontWeight: 700
+                fontWeight: 600,
               }
-            },
-            '& .MuiTabs-indicator': {
-              height: 3,
-              borderRadius: '3px 3px 0 0'
             }
           }}
+          indicatorColor="primary"
+          textColor="primary"
+          variant="fullWidth"
         >
-          <Tab
+          <Tab 
             label={
               <Stack direction="row" alignItems="center" spacing={1}>
-                <Schedule />
-                <Box>
-                  <Typography variant="body2">Accepted Meetings</Typography>
-                  <Chip 
-                    label={stats.accepted} 
-                    size="small" 
-                    color="primary" 
-                    sx={{ height: 20, fontSize: '0.7rem' }}
-                  />
-                </Box>
+                <Schedule fontSize="small" />
+                <span>Accepted Meetings</span>
               </Stack>
-            }
-            iconPosition="start"
+            } 
           />
-          <Tab
+          <Tab 
             label={
               <Stack direction="row" alignItems="center" spacing={1}>
-                <Event />
-                <Box>
-                  <Typography variant="body2">Meeting Requests</Typography>
-                  <Chip 
-                    label={stats.pending} 
-                    size="small" 
-                    color="warning" 
-                    sx={{ height: 20, fontSize: '0.7rem' }}
-                  />
-                </Box>
+                <Event fontSize="small" />
+                <span>Meeting Requests</span>
               </Stack>
-            }
-            iconPosition="start"
+            } 
           />
-          <Tab
+          <Tab 
             label={
               <Stack direction="row" alignItems="center" spacing={1}>
-                <AccessTime />
-                <Box>
-                  <Typography variant="body2">Ongoing Meeting</Typography>
-                  <Chip 
-                    label={stats.ongoing} 
-                    size="small" 
-                    color="info" 
-                    sx={{ height: 20, fontSize: '0.7rem' }}
-                  />
-                </Box>
+                <AccessTime fontSize="small" />
+                <span>Ongoing Meeting</span>
               </Stack>
-            }
-            iconPosition="start"
+            } 
           />
         </Tabs>
-      </Paper>
+      </Card>
 
       {/* Enhanced Table */}
-      <Zoom in timeout={300}>
-        <TableContainer 
-          component={Paper} 
-          sx={{ 
-            borderRadius: 3, 
-            boxShadow: 3,
-            overflow: 'hidden',
-            border: `1px solid ${theme.palette.divider}`
-          }}
-        >
-        <Table
-          sx={{
-            borderCollapse: "collapse",
-              minWidth: isMobile ? 300 : 900,
-              "& .MuiTableCell-root": { 
-                border: `1px solid ${theme.palette.divider}`,
-                fontSize: '0.875rem'
-              },
-              "& .MuiTableHead-root .MuiTableCell-root": { 
-                backgroundColor: theme.palette.primary.main,
-                color: 'white',
-                fontWeight: 700,
-                fontSize: '0.9rem',
-                textAlign: 'center'
-              },
-              "& .MuiTableRow-root:hover": {
-                backgroundColor: theme.palette.action.hover,
-                transition: 'background-color 0.2s ease'
-              }
-          }}
-        >
-          <TableHead>
-            <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Email</TableCell>
-                <TableCell>Room</TableCell>
-                <TableCell>Date</TableCell>
-                <TableCell>From</TableCell>
-                <TableCell>To</TableCell>
-                <TableCell>Duration</TableCell>
-                <TableCell>Guests</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Request Date</TableCell>
-                <TableCell>Actions</TableCell>
-            </TableRow>
-          </TableHead>
+      <Card elevation={0} sx={{ border: `1px solid ${grey[200]}`, borderRadius: 1, overflow: 'hidden' }}>
+        <TableContainer>
+          <Table sx={{ minWidth: 750 }}>
+            <TableHead>
+              <TableRow sx={{ backgroundColor: grey[50] }}>
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Client Name
+                  </Typography>
+                </TableCell>
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Contact Info
+                  </Typography>
+                </TableCell>
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Room
+                  </Typography>
+                </TableCell>
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Date
+                  </Typography>
+                </TableCell>
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Time
+                  </Typography>
+                </TableCell>
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Duration
+                  </Typography>
+                </TableCell>
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Guests
+                  </Typography>
+                </TableCell>
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Status
+                  </Typography>
+                </TableCell>
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Actions
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            </TableHead>
           <TableBody>
             {currentItems.map((res) => {
               let chipLabel = "-";
@@ -1051,46 +979,49 @@ const AdminDashboard = () => {
             })}
             {currentItems.length === 0 && (
               <TableRow>
-                  <TableCell colSpan={11} align="center" sx={{ py: 6 }}>
-                    <Stack spacing={2} alignItems="center">
-                      <Event sx={{ fontSize: 48, color: 'text.secondary', opacity: 0.5 }} />
-                      <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 500 }}>
-                        No reservations found
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                    No reservations found for this category.
-                  </Typography>
-                    </Stack>
+                <TableCell colSpan={9} align="center" sx={{ py: 8 }}>
+                  <Stack spacing={2} alignItems="center">
+                    <Event sx={{ fontSize: 48, color: 'text.secondary', opacity: 0.5 }} />
+                    <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 500 }}>
+                      No reservations found
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      No reservations found for this category.
+                    </Typography>
+                  </Stack>
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </TableContainer>
-      </Zoom>
-
-      {/* Enhanced Pagination */}
+      
+      {/* Pagination */}
       {filteredReservations.length > 0 && (
-        <Stack direction="row" justifyContent="center" mt={4}>
-          <Paper sx={{ borderRadius: 3, px: 2, py: 1 }}>
-          <Pagination
-            count={totalPages}
-            page={currentPage}
-            onChange={(_, val) => setCurrentPage(val)}
-            color="primary"
-            showFirstButton
-            showLastButton
+        <Box sx={{ p: 2, borderTop: `1px solid ${grey[200]}` }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="body2" color="text.secondary">
+              Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredReservations.length)} of {filteredReservations.length} reservations
+            </Typography>
+            <Pagination
+              count={totalPages}
+              page={currentPage}
+              onChange={(_, val) => setCurrentPage(val)}
+              color="primary"
               size={isMobile ? "small" : "medium"}
               sx={{
                 '& .MuiPaginationItem-root': {
-                  borderRadius: 2,
-                  fontWeight: 600
+                  borderRadius: 1,
+                  fontWeight: 500,
                 }
               }}
             />
-          </Paper>
-        </Stack>
+          </Stack>
+        </Box>
       )}
+    </Card>
+
+
 
       {/* Enhanced Details Dialog */}
       <Dialog 

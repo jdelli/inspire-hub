@@ -1,6 +1,6 @@
 import React from "react";
 
-const billing = () => {
+const billings = () => {
   return (
     <div>
       <h1 className="text-3xl font-bold">Dashboard</h1>
@@ -27,4 +27,4 @@ const billing = () => {
   );
 };
 
-export default billing;
+export default billings;
