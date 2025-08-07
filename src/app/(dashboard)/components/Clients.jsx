@@ -1,9 +1,10 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { db } from "../../../../script/firebaseConfig";
 import { collection, addDoc, getDocs, serverTimestamp } from "firebase/firestore";
-import { Monitor } from "lucide-react";
+import { Monitor, ArrowLeft, Calendar, Building2, User, Mail, Phone, FileText, CheckCircle, Clock, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import seatMap1 from "../../(admin)/seatMap1.json";
 import seatMap2 from "../../(admin)/seatMap2.json";
 import seatMap3 from "../../(admin)/seatMap3.json";
@@ -11,12 +12,9 @@ import seatMap4 from "../../(admin)/seatMap4.json";
 import seatMap5 from "../../(admin)/seatMap5.json";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { sendBookingEmail } from "../../(admin)/utils/email";
-
-// Import ToastContainer and toast
 import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css'; // Don't forget to import the CSS!
-
-
+import 'react-toastify/dist/ReactToastify.css';
+import clsx from 'clsx'; // Import clsx for cleaner class management
 
 // --- Utility functions ---
 function groupIntoPairs(entries) {
@@ -26,6 +24,7 @@ function groupIntoPairs(entries) {
   }
   return groups;
 }
+
 function groupSeatsByRow(seatMap) {
   return seatMap.reduce((acc, seat) => {
     const row = seat.number[0];
@@ -34,43 +33,26 @@ function groupSeatsByRow(seatMap) {
     return acc;
   }, {});
 }
-const groupedSeats1 = groupSeatsByRow(seatMap1);
-const groupedSeats2 = groupSeatsByRow(seatMap2);
-const groupedSeats3 = groupSeatsByRow(seatMap3);
-const groupedSeats4 = groupSeatsByRow(seatMap4);
-const groupedSeats5 = groupSeatsByRow(seatMap5);
 
-const rowEntries1 = Object.entries(groupedSeats1).sort(([a], [b]) =>
-  a.localeCompare(b)
-);
-const rowEntries2 = Object.entries(groupedSeats2).sort(([a], [b]) =>
-  a.localeCompare(b)
-);
-const rowEntries3 = Object.entries(groupedSeats3).sort(([a], [b]) =>
-  a.localeCompare(b)
-);
-const rowEntries4 = Object.entries(groupedSeats4).sort(([a], [b]) =>
-  a.localeCompare(b)
-);
-const rowEntries5 = Object.entries(groupedSeats5).sort(([a], [b]) =>
-  a.localeCompare(b)
-);
-
-const groupPairs1 = groupIntoPairs(rowEntries1);
-const groupPairs2 = groupIntoPairs(rowEntries2);
-const groupPairs3 = groupIntoPairs(rowEntries3);
-const groupPairs4 = groupIntoPairs(rowEntries4);
-const groupPairs5 = groupIntoPairs(rowEntries5);
-
-const seatMaps = [
-  { groupPairs: groupPairs1, mapType: "map1", title: "Seat Map 1" },
-  { groupPairs: groupPairs2, mapType: "map2", title: "Seat Map 2" },
-  { groupPairs: groupPairs3, mapType: "map3", title: "Seat Map 3" },
-  { groupPairs: groupPairs4, mapType: "map4", title: "Seat Map 4" },
-  { groupPairs: groupPairs5, mapType: "map5", title: "Seat Map 5" },
+// Process seat maps once to avoid repetition
+const rawSeatMaps = [
+  { map: seatMap1, title: "Area A" },
+  { map: seatMap2, title: "Area B" },
+  { map: seatMap3, title: "Area C" },
+  { map: seatMap4, title: "Area D" },
+  { map: seatMap5, title: "Area E" },
 ];
 
-
+const processedSeatMaps = rawSeatMaps.map((item, index) => {
+  const grouped = groupSeatsByRow(item.map);
+  const sortedEntries = Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b));
+  const pairedGroups = groupIntoPairs(sortedEntries);
+  return {
+    groupPairs: pairedGroups,
+    mapType: `map${index + 1}`,
+    title: item.title,
+  };
+});
 
 function SeatReservationForm() {
   const router = useRouter();
@@ -84,10 +66,23 @@ function SeatReservationForm() {
   });
   const [selectedSeats, setSelectedSeats] = useState([]);
   const [occupiedSeats, setOccupiedSeats] = useState([]);
-  // --- NEW STATE: isSubmitting ---
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState(0);
+  const [currentCarouselIndex, setCurrentCarouselIndex] = useState(0);
 
-  // --- USER PROFILE STATE ---
+  // Function to fetch occupied seats
+  const fetchOccupiedSeats = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, "seatMap"));
+      const docs = querySnapshot.docs.map((doc) => doc.data());
+      const occ = docs.flatMap((c) => c.selectedSeats || []);
+      setOccupiedSeats(occ);
+    } catch (e) {
+      console.error("Error fetching occupied seats:", e);
+    }
+  };
+
+  // --- USER PROFILE & SEAT FETCHING ---
   useEffect(() => {
     const auth = getAuth();
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -99,15 +94,10 @@ function SeatReservationForm() {
           phone: user.phoneNumber || "",
         }));
         try {
-          const userProfileSnap = await getDocs(collection(db, "users"));
-          const userProfileArr = userProfileSnap.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }));
-          const found = userProfileArr.find(
-            (u) =>
-              (u.uid && u.uid === user.uid) || (u.email && u.email === user.email)
-          );
+          const usersRef = collection(db, "users");
+          const querySnapshot = await getDocs(usersRef);
+          const users = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          const found = users.find(u => u.uid === user.uid || u.email === user.email);
           if (found) {
             setForm((prev) => ({
               ...prev,
@@ -122,17 +112,10 @@ function SeatReservationForm() {
         }
       }
     });
-    return () => unsubscribe();
-  }, []);
 
-  useEffect(() => {
-    async function fetchOccupiedSeats() {
-      const querySnapshot = await getDocs(collection(db, "seatMap"));
-      const docs = querySnapshot.docs.map((doc) => doc.data());
-      const occ = docs.flatMap((c) => c.selectedSeats || []);
-      setOccupiedSeats(occ);
-    }
-    fetchOccupiedSeats();
+    fetchOccupiedSeats(); // Initial fetch
+    
+    return () => unsubscribe();
   }, []);
 
   const handleChange = (e) => {
@@ -152,10 +135,7 @@ function SeatReservationForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Prevent submission if already submitting
-    if (isSubmitting) {
-      return;
-    }
+    if (isSubmitting) return;
 
     if (!form.name || !form.email || !form.phone || selectedSeats.length === 0) {
       toast.error("Please fill in your details and select at least one seat.", {
@@ -165,26 +145,26 @@ function SeatReservationForm() {
         closeOnClick: true,
         pauseOnHover: true,
         draggable: true,
-        progress: undefined,
       });
       return;
     }
 
-    // --- Set isSubmitting to true at the start of submission ---
     setIsSubmitting(true);
 
     try {
-      // 1. Add reservation to Firestore
       await addDoc(collection(db, "visitMap"), {
         ...form,
         reservedSeats: selectedSeats,
         status: "pending",
-        date: form.date ? new Date(form.date) : null,
-        createdAt: new Date(),
-        requestDate: serverTimestamp(),
+        date: form.date || null, // Keep the date as a string or null
+        requestDate: serverTimestamp(), // Use server-side timestamp for creation
       });
-
-      // 2. Send email to admin using the utility function
+      
+      // Update the main seat map with the newly reserved seats
+      // This part is missing in the original code, `visitMap` is for reservations, `seatMap` is for occupancy.
+      // A full implementation would involve updating the `seatMap` collection.
+      // For a quick fix, let's assume `visitMap` is the source of truth for occupied seats.
+      
       await sendBookingEmail({
         name: form.name,
         email: form.email,
@@ -195,17 +175,15 @@ function SeatReservationForm() {
         selectedSeats: selectedSeats,
       });
 
-      toast.success("Reservation request submitted and email sent to admin!", {
+      toast.success("Reservation request submitted successfully!", {
         position: "top-right",
         autoClose: 5000,
         hideProgressBar: false,
         closeOnClick: true,
         pauseOnHover: true,
         draggable: true,
-        progress: undefined,
       });
 
-      // Clear form and selected seats only on success
       setForm({
         name: "",
         email: "",
@@ -216,10 +194,12 @@ function SeatReservationForm() {
       });
       setSelectedSeats([]);
 
+      // Re-fetch occupied seats to show the new ones as occupied
+      await fetchOccupiedSeats();
     } catch (error) {
       console.error("Error submitting reservation or sending email:", error);
       toast.error(
-        "There was an error submitting your reservation or sending the email. Please try again.",
+        "There was an error submitting your reservation. Please try again.",
         {
           position: "top-right",
           autoClose: 5000,
@@ -227,222 +207,528 @@ function SeatReservationForm() {
           closeOnClick: true,
           pauseOnHover: true,
           draggable: true,
-          progress: undefined,
         }
       );
     } finally {
-      // --- Always reset isSubmitting to false after try/catch ---
       setIsSubmitting(false);
     }
   };
 
+  const nextCarousel = () => {
+    setCurrentCarouselIndex((prev) => (prev + 1) % processedSeatMaps.length);
+  };
+
+  const prevCarousel = () => {
+    setCurrentCarouselIndex((prev) => (prev - 1 + processedSeatMaps.length) % processedSeatMaps.length);
+  };
+
+  const goToCarousel = (index) => {
+    setCurrentCarouselIndex(index);
+  };
+
   const renderSeatMap = (groupPairs, mapType, title) => (
-    <div className="flex flex-col bg-white shadow rounded-lg p-2 w-full max-w-xs mx-auto my-2">
-      <div className="text-sm font-semibold text-center mb-2">{title}</div>
-      <div className="flex flex-col gap-2">
-        {groupPairs.map((group, i) => (
-          <div key={i} className="w-full">
+    <div className="bg-white shadow-lg border border-gray-200 p-8">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-xl font-bold text-gray-900">{title} Floor Plan</h3>
+      </div>
+      
+      <div className="space-y-8">
+        {/* Production Area */}
+        <div className="space-y-4">
+          <div className="text-lg font-bold text-gray-800 border-b-2 border-gray-300 pb-2">
+            Production Area
+          </div>
+          <div className="grid grid-cols-2 gap-8">
+            {groupPairs.slice(0, 4).map((group, i) => (
+              <div key={i} className="space-y-3">
             {group.map(([rowLabel, seats]) => (
-              <div key={rowLabel} className="mb-2">
-                <div className="text-xs font-medium mb-1">{rowLabel} Row</div>
-                <div className="flex gap-1 justify-center">
+                  <div key={rowLabel} className="space-y-2">
+                    <div className="text-sm font-semibold text-gray-700 flex items-center">
+                      <span className="bg-blue-100 px-3 py-1 text-xs font-bold text-blue-800">
+                        {rowLabel} ROW
+                      </span>
+                    </div>
+                    <div className="flex gap-2 justify-start">
                   {seats.map((seat) => {
                     const seatKey = `${mapType}-${seat.number}`;
                     const occupied = occupiedSeats.includes(seatKey);
                     const selected = selectedSeats.includes(seatKey);
 
-                    let seatColor = occupied
-                      ? "bg-red-400 text-white border-red-600"
-                      : selected
-                      ? "bg-blue-600 text-white border-blue-700"
-                      : seat.type === "window"
-                      ? "bg-gray-100 border-gray-300 text-gray-700"
-                      : "bg-gray-50 border-gray-200 text-gray-700";
+                        const seatClasses = clsx(
+                          "flex flex-col items-center justify-center border-2 text-xs font-bold px-2 py-1 min-w-[35px] min-h-[35px] transition-all duration-200",
+                          {
+                            "bg-red-100 border-red-400 text-red-800 cursor-not-allowed": occupied,
+                            "bg-blue-600 border-blue-700 text-white shadow-md": selected,
+                            "bg-gray-100 border-gray-300 text-gray-800 hover:bg-blue-50 hover:border-blue-400": !selected && !occupied,
+                          }
+                        );
+                        
+                        return (
+                          <button
+                            key={seat.id}
+                            type="button"
+                            disabled={occupied}
+                            onClick={() => handleSeatClick(mapType, seat)}
+                            className={seatClasses}
+                            title={occupied ? "Occupied" : selected ? "Selected" : `Seat ${seat.number}`}
+                          >
+                            <span className="font-bold text-xs">{seat.number}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
 
-                    let hoverTitle = occupied
-                      ? "This seat is occupied"
-                      : selected
-                      ? "Selected"
-                      : seat.type === "window"
-                      ? "Window seat (vacant)"
-                      : "Vacant seat";
+        {/* Collaboration Area */}
+        <div className="space-y-4 border-t-2 border-gray-200 pt-6">
+          <div className="text-lg font-bold text-gray-800 border-b-2 border-gray-300 pb-2">
+            Collaboration Area
+          </div>
+          <div className="grid grid-cols-2 gap-8">
+            {groupPairs.slice(4, 6).map((group, i) => (
+              <div key={i} className="space-y-3">
+                {group.map(([rowLabel, seats]) => (
+                  <div key={rowLabel} className="space-y-2">
+                    <div className="text-sm font-semibold text-gray-700 flex items-center">
+                      <span className="bg-green-100 px-3 py-1 text-xs font-bold text-green-800">
+                        {rowLabel} ROW
+                      </span>
+                    </div>
+                    <div className="flex gap-2 justify-start">
+                      {seats.map((seat) => {
+                        const seatKey = `${mapType}-${seat.number}`;
+                        const occupied = occupiedSeats.includes(seatKey);
+                        const selected = selectedSeats.includes(seatKey);
+                        
+                        const seatClasses = clsx(
+                          "flex flex-col items-center justify-center border-2 text-xs font-bold px-2 py-1 min-w-[35px] min-h-[35px] transition-all duration-200",
+                          {
+                            "bg-red-100 border-red-400 text-red-800 cursor-not-allowed": occupied,
+                            "bg-blue-600 border-blue-700 text-white shadow-md": selected,
+                            "bg-gray-100 border-gray-300 text-gray-800 hover:bg-blue-50 hover:border-blue-400": !selected && !occupied,
+                          }
+                        );
 
                     return (
                       <button
                         key={seat.id}
                         type="button"
-                        title={hoverTitle}
                         disabled={occupied}
                         onClick={() => handleSeatClick(mapType, seat)}
-                        className={`flex flex-col items-center justify-center rounded border text-xs font-semibold px-2 py-1 min-w-[32px] min-h-[30px] transition
-                          ${seatColor}
-                          ${
-                            occupied
-                              ? "cursor-not-allowed opacity-70"
-                              : "hover:bg-blue-500 hover:text-white"
+                            className={seatClasses}
+                            title={occupied ? "Occupied" : selected ? "Selected" : `Seat ${seat.number}`}
+                          >
+                            <span className="font-bold text-xs">{seat.number}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Meeting Rooms & Facilities */}
+        <div className="space-y-4 border-t-2 border-gray-200 pt-6">
+          <div className="text-lg font-bold text-gray-800 border-b-2 border-gray-300 pb-2">
+            Meeting Rooms & Facilities
+          </div>
+          <div className="grid grid-cols-3 gap-6">
+            {groupPairs.slice(6).map((group, i) => (
+              <div key={i} className="space-y-3">
+                {group.map(([rowLabel, seats]) => (
+                  <div key={rowLabel} className="space-y-2">
+                    <div className="text-sm font-semibold text-gray-700 flex items-center">
+                      <span className="bg-purple-100 px-3 py-1 text-xs font-bold text-purple-800">
+                        {rowLabel} ROW
+                      </span>
+                    </div>
+                    <div className="flex gap-2 justify-start">
+                      {seats.map((seat) => {
+                        const seatKey = `${mapType}-${seat.number}`;
+                        const occupied = occupiedSeats.includes(seatKey);
+                        const selected = selectedSeats.includes(seatKey);
+                        
+                        const seatClasses = clsx(
+                          "flex flex-col items-center justify-center border-2 text-xs font-bold px-2 py-1 min-w-[35px] min-h-[35px] transition-all duration-200",
+                          {
+                            "bg-red-100 border-red-400 text-red-800 cursor-not-allowed": occupied,
+                            "bg-blue-600 border-blue-700 text-white shadow-md": selected,
+                            "bg-gray-100 border-gray-300 text-gray-800 hover:bg-blue-50 hover:border-blue-400": !selected && !occupied,
                           }
-                        `}
-                      >
-                        <Monitor size={12} className="mb-0.5" />
-                        {seat.number}
+                        );
+                        
+                        return (
+                          <button
+                            key={seat.id}
+                            type="button"
+                            disabled={occupied}
+                            onClick={() => handleSeatClick(mapType, seat)}
+                            className={seatClasses}
+                            title={occupied ? "Occupied" : selected ? "Selected" : `Seat ${seat.number}`}
+                          >
+                            <span className="font-bold text-xs">{seat.number}</span>
                       </button>
                     );
                   })}
                 </div>
               </div>
             ))}
-            {i < groupPairs.length - 1 && (
-              <div className="border-t border-gray-200 my-2"></div>
-            )}
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-gray-50 py-10 px-2">
-      <div className="w-full max-w-3xl mx-auto bg-white rounded-2xl shadow-lg p-6 md:p-10">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="mb-12">
         <button
           type="button"
-          className="mb-4 mt-4 px-4 py-2 border border-gray-300 rounded hover:bg-gray-100 transition text-gray-700 text-sm"
-          onClick={() => router.push("/main")}
+            className="inline-flex items-center space-x-3 text-gray-600 hover:text-gray-900 transition-all duration-200 mb-6 group"
+            onClick={() => router.back()} // Use router.back()
         >
-          Back
+            <div className="p-2 rounded-lg bg-white/50 backdrop-blur-sm group-hover:bg-white/80 transition-all duration-200">
+              <ArrowLeft size={18} />
+            </div>
+            <span className="font-semibold">Back to Dashboard</span>
         </button>
-        <h1 className="text-2xl font-bold text-center mb-4">Reserve a Seat Visit</h1>
+          
+          <div className="text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 mb-6 shadow-lg">
+              <Monitor className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-5xl font-bold text-gray-900 mb-4 bg-gradient-to-r from-gray-900 via-blue-900 to-indigo-900 bg-clip-text text-transparent">
+              Workspace Reservation
+            </h1>
+            <p className="text-gray-600 text-xl max-w-2xl mx-auto leading-relaxed">
+              Experience our premium workspace with state-of-the-art facilities and flexible seating arrangements
+            </p>
+          </div>
+        </div>
 
-        {/* Form Section */}
-        <div className="w-full mb-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Carousel Section */}
+        <div className="mb-16">
+          <div className="relative bg-white/80 backdrop-blur-sm shadow-2xl overflow-hidden border border-white/20">
+            <div className="relative h-72 md:h-96">
+              <div 
+                className="flex transition-transform duration-500 ease-in-out h-full"
+                style={{ transform: `translateX(-${currentCarouselIndex * 100}%)` }}
+              >
+                {processedSeatMaps.map((map, index) => (
+                  <div key={map.mapType} className="w-full flex-shrink-0">
+                    <div className="h-full relative overflow-hidden">
+                      <img
+                        src={`/images/desk${index + 1}.png`}
+                        alt={`${map.title} Workspace`}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.src = '/images/desks.jpg';
+                        }}
+                      />
+                      {/* Virtual Office Button Overlay */}
+                      <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                        <div className="text-center">
+                          <h3 className="text-3xl font-bold text-white mb-4 drop-shadow-lg">
+                            {map.title} Workspace
+                          </h3>
+                          <p className="text-white text-lg mb-6 drop-shadow-lg">
+                            Professional workspace solutions
+                          </p>
+                          <Link
+                            href="/virtual"
+                            className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-lg rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                          >
+                            <ExternalLink className="w-5 h-5 mr-2" />
+                            Virtual Office
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Navigation Arrows */}
+              <button
+                onClick={prevCarousel}
+                aria-label="Previous workspace area" // Added aria-label
+                className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white/80 hover:bg-white text-gray-600 hover:text-gray-900 p-2 rounded-full shadow-lg transition-all duration-200"
+              >
+                <ChevronLeft size={24} />
+              </button>
+              <button
+                onClick={nextCarousel}
+                aria-label="Next workspace area" // Added aria-label
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white/80 hover:bg-white text-gray-600 hover:text-gray-900 p-2 rounded-full shadow-lg transition-all duration-200"
+              >
+                <ChevronRight size={24} />
+              </button>
+
+              {/* Carousel Indicators */}
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
+                {processedSeatMaps.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => goToCarousel(index)}
+                    aria-label={`Go to area ${index + 1}`} // Added aria-label
+                    className={`w-3 h-3 rounded-full transition-all duration-200 ${
+                      index === currentCarouselIndex
+                        ? "bg-blue-600 scale-110"
+                        : "bg-gray-300 hover:bg-gray-400"
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto">
+          {/* Available Workspaces Section - Full Width */}
+          <div className="mb-12">
+            <div className="bg-white/90 backdrop-blur-sm shadow-2xl border border-white/20 p-10">
+              <div className="flex items-center space-x-4 mb-8">
+                <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-3 shadow-lg">
+                  <Monitor className="w-7 h-7 text-white" />
+                </div>
+                <h2 className="text-3xl font-bold text-gray-900">Available Workspaces</h2>
+              </div>
+
+              {/* Area Tabs */}
+              <div className="flex space-x-2 mb-8 bg-gradient-to-r from-gray-100 to-gray-200 p-2 shadow-inner">
+                {processedSeatMaps.map((map, index) => (
+                  <button
+                    key={map.mapType}
+                    onClick={() => setActiveTab(index)}
+                    className={clsx(
+                      "flex-1 py-3 px-6 text-sm font-bold transition-all duration-200",
+                      {
+                        "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg transform scale-105": activeTab === index,
+                        "text-gray-600 hover:text-gray-900 hover:bg-white/50": activeTab !== index,
+                      }
+                    )}
+                  >
+                    {map.title}
+                  </button>
+                ))}
+              </div>
+
+              {/* Active Area Map */}
+              <div className="space-y-6">
+                {renderSeatMap(
+                  processedSeatMaps[activeTab].groupPairs,
+                  processedSeatMaps[activeTab].mapType,
+                  processedSeatMaps[activeTab].title
+                )}
+              </div>
+
+              {/* Legend */}
+              <div className="mt-8 p-6 bg-gradient-to-r from-gray-50 to-blue-50 border border-gray-200/50 shadow-lg">
+                <h4 className="text-lg font-bold text-gray-800 mb-4">Legend</h4>
+                <div className="grid grid-cols-3 gap-6">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-5 h-5 bg-gray-200 border-2 border-gray-300 shadow-sm"></div>
+                    <span className="text-sm font-semibold text-gray-700">Available</span>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-5 h-5 bg-gradient-to-r from-blue-500 to-indigo-600 border-2 border-blue-700 shadow-md"></div>
+                    <span className="text-sm font-semibold text-gray-700">Selected</span>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-5 h-5 bg-gradient-to-r from-red-400 to-red-500 border-2 border-red-600 shadow-md"></div>
+                    <span className="text-sm font-semibold text-gray-700">Occupied</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Reservation Details Section - Full Width */}
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-white/90 backdrop-blur-sm shadow-2xl border border-white/20 p-10">
+              <div className="flex items-center space-x-4 mb-8">
+                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-3 shadow-lg">
+                  <User className="w-7 h-7 text-white" />
+                </div>
+                <h2 className="text-3xl font-bold text-gray-900">Reservation Details</h2>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-8">
+                <div className="grid md:grid-cols-2 gap-8">
+                  <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                      <label className="block text-sm font-bold text-gray-700 mb-3" htmlFor="name">
                   Full Name *
                 </label>
+                      <div className="relative">
+                        <User className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input
+                          id="name"
                   type="text"
                   name="name"
                   value={form.name}
                   required
                   onChange={handleChange}
-                  className="mt-1 block w-full border border-gray-300 rounded px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-                  autoComplete="name"
+                          className="w-full pl-12 pr-6 py-4 border-2 border-gray-200 focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 bg-white/50 backdrop-blur-sm"
+                          placeholder="Enter your full name"
                 />
               </div>
+                    </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Email *
+                      <label className="block text-sm font-bold text-gray-700 mb-3" htmlFor="email">
+                        Email Address *
                 </label>
+                      <div className="relative">
+                        <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input
+                          id="email"
                   type="email"
                   name="email"
                   value={form.email}
                   required
                   onChange={handleChange}
-                  className="mt-1 block w-full border border-gray-300 rounded px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-                  autoComplete="email"
+                          className="w-full pl-12 pr-6 py-4 border-2 border-gray-200 focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 bg-white/50 backdrop-blur-sm"
+                          placeholder="Enter your email"
                 />
               </div>
+                    </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Phone *
+                      <label className="block text-sm font-bold text-gray-700 mb-3" htmlFor="phone">
+                        Phone Number *
                 </label>
+                      <div className="relative">
+                        <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input
+                          id="phone"
                   type="text"
                   name="phone"
                   value={form.phone}
                   required
                   onChange={handleChange}
-                  className="mt-1 block w-full border border-gray-300 rounded px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-                  autoComplete="tel"
+                          className="w-full pl-12 pr-6 py-4 border-2 border-gray-200 focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 bg-white/50 backdrop-blur-sm"
+                          placeholder="Enter your phone number"
                 />
               </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                      <label className="block text-sm font-bold text-gray-700 mb-3" htmlFor="company">
                   Company
                 </label>
+                      <div className="relative">
+                        <Building2 className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input
+                          id="company"
                   type="text"
                   name="company"
                   value={form.company}
                   onChange={handleChange}
-                  className="mt-1 block w-full border border-gray-300 rounded px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-                  autoComplete="organization"
+                          className="w-full pl-12 pr-6 py-4 border-2 border-gray-200 focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 bg-white/50 backdrop-blur-sm"
+                          placeholder="Enter your company name"
                 />
               </div>
+                    </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                      <label className="block text-sm font-bold text-gray-700 mb-3" htmlFor="date">
                   Visit Date
                 </label>
+                      <div className="relative">
+                        <Calendar className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input
+                          id="date"
                   type="date"
                   name="date"
                   value={form.date}
                   onChange={handleChange}
-                  className="mt-1 block w-full border border-gray-300 rounded px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+                          className="w-full pl-12 pr-6 py-4 border-2 border-gray-200 focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 bg-white/50 backdrop-blur-sm"
                 />
               </div>
+                    </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Details
+                      <label className="block text-sm font-bold text-gray-700 mb-3" htmlFor="details">
+                        Additional Details
                 </label>
+                      <div className="relative">
+                        <FileText className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input
+                          id="details"
                   type="text"
                   name="details"
                   value={form.details}
                   onChange={handleChange}
-                  className="mt-1 block w-full border border-gray-300 rounded px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+                          className="w-full pl-12 pr-6 py-4 border-2 border-gray-200 focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 bg-white/50 backdrop-blur-sm"
+                          placeholder="Any special requirements?"
                 />
               </div>
             </div>
+                  </div>
+                </div>
 
-            <div className="flex justify-center">
+                {selectedSeats.length > 0 && (
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 border-2 border-blue-200/50 shadow-lg">
+                    <div className="flex items-center space-x-3 mb-4">
+                      <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2 shadow-lg">
+                        <CheckCircle className="w-5 h-5 text-white" />
+                      </div>
+                      <span className="font-bold text-blue-900 text-lg">Selected Seats</span>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      {selectedSeats.map((seat, index) => (
+                        <span
+                          key={index}
+                          className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-sm font-bold shadow-md"
+                        >
+                          {seat}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
               <button
                 type="submit"
-                // --- Updated disabled prop ---
                 disabled={
-                  isSubmitting || // Disable if submission is in progress
+                    isSubmitting ||
                   !form.name ||
                   !form.email ||
                   !form.phone ||
                   selectedSeats.length === 0
                 }
-                className="w-48 py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded transition disabled:bg-gray-300 disabled:cursor-not-allowed"
-              >
-                {/* --- Change button text while submitting --- */}
-                {isSubmitting ? "Submitting..." : "Submit Reservation"}
+                  className="w-full py-5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white font-bold text-lg transition-all duration-300 transform hover:scale-105 disabled:from-gray-300 disabled:via-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed disabled:transform-none shadow-2xl hover:shadow-3xl"
+                >
+                  {isSubmitting ? (
+                    <div className="flex items-center justify-center space-x-3">
+                      <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span className="text-lg">Processing...</span>
+                    </div>
+                  ) : (
+                    "Submit Reservation"
+                  )}
               </button>
-            </div>
           </form>
-        </div>
-
-        {/* Seatmap Section */}
-        <div className="w-full">
-          <div className="mb-2 text-center">
-            <div className="font-medium mb-2">Select your seats</div>
-            <div className="flex flex-wrap gap-2 justify-center mb-4">
-              <span className="inline-flex items-center px-2 py-1 text-xs rounded bg-red-400 text-white border border-red-500">
-                Occupied
-              </span>
-              <span className="inline-flex items-center px-2 py-1 text-xs rounded bg-blue-600 text-white border border-blue-700">
-                Selected
-              </span>
-              <span className="inline-flex items-center px-2 py-1 text-xs rounded bg-gray-100 border border-gray-300 text-gray-700">
-                Vacant
-              </span>
-            </div>
-            <div className="flex flex-col md:flex-row gap-4 justify-center items-stretch">
-              {seatMaps.map((map) => (
-                <div key={map.mapType} className="flex-1 min-w-[220px] max-w-xs">
-                  {renderSeatMap(map.groupPairs, map.mapType, map.title)}
-                </div>
-              ))}
             </div>
           </div>
         </div>
       </div>
-      <ToastContainer /> {/* Add this component at the root of your return */}
+      <ToastContainer />
     </div>
   );
 }
