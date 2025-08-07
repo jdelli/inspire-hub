@@ -60,7 +60,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import InfoIcon from "@mui/icons-material/Info";
-import { blue, green, grey, red, purple, orange, indigo } from "@mui/material/colors";
+import { blue, green, grey, red, purple, orange } from "@mui/material/colors";
 import { sendSubscriptionExpiryNotification } from "../../(admin)/utils/email";
 import { getAuth, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
 
@@ -112,31 +112,28 @@ export default function SeatMapTable() {
   const [tenantDetailsClient, setTenantDetailsClient] = useState(null);
   const [addModalType, setAddModalType] = useState("dedicated");
   const [tabIndex, setTabIndex] = useState(0);
-  const [page, setPage] = useState([1, 1, 1]); // Adjusted for 3 tabs
-  const [isPrivateTabLoaded, setIsPrivateTabLoaded] = useState(false); // Unused, can be removed
-  const [isVirtualTabLoaded, setIsVirtualTabLoaded] = useState(false); // Unused, can be removed
+  const [page, setPage] = useState([1, 1, 1]);
+  const [isPrivateTabLoaded, setIsPrivateTabLoaded] = useState(false);
+  const [isVirtualTabLoaded, setIsVirtualTabLoaded] = useState(false);
   const [extensionModalOpen, setExtensionModalOpen] = useState(false);
   const [clientToExtend, setClientToExtend] = useState(null);
   const [showVirtualOfficeModal, setShowVirtualOfficeModal] = useState(false);
-
   const [editTenantModalOpen, setEditTenantModalOpen] = useState(false);
   const [clientToEdit, setClientToEdit] = useState(null);
-
   const [confirmDialog, setConfirmDialog] = useState({
     open: false,
     client: null,
-    type: null, // Now stores the type of client (dedicated, private, virtual)
-    password: "", // Add state for password input
-    error: "", // Add state for error messages
+    type: null,
+    password: "",
+    error: "",
   });
 
-  // --- EMAIL NOTIFICATION HOOKS (keeping them as is) ---
-  // Dedicated Desk
+  // Email notification hooks (keeping them as is)
   useEffect(() => {
     if (!clients || clients.length === 0) return;
 
     clients.forEach(async (client) => {
-      if (!client.billing?.billingEndDate || !client.email || client.status === "deactivated") return; // Added status check
+      if (!client.billing?.billingEndDate || !client.email || client.status === "deactivated") return;
 
       const now = new Date();
       const end = new Date(client.billing.billingEndDate);
@@ -161,12 +158,11 @@ export default function SeatMapTable() {
     });
   }, [clients]);
 
-  // Private Office
   useEffect(() => {
     if (!privateOfficeClients || privateOfficeClients.length === 0) return;
 
     privateOfficeClients.forEach(async (client) => {
-      if (!client.billing?.billingEndDate || !client.email || client.status === "deactivated") return; // Added status check
+      if (!client.billing?.billingEndDate || !client.email || client.status === "deactivated") return;
 
       const now = new Date();
       const end = new Date(client.billing.billingEndDate);
@@ -191,12 +187,11 @@ export default function SeatMapTable() {
     });
   }, [privateOfficeClients]);
 
-  // Virtual Office
   useEffect(() => {
     if (!virtualOfficeClients || virtualOfficeClients.length === 0) return;
 
     virtualOfficeClients.forEach(async (client) => {
-      if (!client.billing?.billingEndDate || !client.email || client.status === "deactivated") return; // Added status check
+      if (!client.billing?.billingEndDate || !client.email || client.status === "deactivated") return;
 
       const now = new Date();
       const end = new Date(client.billing.billingEndDate);
@@ -220,15 +215,13 @@ export default function SeatMapTable() {
       }
     });
   }, [virtualOfficeClients]);
-  // --- END EMAIL NOTIFICATION HOOKS ---
 
-  // Initial data fetching for all client types (with 'active' status filter)
+  // Initial data fetching
   useEffect(() => {
     async function fetchData() {
-      // Fetch 'seatMap' clients with status "active"
       const seatMapQuery = query(
         collection(db, "seatMap"),
-        where("status", "==", "active") // Added status filter
+        where("status", "==", "active")
       );
       const seatMapSnapshot = await getDocs(seatMapQuery);
       const seatMapDocs = seatMapSnapshot.docs.map((doc) => ({
@@ -237,10 +230,9 @@ export default function SeatMapTable() {
       }));
       setClients(seatMapDocs);
 
-      // Fetch 'privateOffice' clients with status "active"
       const privateOfficeQuery = query(
         collection(db, "privateOffice"),
-        where("status", "==", "active") // Added status filter
+        where("status", "==", "active")
       );
       const privateOfficeSnapshot = await getDocs(privateOfficeQuery);
       const privateOfficeDocs = privateOfficeSnapshot.docs.map((doc) => ({
@@ -249,10 +241,9 @@ export default function SeatMapTable() {
       }));
       setPrivateOfficeClients(privateOfficeDocs);
 
-      // Fetch 'virtualOffice' clients with status "active"
       const virtualOfficeQuery = query(
         collection(db, "virtualOffice"),
-        where("status", "==", "active") // Added status filter
+        where("status", "==", "active")
       );
       const virtualOfficeSnapshot = await getDocs(virtualOfficeQuery);
       const virtualOfficeDocs = virtualOfficeSnapshot.docs.map((doc) => ({
@@ -262,11 +253,9 @@ export default function SeatMapTable() {
       setVirtualOfficeClients(virtualOfficeDocs);
     }
     fetchData();
-  }, []); // Run only once on mount
+  }, []);
 
-  // Function to refresh client data across all relevant collections (now fetches only 'active' clients)
   const refreshClients = async () => {
-    // Dedicated Desks
     const seatMapQuery = query(
       collection(db, "seatMap"),
       where("status", "==", "active")
@@ -278,7 +267,6 @@ export default function SeatMapTable() {
     }));
     setClients(seatMapDocs);
 
-    // Private Office
     const privateOfficeQuery = query(
       collection(db, "privateOffice"),
       where("status", "==", "active")
@@ -290,7 +278,6 @@ export default function SeatMapTable() {
     }));
     setPrivateOfficeClients(privateOfficeDocs);
 
-    // Virtual Office
     const virtualOfficeQuery = query(
       collection(db, "virtualOffice"),
       where("status", "==", "active")
@@ -306,13 +293,13 @@ export default function SeatMapTable() {
   const handleOpenExtensionModal = (client) => {
     setClientToExtend(client);
     setExtensionModalOpen(true);
-    setShowTenantDetails(false); // Close details modal when opening extension
+    setShowTenantDetails(false);
   };
 
   const handleEditTenant = (client) => {
     setClientToEdit(client);
     setEditTenantModalOpen(true);
-    setShowTenantDetails(false); // Close the details modal when opening edit
+    setShowTenantDetails(false);
   };
 
   const handleCloseEditModal = () => {
@@ -327,13 +314,12 @@ export default function SeatMapTable() {
     } else if (updatedClientData.type === "virtual" || (updatedClientData.virtualOfficeFeatures && updatedClientData.virtualOfficeFeatures.length > 0)) {
       collectionName = "virtualOffice";
     } else {
-      collectionName = "seatMap"; // Default to dedicated desks
+      collectionName = "seatMap";
     }
 
     try {
       const clientRef = doc(db, collectionName, updatedClientData.id);
       await updateDoc(clientRef, updatedClientData);
-      console.log(`Client ${updatedClientData.id} updated successfully in ${collectionName}!`);
       handleCloseEditModal();
       await refreshClients();
     } catch (error) {
@@ -341,139 +327,112 @@ export default function SeatMapTable() {
     }
   };
 
-  // --- MODIFIED: handleDeactivateClient to pass the client type ---
   const handleDeactivateClient = (client, type) => {
     setConfirmDialog({
       open: true,
       client,
-      type, // Pass the detected type (dedicated, private, virtual)
-      password: "", // Clear password field on open
-      error: "", // Clear any previous errors
+      type,
+      password: "",
+      error: "",
     });
   };
 
-  // --- NEW: handlePasswordChange for the input field ---
   const handlePasswordChange = (event) => {
     setConfirmDialog((prev) => ({ ...prev, password: event.target.value, error: "" }));
   };
 
-  // --- CORRECTED: confirmDeactivate to use state variables and add password verification ---
+  const confirmDeactivate = async () => {
+    const auth = getAuth();
+    const user = auth.currentUser;
 
-const confirmDeactivate = async () => {
-  const auth = getAuth();
-  const user = auth.currentUser;
-
-  if (!user) {
-    setConfirmDialog((prev) => ({ ...prev, error: "No authenticated user found. Please log in again." }));
-    return;
-  }
-
-  const { client, type, password } = confirmDialog;
-
-  if (!client || !client.id || !type || !password) {
-    setConfirmDialog((prev) => ({ ...prev, error: "Missing client data, type, or password." }));
-    return;
-  }
-
-  try {
-    // 1. Reauthenticate the user with their password
-    const credential = EmailAuthProvider.credential(user.email, password);
-    await reauthenticateWithCredential(user, credential);
-    console.log("User reauthenticated successfully.");
-
-    // --- Fetch user's firstName from Firestore ---
-    let deactivatedByName = null; // Initialize as null
-    try {
-      console.log("Current authenticated user UID:", user.uid); // For debugging
-      const userDocRef = doc(db, "users", user.uid); // Reference to the user's document in 'users' collection
-      const userDocSnap = await getDoc(userDocRef);
-
-      if (userDocSnap.exists()) {
-        const userData = userDocSnap.data();
-        console.log("Fetched user data from Firestore:", userData); // For debugging
-        if (userData.firstName) {
-          deactivatedByName = userData.firstName;
-          console.log("Found firstName:", deactivatedByName); // For debugging
-        } else {
-          console.log("firstName field is missing or empty in user document."); // For debugging
-        }
-      } else {
-        console.log("User document DOES NOT EXIST for UID:", user.uid); // For debugging
-      }
-    } catch (fetchError) {
-      console.warn("Could not fetch user's first name from Firestore:", fetchError);
-      // deactivatedByName will remain null, leading to 'deactivatedBy' not being added to updateData
-    }
-    // --- End: Fetch user's firstName ---
-
-    // 2. If reauthentication is successful, proceed with deactivation
-    let collectionName;
-    const updateData = {
-      status: 'deactivated', // Set status to deactivated
-      deactivatedAt: serverTimestamp(), // Use serverTimestamp() directly
-      // Conditionally add deactivatedBy field ONLY if deactivatedByName has a value
-      ...(deactivatedByName && { deactivatedBy: deactivatedByName }),
-      deactivatedById: user.uid, // Store the UID of the user who deactivated
-    };
-
-    // Determine collection and specific fields to delete based on client type
-    if (type === "dedicated") {
-      collectionName = "seatMap";
-      updateData.selectedSeats = deleteField(); // Delete 'selectedSeats' for dedicated desks
-    } else if (type === "private") {
-      collectionName = "privateOffice";
-      updateData.selectedPO = deleteField(); // Delete 'selectedPO' for private offices
-    } else if (type === "virtual") {
-      collectionName = "virtualOffice";
-      // For virtual office clients, you might not have specific resource fields like seats or offices
-      // to clear out in the same way. Add any relevant fields here if needed.
-    } else {
-      setConfirmDialog((prev) => ({ ...prev, error: "Unknown client type for deactivation. Aborting." }));
+    if (!user) {
+      setConfirmDialog((prev) => ({ ...prev, error: "No authenticated user found. Please log in again." }));
       return;
     }
 
-    const clientRef = doc(db, collectionName, client.id); // Use client.id
-    await updateDoc(clientRef, updateData);
-    console.log(`Client ${client.id} status set to 'deactivated' and resource fields cleared in ${collectionName}.`);
-    setConfirmDialog({ open: false, client: null, type: null, password: "", error: "" });
-    await refreshClients(); // Refresh the data after the update
-  } catch (error) {
-    console.error("Error during deactivation process:", error);
-    let errorMessage = "Failed to deactivate client.";
-    if (error.code === "auth/wrong-password") {
-      errorMessage = "Incorrect password. Please try again.";
-    } else if (error.code === "auth/invalid-credential") {
-      errorMessage = "Invalid credentials. Please log in again.";
-    } else if (error.code === "auth/user-mismatch") {
-      errorMessage = "Authentication failed. User mismatch.";
+    const { client, type, password } = confirmDialog;
+
+    if (!client || !client.id || !type || !password) {
+      setConfirmDialog((prev) => ({ ...prev, error: "Missing client data, type, or password." }));
+      return;
     }
-    setConfirmDialog((prev) => ({ ...prev, error: errorMessage }));
-  }
-};
+
+    try {
+      const credential = EmailAuthProvider.credential(user.email, password);
+      await reauthenticateWithCredential(user, credential);
+
+      let deactivatedByName = null;
+      try {
+        const userDocRef = doc(db, "users", user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+
+        if (userDocSnap.exists()) {
+          const userData = userDocSnap.data();
+          if (userData.firstName) {
+            deactivatedByName = userData.firstName;
+          }
+        }
+      } catch (fetchError) {
+        console.warn("Could not fetch user's first name from Firestore:", fetchError);
+      }
+
+      let collectionName;
+      const updateData = {
+        status: 'deactivated',
+        deactivatedAt: serverTimestamp(),
+        ...(deactivatedByName && { deactivatedBy: deactivatedByName }),
+        deactivatedById: user.uid,
+      };
+
+      if (type === "dedicated") {
+        collectionName = "seatMap";
+        updateData.selectedSeats = deleteField();
+      } else if (type === "private") {
+        collectionName = "privateOffice";
+        updateData.selectedPO = deleteField();
+      } else if (type === "virtual") {
+        collectionName = "virtualOffice";
+      } else {
+        setConfirmDialog((prev) => ({ ...prev, error: "Unknown client type for deactivation. Aborting." }));
+        return;
+      }
+
+      const clientRef = doc(db, collectionName, client.id);
+      await updateDoc(clientRef, updateData);
+      setConfirmDialog({ open: false, client: null, type: null, password: "", error: "" });
+      await refreshClients();
+    } catch (error) {
+      console.error("Error during deactivation process:", error);
+      let errorMessage = "Failed to deactivate client.";
+      if (error.code === "auth/wrong-password") {
+        errorMessage = "Incorrect password. Please try again.";
+      } else if (error.code === "auth/invalid-credential") {
+        errorMessage = "Invalid credentials. Please log in again.";
+      } else if (error.code === "auth/user-mismatch") {
+        errorMessage = "Authentication failed. User mismatch.";
+      }
+      setConfirmDialog((prev) => ({ ...prev, error: errorMessage }));
+    }
+  };
 
   const cancelDeactivate = () => {
     setConfirmDialog({ open: false, client: null, type: null, password: "", error: "" });
   };
 
-  // --- MODIFIED: Filtering clients based on 'status' field ---
-  // These filters are now redundant if the fetch/refresh already filters for "active"
-  // However, keeping them here ensures robustness if a client-side mutation changes status before refresh
-  // but if the data is consistently loaded with `status === 'active'`, these `filter` calls
-  // will essentially return the original array.
   const dedicatedDeskClients = clients.filter(
     (client) =>
       (client.type === "dedicated" ||
-        (!client.type && // Backward compatibility for old records without 'type'
+        (!client.type &&
           client.selectedSeats &&
           client.selectedSeats.length > 0 &&
           (!client.officeType || client.officeType === "dedicated desk"))) &&
-      client.status !== 'deactivated' // This filter is now mostly redundant if initial fetch/refresh already filters
+      client.status !== 'deactivated'
   );
   const privateOfficeActiveClients = privateOfficeClients.filter(
-    (client) => client.status !== 'deactivated' // This filter is now mostly redundant
+    (client) => client.status !== 'deactivated'
   );
   const virtualTabClients = virtualOfficeClients.filter(
-    (client) => client.status !== 'deactivated' // This filter is now mostly redundant
+    (client) => client.status !== 'deactivated'
   );
 
   const tabClientSets = [
@@ -506,11 +465,11 @@ const confirmDeactivate = async () => {
                       const seatKey = `${mapType}-${seat.number}`;
                       const isSelected = selectedClient?.selectedSeats?.includes(seatKey);
                       const isWindow = seat.type === "window";
-                      let seatBg = grey[100], seatColor = grey[800], barColor = grey[300];
+                      let seatBg = grey[50], seatColor = grey[900], barColor = grey[300];
                       if (isSelected) {
-                        seatBg = green[400]; seatColor = "#fff"; barColor = red[600];
+                        seatBg = grey[800]; seatColor = "#fff"; barColor = grey[600];
                       } else if (isWindow) {
-                        seatBg = grey[200]; seatColor = grey[900]; barColor = grey[400];
+                        seatBg = grey[100]; seatColor = grey[900]; barColor = grey[400];
                       }
                       return (
                         <Box key={seat.id} position="relative" mr={isWindow ? 1 : 0.5}>
@@ -553,20 +512,17 @@ const confirmDeactivate = async () => {
       startIcon={<AddIcon />}
       onClick={() => { setAddModalType("dedicated"); setShowAddModal(true); }}
       sx={{ 
-        bgcolor: blue[600], 
-        "&:hover": { bgcolor: blue[700] }, 
+        bgcolor: 'primary.main', 
         mb: 2,
-        borderRadius: 3,
+        borderRadius: 1,
         py: 1.5,
-        fontSize: '1rem',
+        fontSize: '0.875rem',
         fontWeight: 600,
         textTransform: 'none',
-        boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)',
-        transition: 'all 0.3s ease-in-out',
+        boxShadow: 'none',
         '&:hover': {
-          bgcolor: blue[700],
-          transform: 'translateY(-2px)',
-          boxShadow: '0 6px 20px rgba(25, 118, 210, 0.4)',
+          bgcolor: 'primary.dark',
+          boxShadow: 'none',
         }
       }}
       fullWidth
@@ -579,20 +535,17 @@ const confirmDeactivate = async () => {
       startIcon={<AddIcon />}
       onClick={() => { setAddModalType("private"); setShowAddModal(true); }}
       sx={{ 
-        bgcolor: blue[600], 
-        "&:hover": { bgcolor: blue[700] }, 
+        bgcolor: 'primary.main', 
         mb: 2,
-        borderRadius: 3,
+        borderRadius: 1,
         py: 1.5,
-        fontSize: '1rem',
+        fontSize: '0.875rem',
         fontWeight: 600,
         textTransform: 'none',
-        boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)',
-        transition: 'all 0.3s ease-in-out',
+        boxShadow: 'none',
         '&:hover': {
-          bgcolor: blue[700],
-          transform: 'translateY(-2px)',
-          boxShadow: '0 6px 20px rgba(25, 118, 210, 0.4)',
+          bgcolor: 'primary.dark',
+          boxShadow: 'none',
         }
       }}
       fullWidth
@@ -605,20 +558,17 @@ const confirmDeactivate = async () => {
       startIcon={<AddIcon />}
       onClick={() => { setShowVirtualOfficeModal(true); }}
       sx={{ 
-        bgcolor: blue[600], 
-        "&:hover": { bgcolor: blue[700] }, 
+        bgcolor: 'primary.main', 
         mb: 2,
-        borderRadius: 3,
+        borderRadius: 1,
         py: 1.5,
-        fontSize: '1rem',
+        fontSize: '0.875rem',
         fontWeight: 600,
         textTransform: 'none',
-        boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)',
-        transition: 'all 0.3s ease-in-out',
+        boxShadow: 'none',
         '&:hover': {
-          bgcolor: blue[700],
-          transform: 'translateY(-2px)',
-          boxShadow: '0 6px 20px rgba(25, 118, 210, 0.4)',
+          bgcolor: 'primary.dark',
+          boxShadow: 'none',
         }
       }}
       fullWidth
@@ -627,7 +577,6 @@ const confirmDeactivate = async () => {
     </Button>,
   ];
 
-  // Enhanced styling constants
   const getStatusColor = (daysLeft) => {
     if (daysLeft <= 7) return red[500];
     if (daysLeft <= 30) return orange[500];
@@ -649,15 +598,15 @@ const confirmDeactivate = async () => {
   };
 
   return (
-    <Box sx={{ py: 4, px: { xs: 1, sm: 2, md: 4 }, width: "100%" }}>
+    <Box sx={{ py: 4, px: { xs: 2, sm: 3, md: 4 }, width: "100%" }}>
       {/* Header Section */}
       <Box sx={{ mb: 4 }}>
         <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3 }}>
-          <Avatar sx={{ bgcolor: blue[600], width: 56, height: 56 }}>
+          <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56 }}>
             <PeopleIcon sx={{ fontSize: 28 }} />
           </Avatar>
           <Box>
-            <Typography variant="h4" fontWeight={700} color="text.primary">
+            <Typography variant="h5" fontWeight={700} color="text.primary">
               Tenant Management
             </Typography>
             <Typography variant="body1" color="text.secondary">
@@ -667,30 +616,28 @@ const confirmDeactivate = async () => {
         </Stack>
 
         {/* Statistics Cards */}
-        <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid container spacing={2} sx={{ mb: 4 }}>
           <Grid item xs={12} sm={6} md={3}>
             <Card 
               elevation={0} 
               sx={{ 
-                background: `linear-gradient(135deg, ${blue[50]} 0%, ${blue[100]} 100%)`,
-                border: `1px solid ${blue[200]}`,
-                borderRadius: 3,
-                transition: 'transform 0.2s ease-in-out',
-                '&:hover': { transform: 'translateY(-2px)' }
+                backgroundColor: 'background.paper',
+                border: `1px solid ${grey[200]}`,
+                borderRadius: 1,
               }}
             >
-              <CardContent sx={{ p: 3 }}>
+              <CardContent sx={{ p: 2 }}>
                 <Stack direction="row" alignItems="center" justifyContent="space-between">
                   <Box>
-                    <Typography variant="h4" fontWeight={700} color={blue[700]}>
+                    <Typography variant="h5" fontWeight={700}>
                       {dedicatedDeskClients.length}
                     </Typography>
-                    <Typography variant="body2" color={blue[600]} fontWeight={500}>
+                    <Typography variant="body2" color="text.secondary">
                       Dedicated Desks
                     </Typography>
                   </Box>
-                  <Avatar sx={{ bgcolor: blue[600], width: 48, height: 48 }}>
-                    <Monitor style={{ fontSize: 24 }} />
+                  <Avatar sx={{ bgcolor: grey[100], width: 40, height: 40 }}>
+                    <Monitor style={{ fontSize: 20, color: grey[800] }} />
                   </Avatar>
                 </Stack>
               </CardContent>
@@ -701,25 +648,23 @@ const confirmDeactivate = async () => {
             <Card 
               elevation={0} 
               sx={{ 
-                background: `linear-gradient(135deg, ${green[50]} 0%, ${green[100]} 100%)`,
-                border: `1px solid ${green[200]}`,
-                borderRadius: 3,
-                transition: 'transform 0.2s ease-in-out',
-                '&:hover': { transform: 'translateY(-2px)' }
+                backgroundColor: 'background.paper',
+                border: `1px solid ${grey[200]}`,
+                borderRadius: 1,
               }}
             >
-              <CardContent sx={{ p: 3 }}>
+              <CardContent sx={{ p: 2 }}>
                 <Stack direction="row" alignItems="center" justifyContent="space-between">
                   <Box>
-                    <Typography variant="h4" fontWeight={700} color={green[700]}>
+                    <Typography variant="h5" fontWeight={700}>
                       {privateOfficeActiveClients.length}
                     </Typography>
-                    <Typography variant="body2" color={green[600]} fontWeight={500}>
+                    <Typography variant="body2" color="text.secondary">
                       Private Offices
                     </Typography>
                   </Box>
-                  <Avatar sx={{ bgcolor: green[600], width: 48, height: 48 }}>
-                    <BusinessIcon sx={{ fontSize: 24 }} />
+                  <Avatar sx={{ bgcolor: grey[100], width: 40, height: 40 }}>
+                    <BusinessIcon sx={{ fontSize: 20, color: grey[800] }} />
                   </Avatar>
                 </Stack>
               </CardContent>
@@ -730,25 +675,23 @@ const confirmDeactivate = async () => {
             <Card 
               elevation={0} 
               sx={{ 
-                background: `linear-gradient(135deg, ${purple[50]} 0%, ${purple[100]} 100%)`,
-                border: `1px solid ${purple[200]}`,
-                borderRadius: 3,
-                transition: 'transform 0.2s ease-in-out',
-                '&:hover': { transform: 'translateY(-2px)' }
+                backgroundColor: 'background.paper',
+                border: `1px solid ${grey[200]}`,
+                borderRadius: 1,
               }}
             >
-              <CardContent sx={{ p: 3 }}>
+              <CardContent sx={{ p: 2 }}>
                 <Stack direction="row" alignItems="center" justifyContent="space-between">
                   <Box>
-                    <Typography variant="h4" fontWeight={700} color={purple[700]}>
+                    <Typography variant="h5" fontWeight={700}>
                       {virtualTabClients.length}
                     </Typography>
-                    <Typography variant="body2" color={purple[600]} fontWeight={500}>
+                    <Typography variant="body2" color="text.secondary">
                       Virtual Offices
                     </Typography>
                   </Box>
-                  <Avatar sx={{ bgcolor: purple[600], width: 48, height: 48 }}>
-                    <HomeWorkIcon sx={{ fontSize: 24 }} />
+                  <Avatar sx={{ bgcolor: grey[100], width: 40, height: 40 }}>
+                    <HomeWorkIcon sx={{ fontSize: 20, color: grey[800] }} />
                   </Avatar>
                 </Stack>
               </CardContent>
@@ -759,25 +702,23 @@ const confirmDeactivate = async () => {
             <Card 
               elevation={0} 
               sx={{ 
-                background: `linear-gradient(135deg, ${orange[50]} 0%, ${orange[100]} 100%)`,
-                border: `1px solid ${orange[200]}`,
-                borderRadius: 3,
-                transition: 'transform 0.2s ease-in-out',
-                '&:hover': { transform: 'translateY(-2px)' }
+                backgroundColor: 'background.paper',
+                border: `1px solid ${grey[200]}`,
+                borderRadius: 1,
               }}
             >
-              <CardContent sx={{ p: 3 }}>
+              <CardContent sx={{ p: 2 }}>
                 <Stack direction="row" alignItems="center" justifyContent="space-between">
                   <Box>
-                    <Typography variant="h4" fontWeight={700} color={orange[700]}>
+                    <Typography variant="h5" fontWeight={700}>
                       {dedicatedDeskClients.length + privateOfficeActiveClients.length + virtualTabClients.length}
                     </Typography>
-                    <Typography variant="body2" color={orange[600]} fontWeight={500}>
+                    <Typography variant="body2" color="text.secondary">
                       Total Tenants
                     </Typography>
                   </Box>
-                  <Avatar sx={{ bgcolor: orange[600], width: 48, height: 48 }}>
-                    <PeopleIcon sx={{ fontSize: 24 }} />
+                  <Avatar sx={{ bgcolor: grey[100], width: 40, height: 40 }}>
+                    <PeopleIcon sx={{ fontSize: 20, color: grey[800] }} />
                   </Avatar>
                 </Stack>
               </CardContent>
@@ -787,34 +728,29 @@ const confirmDeactivate = async () => {
       </Box>
 
       {/* Enhanced Tabs */}
-      <Card elevation={0} sx={{ border: `1px solid ${grey[200]}`, borderRadius: 3, mb: 3 }}>
+      <Card elevation={0} sx={{ border: `1px solid ${grey[200]}`, borderRadius: 1, mb: 2 }}>
         <Tabs
           value={tabIndex}
           onChange={(_, newValue) => setTabIndex(newValue)}
           sx={{ 
-            px: 2,
             '& .MuiTab-root': {
-              minHeight: 64,
-              fontSize: '1rem',
-              fontWeight: 600,
+              minHeight: 48,
+              fontSize: '0.875rem',
+              fontWeight: 500,
               textTransform: 'none',
-              borderRadius: '12px 12px 0 0',
-              marginRight: 1,
               '&.Mui-selected': {
-                backgroundColor: blue[50],
-                color: blue[700],
-                borderBottom: `3px solid ${blue[600]}`,
+                fontWeight: 600,
               }
             }
           }}
           indicatorColor="primary"
           textColor="primary"
-          centered
+          variant="fullWidth"
         >
           <Tab 
             label={
               <Stack direction="row" alignItems="center" spacing={1}>
-                <Monitor size={20} />
+                <Monitor size={18} />
                 <span>Dedicated Desk</span>
               </Stack>
             } 
@@ -822,7 +758,7 @@ const confirmDeactivate = async () => {
           <Tab 
             label={
               <Stack direction="row" alignItems="center" spacing={1}>
-                <BusinessIcon />
+                <BusinessIcon fontSize="small" />
                 <span>Private Office</span>
               </Stack>
             } 
@@ -830,7 +766,7 @@ const confirmDeactivate = async () => {
           <Tab 
             label={
               <Stack direction="row" alignItems="center" spacing={1}>
-                <HomeWorkIcon />
+                <HomeWorkIcon fontSize="small" />
                 <span>Virtual Office</span>
               </Stack>
             } 
@@ -838,46 +774,46 @@ const confirmDeactivate = async () => {
         </Tabs>
       </Card>
 
-      {/* Enhanced Add Button */}
+      {/* Add Button */}
       <Fade in={true} timeout={800}>
-        <Box sx={{ mb: 3 }}>
+        <Box sx={{ mb: 2 }}>
           {tabAddButtons[tabIndex]}
         </Box>
       </Fade>
 
       {/* Enhanced Table */}
-      <Card elevation={0} sx={{ border: `1px solid ${grey[200]}`, borderRadius: 3, overflow: 'hidden' }}>
+      <Card elevation={0} sx={{ border: `1px solid ${grey[200]}`, borderRadius: 1, overflow: 'hidden' }}>
         <TableContainer>
           <Table sx={{ minWidth: 750 }}>
             <TableHead>
               <TableRow sx={{ backgroundColor: grey[50] }}>
-                <TableCell sx={{ py: 2, px: 3, borderBottom: `2px solid ${grey[300]}` }}>
-                  <Typography variant="subtitle2" fontWeight={700} color="text.primary">
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
                     Company
                   </Typography>
                 </TableCell>
-                <TableCell sx={{ py: 2, px: 3, borderBottom: `2px solid ${grey[300]}` }}>
-                  <Typography variant="subtitle2" fontWeight={700} color="text.primary">
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
                     Client Name
                   </Typography>
                 </TableCell>
-                <TableCell sx={{ py: 2, px: 3, borderBottom: `2px solid ${grey[300]}` }}>
-                  <Typography variant="subtitle2" fontWeight={700} color="text.primary">
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
                     Contact Info
                   </Typography>
                 </TableCell>
-                <TableCell sx={{ py: 2, px: 3, borderBottom: `2px solid ${grey[300]}` }}>
-                  <Typography variant="subtitle2" fontWeight={700} color="text.primary">
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
                     {tabIndex === 1 ? "Selected Offices" : tabIndex === 2 ? "Virtual Features" : "Selected Seats"}
                   </Typography>
                 </TableCell>
-                <TableCell sx={{ py: 2, px: 3, borderBottom: `2px solid ${grey[300]}` }}>
-                  <Typography variant="subtitle2" fontWeight={700} color="text.primary">
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
                     Status
                   </Typography>
                 </TableCell>
-                <TableCell sx={{ py: 2, px: 3, borderBottom: `2px solid ${grey[300]}` }}>
-                  <Typography variant="subtitle2" fontWeight={700} color="text.primary">
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
                     Actions
                   </Typography>
                 </TableCell>
@@ -895,37 +831,37 @@ const confirmDeactivate = async () => {
                       hover 
                       sx={{ 
                         '&:hover': { backgroundColor: grey[50] },
-                        transition: 'background-color 0.2s ease-in-out'
                       }}
                     >
                       <TableCell sx={{ py: 2, px: 3 }}>
-                        <Stack spacing={1}>
-                          <Typography variant="body1" fontWeight={600} color="text.primary">
+                        <Stack spacing={0.5}>
+                          <Typography variant="body1" fontWeight={500}>
                             {client.company || "N/A"}
                           </Typography>
-                          <Typography variant="body2" color="text.secondary">
+                          <Typography variant="body2" color="text.secondary" fontSize="0.875rem">
                             {client?.billing?.plan || "Standard Plan"}
                           </Typography>
                         </Stack>
                       </TableCell>
                       <TableCell sx={{ py: 2, px: 3 }}>
-                        <Stack direction="row" spacing={2} alignItems="center">
+                        <Stack direction="row" spacing={1.5} alignItems="center">
                           <Avatar 
                             sx={{ 
-                              bgcolor: purple[500], 
-                              width: 40, 
-                              height: 40, 
-                              fontSize: 16,
-                              fontWeight: 600
+                              bgcolor: grey[200], 
+                              color: grey[800],
+                              width: 36, 
+                              height: 36, 
+                              fontSize: 14,
+                              fontWeight: 500
                             }}
                           >
                             {client.name?.[0]?.toUpperCase() || "?"}
                           </Avatar>
                           <Box>
-                            <Typography variant="body1" fontWeight={600} color="text.primary">
+                            <Typography variant="body1" fontWeight={500}>
                               {client.name || "N/A"}
                             </Typography>
-                            <Typography variant="body2" color="text.secondary">
+                            <Typography variant="body2" color="text.secondary" fontSize="0.875rem">
                               {client?.billing?.paymentMethod || "N/A"}
                             </Typography>
                           </Box>
@@ -933,16 +869,16 @@ const confirmDeactivate = async () => {
                       </TableCell>
                       <TableCell sx={{ py: 2, px: 3 }}>
                         <Stack spacing={0.5}>
-                          <Typography variant="body2" color="text.primary">
+                          <Typography variant="body2">
                             {client.email || "N/A"}
                           </Typography>
-                          <Typography variant="body2" color="text.secondary">
+                          <Typography variant="body2" color="text.secondary" fontSize="0.875rem">
                             {client.phone || "N/A"}
                           </Typography>
                         </Stack>
                       </TableCell>
                       <TableCell sx={{ py: 2, px: 3 }}>
-                        <Stack direction="row" spacing={1} flexWrap="wrap">
+                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                           {tabIndex === 1 ? (
                             client.selectedPO && client.selectedPO.length > 0
                               ? (Array.isArray(client.selectedPO)
@@ -954,14 +890,15 @@ const confirmDeactivate = async () => {
                                   label={office}
                                   size="small"
                                   sx={{
-                                    bgcolor: green[50],
-                                    color: green[700],
+                                    bgcolor: grey[100],
+                                    color: grey[800],
                                     fontWeight: 500,
-                                    border: `1px solid ${green[200]}`,
+                                    border: `1px solid ${grey[300]}`,
+                                    fontSize: '0.75rem'
                                   }}
                                 />
                               ))
-                              : <Typography variant="body2" color="text.secondary">None</Typography>
+                              : <Typography variant="body2" color="text.secondary" fontSize="0.875rem">None</Typography>
                           ) : tabIndex === 2 ? (
                             client.virtualOfficeFeatures && client.virtualOfficeFeatures.length > 0
                               ? client.virtualOfficeFeatures.map((feature, idx) => (
@@ -970,14 +907,15 @@ const confirmDeactivate = async () => {
                                   label={feature}
                                   size="small"
                                   sx={{
-                                    bgcolor: purple[50],
-                                    color: purple[700],
+                                    bgcolor: grey[100],
+                                    color: grey[800],
                                     fontWeight: 500,
-                                    border: `1px solid ${purple[200]}`,
+                                    border: `1px solid ${grey[300]}`,
+                                    fontSize: '0.75rem'
                                   }}
                                 />
                               ))
-                              : <Typography variant="body2" color="text.secondary">Basic Package</Typography>
+                              : <Typography variant="body2" color="text.secondary" fontSize="0.875rem">Basic Package</Typography>
                           ) : (
                             client.selectedSeats && client.selectedSeats.length > 0
                               ? client.selectedSeats.map((seat, idx) => (
@@ -986,28 +924,30 @@ const confirmDeactivate = async () => {
                                   label={seat}
                                   size="small"
                                   sx={{
-                                    bgcolor: blue[50],
-                                    color: blue[700],
+                                    bgcolor: grey[100],
+                                    color: grey[800],
                                     fontWeight: 500,
-                                    border: `1px solid ${blue[200]}`,
+                                    border: `1px solid ${grey[300]}`,
+                                    fontSize: '0.75rem'
                                   }}
                                 />
                               ))
-                              : <Typography variant="body2" color="text.secondary">None</Typography>
+                              : <Typography variant="body2" color="text.secondary" fontSize="0.875rem">None</Typography>
                           )}
                         </Stack>
                       </TableCell>
                       <TableCell sx={{ py: 2, px: 3 }}>
                         {daysLeft !== null ? (
-                          <Stack spacing={1}>
+                          <Stack spacing={0.5}>
                             <Chip
                               label={getStatusText(daysLeft)}
                               size="small"
                               sx={{
                                 bgcolor: getStatusColor(daysLeft),
                                 color: 'white',
-                                fontWeight: 600,
-                                width: 'fit-content'
+                                fontWeight: 500,
+                                width: 'fit-content',
+                                fontSize: '0.75rem'
                               }}
                             />
                             <Typography variant="caption" color="text.secondary">
@@ -1033,29 +973,28 @@ const confirmDeactivate = async () => {
                             sx={{
                               bgcolor: green[500],
                               color: 'white',
-                              fontWeight: 600
+                              fontWeight: 500,
+                              fontSize: '0.75rem'
                             }}
                           />
                         )}
                       </TableCell>
                       <TableCell sx={{ py: 2, px: 3 }}>
-                        <Stack direction="row" spacing={1} flexWrap="wrap">
+                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                           {tabIndex === 0 && (
                             <Button
                               size="small"
-                              variant="outlined"
                               startIcon={<VisibilityIcon fontSize="small" />}
                               sx={{ 
-                                color: blue[600],
-                                borderColor: blue[300],
-                                '&:hover': { 
-                                  bgcolor: blue[50],
-                                  borderColor: blue[600]
-                                },
+                                color: grey[700],
                                 textTransform: 'none',
                                 fontSize: '0.75rem',
                                 py: 0.5,
-                                px: 1.5
+                                px: 1,
+                                minWidth: 'auto',
+                                '&:hover': { 
+                                  bgcolor: grey[100],
+                                },
                               }}
                               onClick={() => {
                                 setSelectedClient(client);
@@ -1067,19 +1006,17 @@ const confirmDeactivate = async () => {
                           )}
                           <Button
                             size="small"
-                            variant="outlined"
                             startIcon={<InfoIcon fontSize="small" />}
                             sx={{ 
-                              color: green[600],
-                              borderColor: green[300],
-                              '&:hover': { 
-                                bgcolor: green[50],
-                                borderColor: green[600]
-                              },
+                              color: grey[700],
                               textTransform: 'none',
                               fontSize: '0.75rem',
                               py: 0.5,
-                              px: 1.5
+                              px: 1,
+                              minWidth: 'auto',
+                              '&:hover': { 
+                                bgcolor: grey[100],
+                              },
                             }}
                             onClick={() => {
                               setTenantDetailsClient(client);
@@ -1090,19 +1027,17 @@ const confirmDeactivate = async () => {
                           </Button>
                           <Button
                             size="small"
-                            variant="outlined"
                             startIcon={<EditIcon fontSize="small" />}
                             sx={{ 
-                              color: orange[600],
-                              borderColor: orange[300],
-                              '&:hover': { 
-                                bgcolor: orange[50],
-                                borderColor: orange[600]
-                              },
+                              color: grey[700],
                               textTransform: 'none',
                               fontSize: '0.75rem',
                               py: 0.5,
-                              px: 1.5
+                              px: 1,
+                              minWidth: 'auto',
+                              '&:hover': { 
+                                bgcolor: grey[100],
+                              },
                             }}
                             onClick={() => handleEditTenant(client)}
                           >
@@ -1110,19 +1045,17 @@ const confirmDeactivate = async () => {
                           </Button>
                           <Button
                             size="small"
-                            variant="outlined"
                             startIcon={<DeleteIcon fontSize="small" />}
                             sx={{ 
-                              color: red[600],
-                              borderColor: red[300],
-                              '&:hover': { 
-                                bgcolor: red[50],
-                                borderColor: red[600]
-                              },
+                              color: grey[700],
                               textTransform: 'none',
                               fontSize: '0.75rem',
                               py: 0.5,
-                              px: 1.5
+                              px: 1,
+                              minWidth: 'auto',
+                              '&:hover': { 
+                                bgcolor: grey[100],
+                              },
                             }}
                             onClick={() => handleDeactivateClient(client, tabIndex === 0 ? "dedicated" : tabIndex === 1 ? "private" : "virtual")}
                           >
@@ -1138,8 +1071,8 @@ const confirmDeactivate = async () => {
           </Table>
         </TableContainer>
         
-        {/* Enhanced Pagination */}
-        <Box sx={{ p: 3, borderTop: `1px solid ${grey[200]}` }}>
+        {/* Pagination */}
+        <Box sx={{ p: 2, borderTop: `1px solid ${grey[200]}` }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Typography variant="body2" color="text.secondary">
               Showing {((page[tabIndex] - 1) * ITEMS_PER_PAGE) + 1} to {Math.min(page[tabIndex] * ITEMS_PER_PAGE, tabClientSets[tabIndex].length)} of {tabClientSets[tabIndex].length} tenants
@@ -1153,13 +1086,11 @@ const confirmDeactivate = async () => {
                 setPage(newPages);
               }}
               color="primary"
-              showFirstButton
-              showLastButton
               size={isMobile ? "small" : "medium"}
               sx={{
                 '& .MuiPaginationItem-root': {
-                  borderRadius: 2,
-                  fontWeight: 600,
+                  borderRadius: 1,
+                  fontWeight: 500,
                 }
               }}
             />
@@ -1167,7 +1098,7 @@ const confirmDeactivate = async () => {
         </Box>
       </Card>
 
-      {/* Enhanced Modals */}
+      {/* Modals */}
       <Dialog
         open={showModal}
         onClose={() => setShowModal(false)}
@@ -1176,42 +1107,40 @@ const confirmDeactivate = async () => {
         PaperProps={{
           sx: { 
             maxHeight: '90vh',
-            borderRadius: 3,
-            overflow: 'hidden'
+            borderRadius: 1,
           }
         }}
       >
         <DialogTitle sx={{ 
           display: "flex", 
           justifyContent: "space-between", 
-          alignItems: "start",
-          background: `linear-gradient(135deg, ${blue[50]} 0%, ${blue[100]} 100%)`,
-          borderBottom: `1px solid ${blue[200]}`
+          alignItems: "center",
+          borderBottom: `1px solid ${grey[200]}`
         }}>
           <Box>
-            <Typography variant="h5" fontWeight={700} color="text.primary">
+            <Typography variant="h6" fontWeight={600}>
               {selectedClient?.name}&apos;s {tabIndex === 1 ? "Office" : "Seat Map"}
             </Typography>
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body2" color="text.secondary">
               {selectedClient?.company}
             </Typography>
           </Box>
           <IconButton
             onClick={() => setShowModal(false)}
             aria-label="close"
-            size="large"
+            size="small"
             sx={{ 
-              color: blue[600],
-              '&:hover': { bgcolor: blue[50] }
+              color: grey[600],
+              '&:hover': { bgcolor: grey[100] }
             }}
           >
             <CloseIcon />
           </IconButton>
         </DialogTitle>
-        <DialogContent dividers sx={{ p: 3 }}>
+        <DialogContent dividers sx={{ p: 2 }}>
           {tabIndex === 1 ? (
             <Box>
-              <Typography fontWeight={600} gutterBottom>
+              <Typography fontWeight={500} gutterBottom>
                 Occupied Offices:
               </Typography>
               <Typography color="text.secondary" mb={2}>
@@ -1226,7 +1155,7 @@ const confirmDeactivate = async () => {
           ) : tabIndex === 0 ? (
             <>
               <Box mb={2}>
-                <Typography fontWeight={600} gutterBottom>
+                <Typography fontWeight={500} gutterBottom>
                   Selected Seats:
                 </Typography>
                 <Typography color="text.secondary">
@@ -1235,7 +1164,7 @@ const confirmDeactivate = async () => {
                     : "0"}
                 </Typography>
               </Box>
-              <Box bgcolor={grey[50]} p={2} borderRadius={2}>
+              <Box bgcolor={grey[50]} p={2} borderRadius={1}>
                 <Box
                   sx={{
                     overflowX: "auto",
@@ -1256,12 +1185,12 @@ const confirmDeactivate = async () => {
             </>
           ) : null}
         </DialogContent>
-        <DialogActions sx={{ p: 3, pt: 0 }}>
+        <DialogActions sx={{ p: 2, pt: 0 }}>
           <Button 
             onClick={() => setShowModal(false)} 
             color="primary" 
             variant="outlined"
-            sx={{ borderRadius: 2, fontWeight: 600 }}
+            sx={{ borderRadius: 1, fontWeight: 500 }}
           >
             Close
           </Button>
@@ -1320,23 +1249,20 @@ const confirmDeactivate = async () => {
         />
       )}
 
-      {/* Confirm Deactivation Dialog with Password Input */}
+      {/* Confirm Deactivation Dialog */}
       <Dialog
         open={confirmDialog.open}
         onClose={cancelDeactivate}
         aria-labelledby="confirm-deactivate-title"
         aria-describedby="confirm-deactivate-description"
         PaperProps={{
-          sx: { borderRadius: 3 }
+          sx: { borderRadius: 1 }
         }}
       >
-        <DialogTitle id="confirm-deactivate-title" sx={{ 
-          background: `linear-gradient(135deg, ${red[50]} 0%, ${red[100]} 100%)`,
-          borderBottom: `1px solid ${red[200]}`
-        }}>
+        <DialogTitle id="confirm-deactivate-title" sx={{ borderBottom: `1px solid ${grey[200]}` }}>
           Confirm Deactivation
         </DialogTitle>
-        <DialogContent dividers sx={{ p: 3 }}>
+        <DialogContent dividers sx={{ p: 2 }}>
           <Typography id="confirm-deactivate-description" gutterBottom>
             Are you sure you want to deactivate <strong>{confirmDialog.client?.name}</strong> ({confirmDialog.client?.company})?
             This action cannot be undone. To proceed, please enter your password.
@@ -1356,12 +1282,12 @@ const confirmDeactivate = async () => {
             sx={{ mt: 2 }}
           />
         </DialogContent>
-        <DialogActions sx={{ p: 3, pt: 0 }}>
+        <DialogActions sx={{ p: 2, pt: 0 }}>
           <Button 
             onClick={cancelDeactivate} 
             color="primary" 
             variant="outlined"
-            sx={{ borderRadius: 2, fontWeight: 600 }}
+            sx={{ borderRadius: 1, fontWeight: 500 }}
           >
             Cancel
           </Button>
@@ -1370,7 +1296,7 @@ const confirmDeactivate = async () => {
             color="error"
             variant="contained"
             disabled={!confirmDialog.password}
-            sx={{ borderRadius: 2, fontWeight: 600 }}
+            sx={{ borderRadius: 1, fontWeight: 500 }}
           >
             Deactivate
           </Button>

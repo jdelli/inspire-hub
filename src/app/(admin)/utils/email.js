@@ -335,3 +335,82 @@ export async function sendVirtualOfficeInquiryEmail(inquiryDetails) {
     throw error; // Re-throw the error to be caught by the calling component
   }
 }
+
+// Billing notification to tenants
+export async function sendBillingNotification(billingRecord, type = 'monthly') {
+  const PUBLIC_KEY = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY;
+  const SERVICE_ID = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID;
+  const TEMPLATE_ID = type === 'overdue' 
+    ? process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_OVERDUE_BILLING_ID
+    : process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_MONTHLY_BILLING_ID;
+
+  if (!SERVICE_ID || !TEMPLATE_ID || !PUBLIC_KEY) {
+    console.error("EmailJS environment variables are not set for billing notifications.");
+    throw new Error("Email service not configured. Please check environment variables.");
+  }
+
+  // Format the billing month for display
+  const billingMonth = billingRecord.billingMonth;
+  const [year, month] = billingMonth.split('-');
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  const formattedMonth = `${monthNames[parseInt(month) - 1]} ${year}`;
+
+  // Format due date
+  const dueDate = new Date(billingRecord.dueDate);
+  const formattedDueDate = dueDate.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
+  // Calculate days until due
+  const currentDate = new Date();
+  const daysUntilDue = Math.ceil((dueDate - currentDate) / (1000 * 60 * 60 * 24));
+
+  // Format currency
+  const formatCurrency = (amount) => {
+    return `₱${Number(amount).toLocaleString('en-US', { 
+      minimumFractionDigits: 2, 
+      maximumFractionDigits: 2 
+    })}`;
+  };
+
+  const templateParams = {
+    to_name: billingRecord.tenantName,
+    to_email: billingRecord.tenantEmail,
+    company_name: billingRecord.tenantCompany,
+    billing_month: formattedMonth,
+    due_date: formattedDueDate,
+    days_until_due: daysUntilDue,
+    total_amount: formatCurrency(billingRecord.total),
+    subtotal: formatCurrency(billingRecord.subtotal),
+    vat_amount: formatCurrency(billingRecord.vat),
+    billing_id: billingRecord.id,
+    tenant_type: billingRecord.tenantType,
+    payment_method: billingRecord.paymentMethod,
+    billing_address: billingRecord.billingAddress,
+    
+    // Items breakdown
+    items_breakdown: billingRecord.items.map(item => 
+      `${item.description}: ${item.quantity} × ${formatCurrency(item.unitPrice)} = ${formatCurrency(item.amount)}`
+    ).join('\n'),
+    
+    // Additional context based on type
+    notification_type: type === 'overdue' ? 'Overdue Payment Reminder' : 'Monthly Billing Statement',
+    urgency_message: type === 'overdue' 
+      ? 'Your payment is overdue. Please settle your account immediately to avoid service interruption.'
+      : `Your monthly billing statement for ${formattedMonth} is ready. Payment is due by ${formattedDueDate}.`
+  };
+
+  try {
+    await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams, PUBLIC_KEY);
+    console.log(`${type} billing notification sent to ${billingRecord.tenantEmail}!`);
+    return { success: true };
+  } catch (error) {
+    console.error(`Failed to send ${type} billing notification to ${billingRecord.tenantEmail}:`, error);
+    throw error;
+  }
+}

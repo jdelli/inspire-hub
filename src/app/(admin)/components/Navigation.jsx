@@ -15,6 +15,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import MapIcon from '@mui/icons-material/Map';
 import SettingsIcon from '@mui/icons-material/Settings';
 import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
+import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import LogoutIcon from '@mui/icons-material/Logout';
 
 export default function Navigation() {
@@ -56,6 +57,7 @@ export default function Navigation() {
   const showTenants = role === "admin";
   const showReports = role === "admin";
   const showSettings = role === "admin";
+  const showBilling = role === "admin";
 
   return (
     <>
@@ -115,6 +117,15 @@ export default function Navigation() {
               >
                 <AssessmentIcon fontSize="small" />
                 <span>Reports</span>
+              </Link>
+            )}
+            {showBilling && (
+              <Link
+                href="/billing"
+                className="text-white font-bold hover:text-blue-300 transition flex items-center space-x-2"
+              >
+                <AttachMoneyIcon fontSize="small" />
+                <span>Billing</span>
               </Link>
             )}
             <Link
