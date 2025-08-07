@@ -510,9 +510,9 @@ export default function AddTenantModal({
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          color: 'white',
-          borderBottom: `1px solid ${theme.palette.divider}`,
+          background: 'primary.main',
+          color: 'black',
+          borderBottom: `1px solid ${grey[200]}`,
           py: 3,
           px: 4,
         }}
@@ -520,12 +520,10 @@ export default function AddTenantModal({
         <Box display="flex" alignItems="center">
           <Avatar 
             sx={{ 
-              bgcolor: 'rgba(255,255,255,0.2)', 
+              bgcolor: 'rgba(0,0,0,0.2)', 
               mr: 2, 
               width: 40, 
               height: 40,
-              backdropFilter: 'blur(10px)',
-              border: '1px solid rgba(255,255,255,0.3)'
             }}
           >
             <PersonIcon fontSize="medium" />
@@ -544,11 +542,9 @@ export default function AddTenantModal({
           aria-label="close"
           size="large"
           sx={{
-            color: 'white',
+            color: 'black',
             "&:hover": { 
-              bgcolor: 'rgba(255,255,255,0.1)',
-              transform: 'scale(1.1)',
-              transition: 'all 0.2s ease'
+              bgcolor: 'rgba(0,0,0,0.1)',
             },
           }}
         >
@@ -585,25 +581,24 @@ export default function AddTenantModal({
                   px: 3,
                   pt: 2,
                   bgcolor: 'background.paper',
-                  borderBottom: `1px solid ${theme.palette.divider}`,
+                  borderBottom: `1px solid ${grey[200]}`,
                   '& .MuiTab-root': {
-                    minHeight: 64,
-                    fontSize: '0.95rem',
-                    fontWeight: 600,
+                    minHeight: 48,
+                    fontSize: '0.875rem',
+                    fontWeight: 500,
                     textTransform: 'none',
                     color: 'text.secondary',
                     '&.Mui-selected': {
                       color: 'primary.main',
-                      fontWeight: 700
+                      fontWeight: 600
                     }
                   },
                   '& .MuiTabs-indicator': {
-                    height: 3,
-                    borderRadius: '3px 3px 0 0'
+                    height: 2,
+                    borderRadius: '2px 2px 0 0'
                   }
                 }}
-                variant={isMobile ? "scrollable" : "fullWidth"}
-                scrollButtons="auto"
+                variant="fullWidth"
                 indicatorColor="primary"
                 textColor="primary"
               >
@@ -1151,19 +1146,18 @@ export default function AddTenantModal({
           variant="outlined"
           startIcon={<CloseIcon />}
           sx={{
-            px: 4,
+            px: 3,
             py: 1.5,
-            borderRadius: 3,
+            borderRadius: 1,
             textTransform: 'none',
-            fontWeight: 600,
-            fontSize: '1rem',
-            borderWidth: 2,
+            fontWeight: 500,
+            fontSize: '0.875rem',
+            borderColor: grey[300],
+            color: grey[700],
             "&:hover": { 
-              borderWidth: 2,
-              transform: 'translateY(-1px)',
-              boxShadow: 2
+              borderColor: grey[400],
+              bgcolor: grey[50],
             },
-            transition: 'all 0.2s ease'
           }}
           disabled={isSubmitting}
         >
@@ -1173,26 +1167,20 @@ export default function AddTenantModal({
           onClick={handleAddTenant}
           variant="contained"
           startIcon={isSubmitting ? <CircularProgress size={20} color="inherit" /> : <AddIcon />}
-          disableElevation
           sx={{
-            px: 4,
+            px: 3,
             py: 1.5,
-            borderRadius: 3,
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            borderRadius: 1,
+            bgcolor: 'primary.main',
             textTransform: 'none',
-            fontWeight: 600,
-            fontSize: '1rem',
+            fontWeight: 500,
+            fontSize: '0.875rem',
             "&:hover": { 
-              background: 'linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)',
-              transform: 'translateY(-1px)',
-              boxShadow: 4
+              bgcolor: 'primary.dark',
             },
             "&:disabled": {
-              background: 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)',
-              transform: 'none',
-              boxShadow: 'none'
+              bgcolor: grey[400],
             },
-            transition: 'all 0.2s ease'
           }}
           disabled={isSubmitting}
         >

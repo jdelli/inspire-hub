@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -9,6 +9,7 @@ import {
   Typography,
   Table,
   TableBody,
+  TableHead,
   TableRow,
   TableCell,
   TableContainer,
@@ -20,16 +21,24 @@ import {
   Tooltip,
   Grid,
   Card,
-  CardContent
+  CardContent,
+  Tabs,
+  Tab,
+  Chip,
+  CircularProgress
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import EventAvailableIcon from "@mui/icons-material/EventAvailable";
 import EditIcon from "@mui/icons-material/Edit";
-import PrintIcon from "@mui/icons-material/Print";
 import BusinessIcon from "@mui/icons-material/Business";
 import PersonIcon from "@mui/icons-material/Person";
 import ReceiptIcon from "@mui/icons-material/Receipt";
+import HistoryIcon from "@mui/icons-material/History";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import WarningIcon from "@mui/icons-material/Warning";
+import ScheduleIcon from "@mui/icons-material/Schedule";
 import TenantExtensionHistory from "./TenantExtensionHistory";
+import { getTenantBillingHistory, formatPHP } from "../utils/billingService";
 
 export default function TenantDetailsModal({
   open,
@@ -38,9 +47,61 @@ export default function TenantDetailsModal({
   onExtend,
   onEdit
 }) {
-  const printRef = useRef();
+  const [activeTab, setActiveTab] = useState(0);
+  const [billingHistory, setBillingHistory] = useState([]);
+  const [loadingBillingHistory, setLoadingBillingHistory] = useState(false);
+
+  // Load billing history when client changes
+  useEffect(() => {
+    if (client?.id) {
+      loadBillingHistory();
+    }
+  }, [client?.id]);
+
+  const loadBillingHistory = async () => {
+    if (!client?.id) return;
+    
+    setLoadingBillingHistory(true);
+    try {
+      const history = await getTenantBillingHistory(client.id);
+      setBillingHistory(history);
+    } catch (error) {
+      console.error('Error loading billing history:', error);
+    } finally {
+      setLoadingBillingHistory(false);
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'paid':
+        return 'success';
+      case 'pending':
+        return 'warning';
+      case 'overdue':
+        return 'error';
+      default:
+        return 'default';
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'paid':
+        return <CheckCircleIcon fontSize="small" />;
+      case 'pending':
+        return <ScheduleIcon fontSize="small" />;
+      case 'overdue':
+        return <WarningIcon fontSize="small" />;
+      default:
+        return null;
+    }
+  };
 
   if (!client) return null;
+
+  // Debug: Log client data to see available fields
+  console.log('Client data in TenantDetailsModal:', client);
 
   const extensionHistory =
     client.extensionHistory ||
@@ -55,6 +116,12 @@ export default function TenantDetailsModal({
     const day = String(date.getDate()).padStart(2, '0');
     const clientId = client.id || client.email?.split('@')[0] || 'CLIENT';
     return `INV-${year}${month}${day}-${clientId.toUpperCase()}`;
+  };
+
+  // Calculate 30-day due date from current date
+  const calculateDueDate = () => {
+    const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    return dueDate.toLocaleDateString();
   };
 
   // --- Notification for 30 days left ---
@@ -135,296 +202,7 @@ export default function TenantDetailsModal({
     })}`;
   };
 
-  const handlePrint = () => {
-    const printWindow = window.open('', '_blank');
-    const printContent = printRef.current.innerHTML;
-    
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Invoice - ${client.company || 'N/A'}</title>
-          <style>
-            @page { size: A4; margin: 20mm; }
-            body { 
-              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-              margin: 0; 
-              padding: 20px; 
-              color: #333;
-              line-height: 1.6;
-            }
-            .invoice-container {
-              max-width: 800px;
-              margin: 0 auto;
-              background: white;
-            }
-            .invoice-header {
-              text-align: center;
-              margin-bottom: 40px;
-              padding-bottom: 20px;
-              border-bottom: 3px solid #1976d2;
-            }
-            .company-logo {
-              font-size: 28px;
-              font-weight: bold;
-              color: #1976d2;
-              margin-bottom: 10px;
-            }
-            .invoice-title {
-              font-size: 24px;
-              font-weight: bold;
-              color: #333;
-              margin-bottom: 5px;
-            }
-            .invoice-subtitle {
-              font-size: 14px;
-              color: #666;
-            }
-            .invoice-info {
-              display: flex;
-              justify-content: space-between;
-              margin-bottom: 30px;
-            }
-            .invoice-details, .client-details {
-              flex: 1;
-            }
-            .invoice-details {
-              text-align: right;
-            }
-            .section-title {
-              font-size: 16px;
-              font-weight: bold;
-              color: #1976d2;
-              margin-bottom: 15px;
-              padding-bottom: 5px;
-              border-bottom: 2px solid #e0e0e0;
-            }
-            .billing-table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 30px;
-            }
-            .billing-table th {
-              background-color: #f5f5f5;
-              padding: 12px 8px;
-              text-align: left;
-              border-bottom: 2px solid #ddd;
-              font-weight: bold;
-            }
-            .billing-table td {
-              padding: 12px 8px;
-              border-bottom: 1px solid #ddd;
-            }
-            .billing-table .amount {
-              text-align: right;
-            }
-            .billing-table .total-row {
-              background-color: #f8f9fa;
-              font-weight: bold;
-            }
-            .billing-table .total-row td {
-              border-top: 2px solid #ddd;
-            }
-            .summary-section {
-              display: flex;
-              justify-content: space-between;
-              margin-bottom: 30px;
-            }
-            .summary-box {
-              flex: 1;
-              margin: 0 10px;
-              padding: 15px;
-              border: 1px solid #ddd;
-              border-radius: 5px;
-            }
-            .summary-box h4 {
-              margin: 0 0 10px 0;
-              color: #1976d2;
-              font-size: 14px;
-            }
-            .summary-box p {
-              margin: 5px 0;
-              font-size: 13px;
-            }
-            .alert-warning { 
-              background-color: #fff3cd; 
-              color: #856404; 
-              padding: 15px; 
-              margin-bottom: 20px;
-              border-left: 4px solid #ffc107;
-              border-radius: 4px;
-            }
-            .footer { 
-              margin-top: 40px; 
-              padding-top: 20px; 
-              border-top: 1px solid #ddd; 
-              text-align: center; 
-              font-size: 12px;
-              color: #777;
-            }
-            .terms {
-              margin-top: 30px;
-              padding: 15px;
-              background-color: #f8f9fa;
-              border-radius: 5px;
-              font-size: 12px;
-            }
-            @media print {
-              body { margin: 0; }
-              .no-print { display: none; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="invoice-container">
-            <div class="invoice-header">
-              <div class="company-logo">INSPIRE HUB</div>
-              <div class="invoice-title">INVOICE</div>
-              <div class="invoice-subtitle">Professional Workspace Solutions</div>
-            </div>
-            
-            ${show30DayNotif ? `
-              <div class="alert-warning">
-                <strong>IMPORTANT:</strong> This tenant has only 30 days left in their current monthly availability.
-              </div>
-            ` : ''}
-            
-            <div class="invoice-info">
-              <div class="client-details">
-                <div class="section-title">BILL TO</div>
-                <p><strong>${client?.name || 'N/A'}</strong></p>
-                <p>${client?.company || 'N/A'}</p>
-                <p>${client?.email || 'N/A'}</p>
-                <p>${client?.phone || 'N/A'}</p>
-                <p>${client?.address || 'N/A'}</p>
-              </div>
-              <div class="invoice-details">
-                <div class="section-title">INVOICE DETAILS</div>
-                <p><strong>Invoice #:</strong> ${generateInvoiceNumber()}</p>
-                <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
-                <p><strong>Due Date:</strong> ${client?.billing?.billingEndDate ? new Date(client.billing.billingEndDate).toLocaleDateString() : 'N/A'}</p>
-                <p><strong>Plan:</strong> ${client?.billing?.plan || 'N/A'}</p>
-                <p><strong>Payment Method:</strong> ${client?.billing?.paymentMethod || 'N/A'}</p>
-              </div>
-            </div>
-            
-            <div class="section-title">BILLING BREAKDOWN</div>
-            <table class="billing-table">
-              <thead>
-                <tr>
-                  <th>Description</th>
-                  <th class="amount">Qty</th>
-                  <th class="amount">Rate</th>
-                  <th class="amount">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${billingBreakdown.items.map(item => `
-                  <tr>
-                    <td>${item.description}</td>
-                    <td class="amount">${
-                      item.description.includes('Seat Rental')
-                        ? `${client?.selectedSeats?.length || 0} × ${client?.billing?.monthsToAvail || 1}`
-                        : item.description.includes('Private Office Rental')
-                        ? `${client?.selectedOffices?.length || 0} × ${client?.billing?.monthsToAvail || 1}`
-                        : item.description.includes('Virtual Office Service')
-                        ? `1 × ${client?.billing?.monthsToAvail || 1}`
-                        : item.quantity
-                    }</td>
-                    <td class="amount">${formatCurrency(item.rate)}</td>
-                    <td class="amount">${formatCurrency(item.amount)}</td>
-                  </tr>
-                `).join('')}
-                <tr class="total-row">
-                  <td colspan="3" class="amount"><strong>Subtotal</strong></td>
-                  <td class="amount"><strong>${formatCurrency(billingBreakdown.subtotal)}</strong></td>
-                </tr>
-                <tr class="total-row">
-                  <td colspan="3" class="amount"><strong>VAT (12%)</strong></td>
-                  <td class="amount"><strong>${formatCurrency(billingBreakdown.vat)}</strong></td>
-                </tr>
-                <tr class="total-row">
-                  <td colspan="3" class="amount"><strong>TOTAL</strong></td>
-                  <td class="amount"><strong>${formatCurrency(billingBreakdown.total)}</strong></td>
-                </tr>
-              </tbody>
-            </table>
-            
-            <div class="summary-section">
-              <div class="summary-box">
-                <h4>RENTAL PERIOD</h4>
-                <p><strong>Start Date:</strong> ${client?.billing?.startDate ? new Date(client.billing.startDate).toLocaleDateString() : 'N/A'}</p>
-                <p><strong>End Date:</strong> ${client?.billing?.billingEndDate ? new Date(client.billing.billingEndDate).toLocaleDateString() : 'N/A'}</p>
-                <p><strong>Duration:</strong> ${client?.billing?.monthsToAvail || 'N/A'} ${parseInt(client?.billing?.monthsToAvail) > 1 ? 'months' : 'month'}</p>
-                <p><strong>Remaining Days:</strong> ${daysLeft !== null ? `${daysLeft} days` : 'N/A'}</p>
-              </div>
-              <div class="summary-box">
-                <h4>ASSIGNED SPACE</h4>
-                <p><strong>Plan Type:</strong> ${client?.billing?.plan || 'N/A'}</p>
-                <p><strong>Selected Items:</strong> ${
-                  client?.selectedSeats?.length > 0 
-                    ? client.selectedSeats.join(", ")
-                    : client?.selectedOffices?.length > 0
-                    ? client.selectedOffices.join(", ")
-                    : "Virtual Office"
-                }</p>
-                <p><strong>Base Rate:</strong> ${formatCurrency(client?.billing?.rate)}</p>
-                <p><strong>Currency:</strong> ${client?.billing?.currency || 'PHP'}</p>
-              </div>
-            </div>
-            
-            ${extensionHistory.length > 0 ? `
-              <div class="section-title">EXTENSION HISTORY</div>
-              <table class="billing-table">
-                <thead>
-                  <tr>
-                    <th>Extension #</th>
-                    <th>Previous End Date</th>
-                    <th>New End Date</th>
-                    <th>Extended By</th>
-                    <th>Extended On</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${extensionHistory.map((extension, index) => `
-                    <tr>
-                      <td>${index + 1}</td>
-                      <td>${extension.previousEndDate}</td>
-                      <td>${extension.newEndDate}</td>
-                      <td>${extension.extendedBy} days</td>
-                      <td>${extension.extendedOn}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-            ` : ''}
-            
-            <div class="terms">
-              <strong>Terms & Conditions:</strong><br>
-              • Payment is due upon receipt of this invoice<br>
-              • Late payments may incur additional charges<br>
-              • This invoice is valid for 30 days from the date of issue<br>
-              • For questions regarding this invoice, please contact our billing department
-            </div>
-            
-            <div class="footer">
-              <strong>INSPIRE HUB</strong><br>
-              Professional Workspace Solutions<br>
-              This is an official invoice generated by the Tenant Management System<br>
-              Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}
-            </div>
-          </div>
-        </body>
-      </html>
-    `);
-    
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 500);
-  };
+
 
   return (
     <Dialog
@@ -454,16 +232,6 @@ export default function TenantDetailsModal({
           </Typography>
         </Box>
         <Box>
-          <Tooltip title="Print Invoice">
-            <IconButton 
-              onClick={handlePrint} 
-              aria-label="print" 
-              size="large" 
-              sx={{ mr: 1, color: 'white' }}
-            >
-              <PrintIcon />
-            </IconButton>
-          </Tooltip>
           <IconButton 
             onClick={onClose} 
             aria-label="close" 
@@ -475,27 +243,39 @@ export default function TenantDetailsModal({
         </Box>
       </DialogTitle>
       
-      {/* Hidden div for print content */}
-      <div ref={printRef} style={{ display: 'none' }}></div>
+
       
       <DialogContent dividers sx={{ p: 3 }}>
-        <Stack spacing={3}>
-          {/* 30 days left notification */}
-          {show30DayNotif && (
-            <Alert severity="warning" sx={{ fontWeight: 600 }}>
-              ⚠️ This tenant has only 30 days left in their current monthly availability. Please notify them or extend their availability soon.
-            </Alert>
-          )}
+        {/* Tabs */}
+        <Tabs
+          value={activeTab}
+          onChange={(_, newValue) => setActiveTab(newValue)}
+          sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}
+        >
+          <Tab label="Tenant Details" />
+          <Tab label="Billing History" />
+          <Tab label="Extension History" />
+        </Tabs>
 
-          {/* Invoice Header */}
-          <Box sx={{ textAlign: 'center', mb: 3 }}>
-            <Typography variant="h4" fontWeight={700} color="primary" gutterBottom>
-              INSPIRE HUB
-            </Typography>
-            <Typography variant="h6" color="text.secondary">
-              Professional Workspace Solutions
-            </Typography>
-          </Box>
+        {/* Tab Content */}
+        {activeTab === 0 && (
+          <Stack spacing={3}>
+            {/* 30 days left notification */}
+            {show30DayNotif && (
+              <Alert severity="warning" sx={{ fontWeight: 600 }}>
+                ⚠️ This tenant has only 30 days left in their current monthly availability. Please notify them or extend their availability soon.
+              </Alert>
+            )}
+
+            {/* Invoice Header */}
+            <Box sx={{ textAlign: 'center', mb: 3 }}>
+              <Typography variant="h4" fontWeight={700} color="primary" gutterBottom>
+                INSPIRE HUB
+              </Typography>
+              <Typography variant="h6" color="text.secondary">
+                Professional Workspace Solutions
+              </Typography>
+            </Box>
 
           {/* Client and Invoice Info */}
           <Grid container spacing={3} sx={{ mb: 3 }}>
@@ -509,8 +289,8 @@ export default function TenantDetailsModal({
                   <Typography variant="body1" fontWeight={600}>{client?.name || 'N/A'}</Typography>
                   <Typography variant="body2" color="text.secondary">{client?.company || 'N/A'}</Typography>
                   <Typography variant="body2">{client?.email || 'N/A'}</Typography>
-                  <Typography variant="body2">{client?.phone || 'N/A'}</Typography>
-                  <Typography variant="body2">{client?.address || 'N/A'}</Typography>
+                  <Typography variant="body2">{client?.phone || client?.billing?.phone || 'N/A'}</Typography>
+                  <Typography variant="body2">{client?.address || client?.billing?.address || 'N/A'}</Typography>
                 </CardContent>
               </Card>
             </Grid>
@@ -523,7 +303,7 @@ export default function TenantDetailsModal({
                   </Typography>
                   <Typography variant="body2"><strong>Invoice #:</strong> {generateInvoiceNumber()}</Typography>
                   <Typography variant="body2"><strong>Date:</strong> {new Date().toLocaleDateString()}</Typography>
-                  <Typography variant="body2"><strong>Due Date:</strong> {client?.billing?.billingEndDate ? new Date(client.billing.billingEndDate).toLocaleDateString() : 'N/A'}</Typography>
+                  <Typography variant="body2"><strong>Due Date:</strong> {calculateDueDate()}</Typography>
                   <Typography variant="body2"><strong>Plan:</strong> {client?.billing?.plan || 'N/A'}</Typography>
                   <Typography variant="body2"><strong>Payment Method:</strong> {client?.billing?.paymentMethod || 'N/A'}</Typography>
                 </CardContent>
@@ -636,6 +416,91 @@ export default function TenantDetailsModal({
             <TenantExtensionHistory history={extensionHistory} />
           )}
         </Stack>
+        )}
+
+        {/* Billing History Tab */}
+        {activeTab === 1 && (
+          <Box>
+            <Typography variant="h6" fontWeight={600} gutterBottom>
+              Billing History
+            </Typography>
+            
+            {loadingBillingHistory ? (
+              <Box display="flex" justifyContent="center" p={3}>
+                <CircularProgress />
+              </Box>
+            ) : billingHistory.length === 0 ? (
+              <Alert severity="info">
+                No billing history found for this tenant.
+              </Alert>
+            ) : (
+              <TableContainer component={Paper} variant="outlined">
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Billing Month</TableCell>
+                      <TableCell>Amount</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>Due Date</TableCell>
+                      <TableCell>Paid Date</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {billingHistory.map((bill) => (
+                      <TableRow key={bill.id}>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={600}>
+                            {bill.billingMonth}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={600}>
+                            {formatPHP(bill.total)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            icon={getStatusIcon(bill.status)}
+                            label={bill.status.toUpperCase()}
+                            color={getStatusColor(bill.status)}
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">
+                            {new Date(bill.dueDate).toLocaleDateString()}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">
+                            {bill.paidAt ? new Date(bill.paidAt.toDate ? bill.paidAt.toDate() : bill.paidAt).toLocaleDateString() : '-'}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Box>
+        )}
+
+        {/* Extension History Tab */}
+        {activeTab === 2 && (
+          <Box>
+            <Typography variant="h6" fontWeight={600} gutterBottom>
+              Extension History
+            </Typography>
+            
+            {extensionHistory.length === 0 ? (
+              <Alert severity="info">
+                No extension history found for this tenant.
+              </Alert>
+            ) : (
+              <TenantExtensionHistory history={extensionHistory} />
+            )}
+          </Box>
+        )}
       </DialogContent>
       <DialogActions sx={{ p: 3, pt: 0 }}>
         <Button onClick={onClose} color="primary" variant="outlined">

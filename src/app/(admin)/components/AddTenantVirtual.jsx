@@ -274,9 +274,9 @@ export default function AddVirtualOfficeTenantModal({
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-          color: 'white',
-          borderBottom: `1px solid ${theme.palette.divider}`,
+          background: 'primary.main',
+          color: 'black',
+          borderBottom: `1px solid ${grey[200]}`,
           py: 3,
           px: 4,
         }}
@@ -284,12 +284,10 @@ export default function AddVirtualOfficeTenantModal({
         <Box display="flex" alignItems="center">
           <Avatar 
             sx={{ 
-              bgcolor: 'rgba(255,255,255,0.2)', 
+              bgcolor: 'rgba(0,0,0,0.2)', 
               mr: 2, 
               width: 40, 
               height: 40,
-              backdropFilter: 'blur(10px)',
-              border: '1px solid rgba(255,255,255,0.3)'
             }}
           >
             <BusinessCenterIcon fontSize="medium" />
@@ -308,11 +306,9 @@ export default function AddVirtualOfficeTenantModal({
           aria-label="close"
           size="large"
           sx={{
-            color: 'white',
+            color: 'black',
             "&:hover": { 
-              bgcolor: 'rgba(255,255,255,0.1)',
-              transform: 'scale(1.1)',
-              transition: 'all 0.2s ease'
+              bgcolor: 'rgba(0,0,0,0.1)',
             },
           }}
         >
@@ -341,7 +337,7 @@ export default function AddVirtualOfficeTenantModal({
         ) : (
           <Box>
             {/* Client Details */}
-            <Grid container spacing={3} mb={3} direction="column">
+            <Grid container spacing={3} mb={3} direction="column" mt={3}>
               <Grid item xs={12}>
                 <TextField
                   label="Tenant Name"
@@ -696,19 +692,18 @@ export default function AddVirtualOfficeTenantModal({
           variant="outlined"
           startIcon={<CloseIcon />}
           sx={{
-            px: 4,
+            px: 3,
             py: 1.5,
-            borderRadius: 3,
+            borderRadius: 1,
             textTransform: 'none',
-            fontWeight: 600,
-            fontSize: '1rem',
-            borderWidth: 2,
+            fontWeight: 500,
+            fontSize: '0.875rem',
+            borderColor: grey[300],
+            color: grey[700],
             "&:hover": { 
-              borderWidth: 2,
-              transform: 'translateY(-1px)',
-              boxShadow: 2
+              borderColor: grey[400],
+              bgcolor: grey[50],
             },
-            transition: 'all 0.2s ease'
           }}
           disabled={isSubmitting}
         >
@@ -718,26 +713,20 @@ export default function AddVirtualOfficeTenantModal({
           onClick={handleAddTenant}
           variant="contained"
           startIcon={isSubmitting ? <CircularProgress size={20} color="inherit" /> : <AddIcon />}
-          disableElevation
           sx={{
-            px: 4,
+            px: 3,
             py: 1.5,
-            borderRadius: 3,
-            background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+            borderRadius: 1,
+            bgcolor: 'primary.main',
             textTransform: 'none',
-            fontWeight: 600,
-            fontSize: '1rem',
+            fontWeight: 500,
+            fontSize: '0.875rem',
             "&:hover": { 
-              background: 'linear-gradient(135deg, #e55a8a 0%, #e6d130 100%)',
-              transform: 'translateY(-1px)',
-              boxShadow: 4
+              bgcolor: 'primary.dark',
             },
             "&:disabled": {
-              background: 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)',
-              transform: 'none',
-              boxShadow: 'none'
+              bgcolor: grey[400],
             },
-            transition: 'all 0.2s ease'
           }}
           disabled={isSubmitting}
         >

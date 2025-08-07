@@ -316,7 +316,7 @@ export default function OccupiedSeatsMap() {
                 sx={{
                   width: "100%",
                   flexWrap: { xs: "wrap", md: "nowrap" },
-                  justifyContent: { xs: "center", md: "flex-start" },
+                  justifyContent: "center",
                   alignItems: "stretch"
                 }}
               >
