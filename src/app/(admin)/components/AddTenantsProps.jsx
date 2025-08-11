@@ -172,16 +172,47 @@ export default function AddTenantModal({
   // Function to calculate billing end date
   const calculateBillingEndDate = (startDate, monthsToAvail) => {
     if (!startDate || !monthsToAvail) return "";
-    const start = new Date(startDate);
-    const end = new Date(start);
-    end.setMonth(start.getMonth() + Number(monthsToAvail));
-    if (end.getDate() < start.getDate()) {
-        end.setDate(0);
+    
+    // Parse the date parts
+    const [year, month, day] = startDate.split('-').map(Number);
+    
+    // Calculate target month and year
+    let targetYear = year;
+    let targetMonth = month + monthsToAvail;
+    
+    // Adjust year if month goes beyond 12
+    while (targetMonth > 12) {
+      targetMonth -= 12;
+      targetYear += 1;
     }
-    return end.toISOString().split('T')[0];
+    
+    // Create the target date
+    const targetDate = new Date(targetYear, targetMonth - 1, day);
+    
+    // Handle month-end rollover (e.g., Jan 31 + 1 month = Feb 28)
+    if (targetDate.getMonth() !== targetMonth - 1) {
+      // The date rolled over to next month, so set to last day of target month
+      targetDate.setDate(0);
+    }
+    
+    // Format as YYYY-MM-DD
+    const result = targetDate.getFullYear() + '-' + 
+                   String(targetDate.getMonth() + 1).padStart(2, '0') + '-' + 
+                   String(targetDate.getDate()).padStart(2, '0');
+    
+    return result;
   };
 
-  // Effect to calculate initial billing end date and when modal opens
+  // Function to calculate due date (30 days from billing start date)
+  const calculateDueDate = (startDate) => {
+    if (!startDate) return "";
+    const start = new Date(startDate);
+    const dueDate = new Date(start);
+    dueDate.setDate(start.getDate() + 30);
+    return dueDate.toISOString().split('T')[0];
+  };
+
+  // Effect to calculate initial billing end date and due date when modal opens
   useEffect(() => {
     async function fetchOccupiedSeats() {
       try {
@@ -205,12 +236,13 @@ export default function AddTenantModal({
       setIsLoading(true);
       fetchOccupiedSeats();
       setTabIndex(0); // Reset tab to first tab when opening
-      // Calculate initial billing end date
+      // Calculate initial billing end date and due date
       setNewTenant(prev => ({
         ...prev,
         billing: {
           ...prev.billing,
           billingEndDate: calculateBillingEndDate(prev.billing.startDate, prev.billing.monthsToAvail),
+          dueDate: calculateDueDate(prev.billing.startDate),
           currency: "PHP"
         }
       }));
@@ -300,6 +332,7 @@ export default function AddTenantModal({
         currency: "PHP",
         startDate: new Date().toISOString().split('T')[0],
         billingEndDate: "",
+        dueDate: "",
         paymentMethod: "credit",
         billingAddress: "",
         monthsToAvail: 1,
@@ -357,6 +390,11 @@ export default function AddTenantModal({
           updatedBilling.startDate,
           updatedBilling.monthsToAvail
         );
+      }
+
+      // Recalculate due date if startDate changes
+      if (field === 'startDate') {
+        updatedBilling.dueDate = calculateDueDate(updatedBilling.startDate);
       }
 
       return {
@@ -1122,6 +1160,19 @@ export default function AddTenantModal({
                           <TableCell align="right">
                             <Typography variant="subtitle2" fontWeight="bold">
                               {newTenant.billing.billingEndDate || 'N/A'}
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                        {/* New row for Due Date */}
+                        <TableRow>
+                          <TableCell colSpan={3} align="right">
+                            <Typography variant="subtitle2">
+                              Due Date:
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography variant="subtitle2" fontWeight="bold">
+                              {newTenant.billing.dueDate || 'N/A'}
                             </Typography>
                           </TableCell>
                         </TableRow>

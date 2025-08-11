@@ -65,13 +65,44 @@ function formatPHP(amount) {
 // Function to calculate billing end date
 function calculateBillingEndDate(startDate, monthsToAvail) {
   if (!startDate || !monthsToAvail) return "";
-  const start = new Date(startDate);
-  const end = new Date(start);
-  end.setMonth(start.getMonth() + Number(monthsToAvail));
-  if (end.getDate() < start.getDate()) {
-    end.setDate(0);
+  
+  // Parse the date parts
+  const [year, month, day] = startDate.split('-').map(Number);
+  
+  // Calculate target month and year
+  let targetYear = year;
+  let targetMonth = month + monthsToAvail;
+  
+  // Adjust year if month goes beyond 12
+  while (targetMonth > 12) {
+    targetMonth -= 12;
+    targetYear += 1;
   }
-  return end.toISOString().split('T')[0];
+  
+  // Create the target date
+  const targetDate = new Date(targetYear, targetMonth - 1, day);
+  
+  // Handle month-end rollover (e.g., Jan 31 + 1 month = Feb 28)
+  if (targetDate.getMonth() !== targetMonth - 1) {
+    // The date rolled over to next month, so set to last day of target month
+    targetDate.setDate(0);
+  }
+  
+  // Format as YYYY-MM-DD
+  const result = targetDate.getFullYear() + '-' + 
+                 String(targetDate.getMonth() + 1).padStart(2, '0') + '-' + 
+                 String(targetDate.getDate()).padStart(2, '0');
+  
+  return result;
+}
+
+// Function to calculate due date (30 days from billing start date)
+function calculateDueDate(startDate) {
+  if (!startDate) return "";
+  const start = new Date(startDate);
+  const dueDate = new Date(start);
+  dueDate.setDate(start.getDate() + 30);
+  return dueDate.toISOString().split('T')[0];
 }
 
 export default function AddVirtualOfficeTenantModal({
@@ -113,18 +144,24 @@ export default function AddVirtualOfficeTenantModal({
     monthsToAvail: false,
   });
 
-  // Effect to calculate initial billing end date and reset form when modal opens
+  // Effect to calculate initial billing end date and due date when modal opens
   useEffect(() => {
     if (showAddModal) {
       setIsLoading(false);
-      setNewTenant((prev) => ({
-        ...prev,
-        billing: {
-          ...prev.billing,
-          billingEndDate: calculateBillingEndDate(prev.billing.startDate, prev.billing.monthsToAvail),
-          currency: "PHP"
-        }
-      }));
+      setNewTenant((prev) => {
+        const newBillingEndDate = calculateBillingEndDate(prev.billing.startDate, prev.billing.monthsToAvail);
+        const newDueDate = calculateDueDate(prev.billing.startDate);
+        
+        return {
+          ...prev,
+          billing: {
+            ...prev.billing,
+            billingEndDate: newBillingEndDate,
+            dueDate: newDueDate,
+            currency: "PHP"
+          }
+        };
+      });
     }
   }, [showAddModal]);
 
@@ -204,6 +241,7 @@ export default function AddVirtualOfficeTenantModal({
         currency: "PHP",
         startDate: new Date().toISOString().split('T')[0],
         billingEndDate: "",
+        dueDate: "",
         paymentMethod: "credit",
         billingAddress: "",
         monthsToAvail: 1,
@@ -236,10 +274,14 @@ export default function AddVirtualOfficeTenantModal({
         currency: "PHP",
       };
       if (field === 'startDate' || field === 'monthsToAvail') {
-        updatedBilling.billingEndDate = calculateBillingEndDate(
+        const newBillingEndDate = calculateBillingEndDate(
           updatedBilling.startDate,
           updatedBilling.monthsToAvail
         );
+        updatedBilling.billingEndDate = newBillingEndDate;
+      }
+      if (field === 'startDate') {
+        updatedBilling.dueDate = calculateDueDate(updatedBilling.startDate);
       }
       return {
         ...prev,
@@ -661,18 +703,30 @@ export default function AddVirtualOfficeTenantModal({
                           </Typography>
                         </TableCell>
                       </TableRow>
-                      <TableRow>
-                        <TableCell colSpan={3} align="right">
-                          <Typography variant="subtitle2">
-                            Billing End Date:
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right">
-                          <Typography variant="subtitle2" fontWeight="bold">
-                            {newTenant.billing.billingEndDate || 'N/A'}
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
+                                              <TableRow>
+                          <TableCell colSpan={3} align="right">
+                            <Typography variant="subtitle2">
+                              Billing End Date:
+                            </Typography>
+                          </TableCell>
+                                                     <TableCell align="right">
+                             <Typography variant="subtitle2" fontWeight="bold">
+                               {newTenant.billing.billingEndDate || 'N/A'}
+                             </Typography>
+                           </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell colSpan={3} align="right">
+                            <Typography variant="subtitle2">
+                              Due Date:
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography variant="subtitle2" fontWeight="bold">
+                              {newTenant.billing.dueDate || 'N/A'}
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
                     </TableBody>
                   </Table>
                 </TableContainer>
