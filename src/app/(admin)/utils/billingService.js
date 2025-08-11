@@ -7,6 +7,7 @@ import {
   where, 
   updateDoc, 
   doc,
+  getDoc,
   serverTimestamp,
   Timestamp 
 } from "firebase/firestore";
@@ -22,6 +23,8 @@ function calculateBillingAmount(tenant) {
   const rate = parseFloat(tenant.billing?.rate) || 0;
   const cusaFee = parseFloat(tenant.billing?.cusaFee) || 0;
   const parkingFee = parseFloat(tenant.billing?.parkingFee) || 0;
+  const penaltyFee = parseFloat(tenant.billing?.penaltyFee) || 0;
+  const damageFee = parseFloat(tenant.billing?.damageFee) || 0;
   
   let baseAmount = 0;
   
@@ -37,7 +40,7 @@ function calculateBillingAmount(tenant) {
     baseAmount = rate;
   }
   
-  const subtotal = baseAmount + cusaFee + parkingFee;
+  const subtotal = baseAmount + cusaFee + parkingFee + penaltyFee + damageFee;
   const vat = subtotal * 0.12; // 12% VAT
   const total = subtotal + vat;
   
@@ -45,6 +48,8 @@ function calculateBillingAmount(tenant) {
     baseAmount,
     cusaFee,
     parkingFee,
+    penaltyFee,
+    damageFee,
     subtotal,
     vat,
     total
@@ -54,6 +59,10 @@ function calculateBillingAmount(tenant) {
 // Generate billing record for a tenant
 async function generateBillingRecord(tenant, billingMonth, tenantType, billingDate = new Date()) {
   const billingAmounts = calculateBillingAmount(tenant);
+  
+  // Use tenant's billing start date if available, otherwise use billingDate
+  const startDate = tenant.billing?.startDate ? new Date(tenant.billing.startDate) : billingDate;
+  const dueDate = new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days from start date
   
   const billingRecord = {
     tenantId: tenant.id,
@@ -67,13 +76,15 @@ async function generateBillingRecord(tenant, billingMonth, tenantType, billingDa
     // Billing period
     billingMonth: billingMonth, // Format: '2024-01'
     billingDate: billingDate.toISOString(),
-    dueDate: new Date(billingDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from billing date
+    dueDate: dueDate.toISOString(), // 30 days from tenant's billing start date
     
     // Billing details
     baseRate: tenant.billing?.rate || 0,
     quantity: tenant.selectedSeats?.length || tenant.selectedPO?.length || 1,
     cusaFee: billingAmounts.cusaFee,
     parkingFee: billingAmounts.parkingFee,
+    penaltyFee: billingAmounts.penaltyFee,
+    damageFee: billingAmounts.damageFee,
     
     // Calculated amounts
     subtotal: billingAmounts.subtotal,
@@ -112,6 +123,18 @@ async function generateBillingRecord(tenant, billingMonth, tenantType, billingDa
         quantity: 1,
         unitPrice: billingAmounts.parkingFee,
         amount: billingAmounts.parkingFee
+      }] : []),
+      ...(billingAmounts.penaltyFee > 0 ? [{
+        description: 'Late Payment Penalty',
+        quantity: 1,
+        unitPrice: billingAmounts.penaltyFee,
+        amount: billingAmounts.penaltyFee
+      }] : []),
+      ...(billingAmounts.damageFee > 0 ? [{
+        description: 'Damage Fee',
+        quantity: 1,
+        unitPrice: billingAmounts.damageFee,
+        amount: billingAmounts.damageFee
       }] : [])
     ]
   };
@@ -419,6 +442,73 @@ export async function checkAndUpdateOverdueBills() {
     return updatedRecords;
   } catch (error) {
     console.error('Error checking overdue bills:', error);
+    throw error;
+  }
+}
+
+// Update additional fees for existing billing records
+export async function updateBillingFees(billingId, additionalFees) {
+  try {
+    const billingRef = doc(db, 'billing', billingId);
+    const billingDoc = await getDoc(billingRef);
+    
+    if (!billingDoc.exists()) {
+      throw new Error('Billing record not found');
+    }
+    
+    const billingData = billingDoc.data();
+    const { penaltyFee = 0, damageFee = 0, notes = '' } = additionalFees;
+    
+    // Calculate new totals
+    const baseSubtotal = billingData.subtotal - (billingData.penaltyFee || 0) - (billingData.damageFee || 0);
+    const newSubtotal = baseSubtotal + penaltyFee + damageFee;
+    const newVat = newSubtotal * 0.12;
+    const newTotal = newSubtotal + newVat;
+    
+    // Update items array to include new fees
+    const updatedItems = billingData.items.filter(item => 
+      item.description !== 'Late Payment Penalty' && item.description !== 'Damage Fee'
+    );
+    
+    if (penaltyFee > 0) {
+      updatedItems.push({
+        description: 'Late Payment Penalty',
+        quantity: 1,
+        unitPrice: penaltyFee,
+        amount: penaltyFee
+      });
+    }
+    
+    if (damageFee > 0) {
+      updatedItems.push({
+        description: 'Damage Fee',
+        quantity: 1,
+        unitPrice: damageFee,
+        amount: damageFee
+      });
+    }
+    
+    // Update the billing record
+    await updateDoc(billingRef, {
+      penaltyFee,
+      damageFee,
+      subtotal: newSubtotal,
+      vat: newVat,
+      total: newTotal,
+      items: updatedItems,
+      additionalFeesNotes: notes,
+      updatedAt: serverTimestamp()
+    });
+    
+    return {
+      success: true,
+      billingId,
+      newTotal,
+      penaltyFee,
+      damageFee
+    };
+  } catch (error) {
+    console.error('Error updating billing fees:', error);
     throw error;
   }
 }
