@@ -119,7 +119,10 @@ import {
   updateBillingStatus,
   checkAndUpdateOverdueBills,
   updateBillingFees,
+  checkTenantBillingConfiguration,
+  updateTenantBillingDefaults,
   formatPHP,
+  testExports,
 } from "../utils/billingService";
 
 const getStatusColor = (status) => {
@@ -192,9 +195,12 @@ export default function BillingManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
-  const [amountRange, setAmountRange] = useState([0, 100000]);
   const [sortBy, setSortBy] = useState('dueDate');
   const [sortOrder, setSortOrder] = useState('asc');
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
   
   // Bulk actions
   const [selectedBills, setSelectedBills] = useState([]);
@@ -243,29 +249,50 @@ export default function BillingManagement() {
   const processAndFilterBills = useCallback((bills) => {
     let filtered = [...bills];
     
+    console.log(`Processing ${bills.length} bills with filters:`, {
+      searchTerm,
+      statusFilter,
+      typeFilter,
+      sortBy,
+      sortOrder
+    });
+    
     // Search filter
     if (searchTerm) {
+      const beforeSearch = filtered.length;
       filtered = filtered.filter(bill => 
         bill.tenantName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         bill.tenantCompany?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         bill.tenantEmail?.toLowerCase().includes(searchTerm.toLowerCase())
       );
+      console.log(`Search filter: ${beforeSearch} -> ${filtered.length} (filtered out ${beforeSearch - filtered.length})`);
     }
     
     // Status filter
     if (statusFilter !== 'all') {
+      const beforeStatus = filtered.length;
       filtered = filtered.filter(bill => bill.status === statusFilter);
+      console.log(`Status filter (${statusFilter}): ${beforeStatus} -> ${filtered.length} (filtered out ${beforeStatus - filtered.length})`);
     }
     
     // Type filter
     if (typeFilter !== 'all') {
+      const beforeType = filtered.length;
       filtered = filtered.filter(bill => bill.tenantType === typeFilter);
+      console.log(`Type filter (${typeFilter}): ${beforeType} -> ${filtered.length} (filtered out ${beforeType - filtered.length})`);
     }
     
-    // Amount range filter
-    filtered = filtered.filter(bill => 
-      bill.total >= amountRange[0] && bill.total <= amountRange[1]
-    );
+    // Debug: Log which bills are being filtered out
+    if (bills.length !== filtered.length) {
+      const filteredOut = bills.filter(bill => !filtered.find(f => f.id === bill.id));
+      console.log('Filtered out bills:', filteredOut.map(bill => ({
+        id: bill.id,
+        tenantName: bill.tenantName,
+        status: bill.status,
+        tenantType: bill.tenantType,
+        total: bill.total
+      })));
+    }
     
     // Sorting
     filtered.sort((a, b) => {
@@ -300,8 +327,11 @@ export default function BillingManagement() {
       }
     });
     
+    console.log(`Final filtered result: ${filtered.length} bills`);
     setFilteredBills(filtered);
-  }, [searchTerm, statusFilter, typeFilter, amountRange, sortBy, sortOrder]);
+    // Reset to first page when filters change
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, typeFilter, sortBy, sortOrder]);
 
   // Load billing data with enhanced error handling
   const loadBillingData = async () => {
@@ -315,6 +345,9 @@ export default function BillingManagement() {
       
       setBillingStats(stats);
       setCurrentMonthBills(bills);
+      
+
+      
       processAndFilterBills(bills);
       
       setSnackbar({
@@ -469,12 +502,37 @@ export default function BillingManagement() {
   const handleExport = async (format = 'csv') => {
     setLoadingStates(prev => ({ ...prev, export: true }));
     try {
-      // Implement export functionality
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API call
+      // Get the data to export (either selected bills or all filtered bills)
+      const dataToExport = selectedBills.length > 0 
+        ? filteredBills.filter(bill => selectedBills.includes(bill.id))
+        : filteredBills;
+      
+      if (dataToExport.length === 0) {
+        setSnackbar({
+          open: true,
+          message: 'No data to export',
+          severity: 'warning'
+        });
+        return;
+      }
+
+      switch (format) {
+        case 'csv':
+          await exportToCSV(dataToExport);
+          break;
+        case 'excel':
+          await exportToExcel(dataToExport);
+          break;
+        case 'pdf':
+          await exportToPDF(dataToExport);
+          break;
+        default:
+          throw new Error(`Unsupported format: ${format}`);
+      }
       
       setSnackbar({
         open: true,
-        message: `Exported billing data in ${format.toUpperCase()} format`,
+        message: `Successfully exported ${dataToExport.length} records in ${format.toUpperCase()} format`,
         severity: 'success'
       });
       setShowExportDialog(false);
@@ -482,12 +540,168 @@ export default function BillingManagement() {
       console.error('Error exporting data:', error);
       setSnackbar({
         open: true,
-        message: 'Failed to export data',
+        message: `Failed to export data: ${error.message}`,
         severity: 'error'
       });
     } finally {
       setLoadingStates(prev => ({ ...prev, export: false }));
     }
+  };
+
+  // Export to CSV
+  const exportToCSV = async (data) => {
+    const headers = [
+      'Tenant Name',
+      'Company',
+      'Email',
+      'Type',
+      'Status',
+      'Amount',
+      'Due Date',
+      'Billing Month'
+    ];
+
+    const csvContent = [
+      headers.join(','),
+      ...data.map(bill => [
+        `"${bill.tenantName || ''}"`,
+        `"${bill.tenantCompany || ''}"`,
+        `"${bill.tenantEmail || ''}"`,
+        `"${bill.tenantType || ''}"`,
+        `"${bill.status || ''}"`,
+        bill.total || 0,
+        `"${new Date(bill.dueDate).toLocaleDateString()}"`,
+        `"${bill.billingMonth || ''}"`
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `billing_data_${selectedMonth}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Export to Excel (using CSV format with .xlsx extension)
+  const exportToExcel = async (data) => {
+    // For now, we'll use CSV format but with .xlsx extension
+    // In a real implementation, you'd use a library like xlsx
+    const headers = [
+      'Tenant Name',
+      'Company',
+      'Email',
+      'Type',
+      'Status',
+      'Amount',
+      'Due Date',
+      'Billing Month'
+    ];
+
+    const csvContent = [
+      headers.join(','),
+      ...data.map(bill => [
+        `"${bill.tenantName || ''}"`,
+        `"${bill.tenantCompany || ''}"`,
+        `"${bill.tenantEmail || ''}"`,
+        `"${bill.tenantType || ''}"`,
+        `"${bill.status || ''}"`,
+        bill.total || 0,
+        `"${new Date(bill.dueDate).toLocaleDateString()}"`,
+        `"${bill.billingMonth || ''}"`
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `billing_data_${selectedMonth}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Export to PDF
+  const exportToPDF = async (data) => {
+    // Create a simple HTML table for PDF
+    const tableRows = data.map(bill => `
+      <tr>
+        <td>${bill.tenantName || ''}</td>
+        <td>${bill.tenantCompany || ''}</td>
+        <td>${bill.tenantEmail || ''}</td>
+        <td>${bill.tenantType || ''}</td>
+        <td>${bill.status || ''}</td>
+        <td>${formatPHP(bill.total || 0)}</td>
+        <td>${new Date(bill.dueDate).toLocaleDateString()}</td>
+        <td>${bill.billingMonth || ''}</td>
+      </tr>
+    `).join('');
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Billing Data - ${selectedMonth}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; font-weight: bold; }
+            .header { text-align: center; margin-bottom: 20px; }
+            .summary { margin-bottom: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Billing Data Report</h1>
+            <h2>${selectedMonth}</h2>
+            <p>Generated on: ${new Date().toLocaleDateString()}</p>
+          </div>
+          
+          <div class="summary">
+            <p><strong>Total Records:</strong> ${data.length}</p>
+            <p><strong>Total Amount:</strong> ${formatPHP(data.reduce((sum, bill) => sum + (bill.total || 0), 0))}</p>
+          </div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th>Tenant Name</th>
+                <th>Company</th>
+                <th>Email</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Amount</th>
+                <th>Due Date</th>
+                <th>Billing Month</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRows}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `;
+
+    // Create a new window and print it
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    
+    // Wait for content to load, then print
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+      setTimeout(() => {
+        printWindow.close();
+      }, 1000);
+    }, 500);
   };
 
   // Enhanced payment recording
@@ -550,13 +764,33 @@ export default function BillingManagement() {
   const handleGenerateBilling = async () => {
     setIsGenerating(true);
     try {
+      // First check tenant billing configuration
+      const configCheck = await checkTenantBillingConfiguration();
+      
+      if (configCheck.tenantsWithoutBilling > 0 || configCheck.tenantsWithZeroRate > 0) {
+        setAlert({
+          type: 'warning',
+          message: `Found ${configCheck.tenantsWithoutBilling} tenants without billing configuration and ${configCheck.tenantsWithZeroRate} tenants with zero rates. Billing will be generated with default rates.`
+        });
+      }
+      
       const result = await generateMonthlyBilling(billingTargetMonth);
       
       if (result.success) {
+        let message = `Successfully generated ${result.totalGenerated} billing records for ${result.billingMonth}`;
+        
+        if (result.totalSkipped > 0) {
+          message += `. Skipped ${result.totalSkipped} tenants (billing already exists).`;
+        }
+        
+        if (result.totalErrors > 0) {
+          message += `. ${result.totalErrors} errors occurred.`;
+        }
+        
         if (result.totalGenerated > 0) {
           setAlert({
             type: 'success',
-            message: `Successfully generated ${result.totalGenerated} billing records for ${result.billingMonth}`
+            message: message
           });
         } else {
           setAlert({
@@ -1463,6 +1697,73 @@ export default function BillingManagement() {
           </Button>
           
           <Button
+            variant="outlined"
+            startIcon={<AssessmentIcon />}
+            onClick={async () => {
+              try {
+                const configCheck = await checkTenantBillingConfiguration();
+                setAlert({
+                  type: 'info',
+                  message: `Tenant Configuration Check: ${configCheck.totalTenants} total tenants, ${configCheck.tenantsWithBilling} with billing config, ${configCheck.tenantsWithoutBilling} without billing config, ${configCheck.tenantsWithZeroRate} with zero rates.`
+                });
+              } catch (error) {
+                setAlert({
+                  type: 'error',
+                  message: 'Failed to check tenant configuration'
+                });
+              }
+            }}
+            sx={{ minWidth: 140 }}
+          >
+            Check Tenants
+          </Button>
+          
+          <Button
+            variant="outlined"
+            startIcon={<BuildIcon />}
+            onClick={async () => {
+              try {
+                const result = await updateTenantBillingDefaults();
+                setAlert({
+                  type: 'success',
+                  message: `Updated ${result.totalUpdated} tenants with default billing rates. Skipped ${result.totalSkipped} tenants (already configured).`
+                });
+              } catch (error) {
+                setAlert({
+                  type: 'error',
+                  message: 'Failed to update tenant billing defaults'
+                });
+              }
+            }}
+            sx={{ minWidth: 140 }}
+          >
+            Fix Billing
+          </Button>
+          
+          <Button
+            variant="outlined"
+            startIcon={<AssessmentIcon />}
+            onClick={() => {
+              try {
+                const testResult = testExports();
+                console.log('Export test result:', testResult);
+                setAlert({
+                  type: 'info',
+                  message: `Export test completed. Check console for details. All functions: ${Object.values(testResult).filter(Boolean).length}/${Object.keys(testResult).length} working.`
+                });
+              } catch (error) {
+                setAlert({
+                  type: 'error',
+                  message: `Export test failed: ${error.message}`
+                });
+              }
+            }}
+            sx={{ minWidth: 140 }}
+          >
+            Test Exports
+          </Button>
+          
+          <Button
             variant="contained"
             startIcon={<AnalyticsIcon />}
             onClick={() => {
@@ -1556,7 +1857,7 @@ export default function BillingManagement() {
             </FormControl>
           </Grid>
           
-          <Grid item xs={12} md={2}>
+          <Grid item xs={12} md={3}>
             <FormControl fullWidth size="small">
               <InputLabel>Sort By</InputLabel>
               <Select
@@ -1583,6 +1884,25 @@ export default function BillingManagement() {
                 {sortOrder === 'asc' ? '↑' : '↓'}
               </Button>
               
+              {(searchTerm || statusFilter !== 'all' || typeFilter !== 'all') && (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  color="secondary"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setStatusFilter('all');
+                    setTypeFilter('all');
+                    setSortBy('dueDate');
+                    setSortOrder('asc');
+                    setCurrentPage(1); // Reset to first page
+                  }}
+                  startIcon={<RefreshIcon />}
+                >
+                  Clear Filters
+                </Button>
+              )}
+              
               {selectedBills.length > 0 && (
                 <Button
                   variant="contained"
@@ -1594,25 +1914,28 @@ export default function BillingManagement() {
                   {selectedBills.length} Selected
                 </Button>
               )}
+              
+              {filteredBills.length > itemsPerPage && (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => {
+                    if (selectedBills.length === filteredBills.length) {
+                      setSelectedBills([]);
+                    } else {
+                      setSelectedBills(filteredBills.map(bill => bill.id));
+                    }
+                  }}
+                  startIcon={<Checkbox />}
+                >
+                  {selectedBills.length === filteredBills.length ? 'Deselect All' : 'Select All'}
+                </Button>
+              )}
             </Stack>
           </Grid>
         </Grid>
         
-        {/* Amount Range Filter */}
-        <Box sx={{ mt: 2 }}>
-          <Typography variant="body2" color="text.secondary" gutterBottom>
-            Amount Range: ₱{amountRange[0].toLocaleString()} - ₱{amountRange[1].toLocaleString()}
-          </Typography>
-          <Slider
-            value={amountRange}
-            onChange={(event, newValue) => setAmountRange(newValue)}
-            valueLabelDisplay="auto"
-            min={0}
-            max={100000}
-            step={1000}
-            sx={{ width: '100%' }}
-          />
-        </Box>
+
       </Card>
 
       {/* Enhanced Statistics Cards */}
@@ -1787,11 +2110,37 @@ export default function BillingManagement() {
       <Card>
         <CardContent>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Typography variant="h5" fontWeight={600}>
-              Billing Records - {selectedMonth}
-            </Typography>
+            <Box display="flex" alignItems="center" gap={1}>
+              <Typography variant="h5" fontWeight={600}>
+                Billing Records - {selectedMonth}
+              </Typography>
+              {(searchTerm || statusFilter !== 'all' || typeFilter !== 'all') && (
+                <Tooltip title={
+                  <Box>
+                    <Typography variant="body2" fontWeight={600}>Active Filters:</Typography>
+                    {searchTerm && <Typography variant="body2">• Search: "{searchTerm}"</Typography>}
+                    {statusFilter !== 'all' && <Typography variant="body2">• Status: {statusFilter}</Typography>}
+                    {typeFilter !== 'all' && <Typography variant="body2">• Type: {typeFilter}</Typography>}
+                  </Box>
+                }>
+                  <Chip 
+                    label="Filters Active" 
+                    size="small" 
+                    color="primary" 
+                    variant="outlined"
+                    icon={<FilterListIcon />}
+                  />
+                </Tooltip>
+              )}
+            </Box>
             <Typography variant="body2" color="text.secondary">
-              Showing {filteredBills.length} of {currentMonthBills.length} records
+              {filteredBills.length === currentMonthBills.length 
+                ? `Showing all ${currentMonthBills.length} records`
+                : `Showing ${filteredBills.length} of ${currentMonthBills.length} records (${currentMonthBills.length - filteredBills.length} filtered out)`
+              }
+              {filteredBills.length > itemsPerPage && (
+                <span> • Page {currentPage} of {Math.ceil(filteredBills.length / itemsPerPage)}</span>
+              )}
             </Typography>
           </Box>
           
@@ -1839,7 +2188,9 @@ export default function BillingManagement() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredBills.map((bill) => (
+                  filteredBills
+                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                    .map((bill) => (
                     <TableRow 
                       key={bill.id}
                       hover
@@ -1991,6 +2342,55 @@ export default function BillingManagement() {
             </Table>
           </TableContainer>
         </CardContent>
+        
+        {/* Pagination */}
+        {filteredBills.length > 0 && (
+          <Box sx={{ p: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Box display="flex" alignItems="center" gap={2}>
+                <Typography variant="body2" color="text.secondary">
+                  Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredBills.length)} of {filteredBills.length} records
+                </Typography>
+                
+                {filteredBills.length > 10 && (
+                  <FormControl size="small" sx={{ minWidth: 80 }}>
+                    <Select
+                      value={itemsPerPage}
+                      onChange={(e) => {
+                        setItemsPerPage(e.target.value);
+                        setCurrentPage(1); // Reset to first page when changing page size
+                      }}
+                      sx={{ fontSize: '0.875rem' }}
+                    >
+                      <MenuItem value={10}>10</MenuItem>
+                      <MenuItem value={20}>20</MenuItem>
+                      <MenuItem value={50}>50</MenuItem>
+                      <MenuItem value={100}>100</MenuItem>
+                    </Select>
+                  </FormControl>
+                )}
+              </Box>
+              
+              {filteredBills.length > itemsPerPage && (
+                <Pagination
+                  count={Math.ceil(filteredBills.length / itemsPerPage)}
+                  page={currentPage}
+                  onChange={(_, page) => setCurrentPage(page)}
+                  color="primary"
+                  size={isMobile ? "small" : "medium"}
+                  showFirstButton
+                  showLastButton
+                  sx={{
+                    '& .MuiPaginationItem-root': {
+                      borderRadius: 1,
+                      fontWeight: 500,
+                    }
+                  }}
+                />
+              )}
+            </Stack>
+          </Box>
+        )}
       </Card>
 
       {/* Bill Details Dialog */}
@@ -2206,6 +2606,15 @@ export default function BillingManagement() {
                 ))}
               </Select>
             </FormControl>
+            
+            <Alert severity="warning" icon={<WarningIcon />}>
+              <Typography variant="body2">
+                <strong>Default Rates:</strong> If tenants don't have billing rates configured, the system will use default rates:
+                <br />• Dedicated Desk: ₱5,000 per seat
+                <br />• Private Office: ₱15,000 per office  
+                <br />• Virtual Office: ₱3,000 per service
+              </Typography>
+            </Alert>
             
             <Typography variant="body2" color="text.secondary">
               <strong>Note:</strong> Only tenants who don't already have billing records for {billingTargetMonth} will have new records generated.
@@ -2432,20 +2841,17 @@ export default function BillingManagement() {
         </DialogTitle>
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 1 }}>
-            <FormGroup>
-              <FormControlLabel
-                control={<Radio checked={true} />}
-                label="Export all filtered records"
-              />
-              <FormControlLabel
-                control={<Radio />}
-                label="Export selected records only"
-                disabled={selectedBills.length === 0}
-              />
-            </FormGroup>
+            <Alert severity="info">
+              <Typography variant="body2">
+                <strong>Export Summary:</strong><br />
+                • Records to export: {selectedBills.length > 0 ? selectedBills.length : filteredBills.length} records<br />
+                • Month: {selectedMonth}<br />
+                • Total amount: {formatPHP((selectedBills.length > 0 ? filteredBills.filter(bill => selectedBills.includes(bill.id)) : filteredBills).reduce((sum, bill) => sum + (bill.total || 0), 0))}
+              </Typography>
+            </Alert>
             
             <Typography variant="body2" color="text.secondary">
-              Export format options:
+              Choose export format:
             </Typography>
             
             <Stack direction="row" spacing={2}>
@@ -2453,27 +2859,34 @@ export default function BillingManagement() {
                 variant="outlined"
                 onClick={() => handleExport('csv')}
                 disabled={loadingStates.export}
-                startIcon={<FileDownloadIcon />}
+                startIcon={loadingStates.export ? <CircularProgress size={16} /> : <FileDownloadIcon />}
+                sx={{ minWidth: 100 }}
               >
-                CSV
+                {loadingStates.export ? 'Exporting...' : 'CSV'}
               </Button>
               <Button
                 variant="outlined"
                 onClick={() => handleExport('excel')}
                 disabled={loadingStates.export}
-                startIcon={<FileDownloadIcon />}
+                startIcon={loadingStates.export ? <CircularProgress size={16} /> : <FileDownloadIcon />}
+                sx={{ minWidth: 100 }}
               >
-                Excel
+                {loadingStates.export ? 'Exporting...' : 'Excel'}
               </Button>
               <Button
                 variant="outlined"
                 onClick={() => handleExport('pdf')}
                 disabled={loadingStates.export}
-                startIcon={<FileDownloadIcon />}
+                startIcon={loadingStates.export ? <CircularProgress size={16} /> : <FileDownloadIcon />}
+                sx={{ minWidth: 100 }}
               >
-                PDF
+                {loadingStates.export ? 'Exporting...' : 'PDF'}
               </Button>
             </Stack>
+            
+            <Typography variant="caption" color="text.secondary">
+              <strong>Note:</strong> CSV and Excel files will download automatically. PDF will open in a new window for printing.
+            </Typography>
           </Stack>
         </DialogContent>
         <DialogActions>
