@@ -1,6 +1,6 @@
 "use client";
 import { db } from "../../../../script/firebaseConfig";
-import { collection, getDocs, doc, updateDoc, deleteField, serverTimestamp, query, where, getDoc } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, deleteField, serverTimestamp, query, where, getDoc, deleteDoc } from "firebase/firestore";
 import React, { useState, useEffect } from "react";
 import { Monitor } from "lucide-react";
 import seatMap1 from "../../(admin)/seatMap1.json";
@@ -123,6 +123,7 @@ export default function SeatMapTable() {
     open: false,
     client: null,
     type: null,
+    action: null, // "deactivate" or "delete"
     password: "",
     error: "",
   });
@@ -245,6 +246,18 @@ export default function SeatMapTable() {
       open: true,
       client,
       type,
+      action: "deactivate",
+      password: "",
+      error: "",
+    });
+  };
+
+  const handleDeleteClient = (client, type) => {
+    setConfirmDialog({
+      open: true,
+      client,
+      type,
+      action: "delete",
       password: "",
       error: "",
     });
@@ -254,7 +267,7 @@ export default function SeatMapTable() {
     setConfirmDialog((prev) => ({ ...prev, password: event.target.value, error: "" }));
   };
 
-  const confirmDeactivate = async () => {
+  const confirmAction = async () => {
     const auth = getAuth();
     const user = auth.currentUser;
 
@@ -263,10 +276,10 @@ export default function SeatMapTable() {
       return;
     }
 
-    const { client, type, password } = confirmDialog;
+    const { client, type, password, action } = confirmDialog;
 
-    if (!client || !client.id || !type || !password) {
-      setConfirmDialog((prev) => ({ ...prev, error: "Missing client data, type, or password." }));
+    if (!client || !client.id || !type || !password || !action) {
+      setConfirmDialog((prev) => ({ ...prev, error: "Missing client data, type, password, or action." }));
       return;
     }
 
@@ -274,7 +287,7 @@ export default function SeatMapTable() {
       const credential = EmailAuthProvider.credential(user.email, password);
       await reauthenticateWithCredential(user, credential);
 
-      let deactivatedByName = null;
+      let userName = null;
       try {
         const userDocRef = doc(db, "users", user.uid);
         const userDocSnap = await getDoc(userDocRef);
@@ -282,7 +295,7 @@ export default function SeatMapTable() {
         if (userDocSnap.exists()) {
           const userData = userDocSnap.data();
           if (userData.firstName) {
-            deactivatedByName = userData.firstName;
+            userName = userData.firstName;
           }
         }
       } catch (fetchError) {
@@ -290,33 +303,43 @@ export default function SeatMapTable() {
       }
 
       let collectionName;
-      const updateData = {
-        status: 'deactivated',
-        deactivatedAt: serverTimestamp(),
-        ...(deactivatedByName && { deactivatedBy: deactivatedByName }),
-        deactivatedById: user.uid,
-      };
-
       if (type === "dedicated") {
         collectionName = "seatMap";
-        updateData.selectedSeats = deleteField();
       } else if (type === "private") {
         collectionName = "privateOffice";
-        updateData.selectedPO = deleteField();
       } else if (type === "virtual") {
         collectionName = "virtualOffice";
       } else {
-        setConfirmDialog((prev) => ({ ...prev, error: "Unknown client type for deactivation. Aborting." }));
+        setConfirmDialog((prev) => ({ ...prev, error: "Unknown client type. Aborting." }));
         return;
       }
 
       const clientRef = doc(db, collectionName, client.id);
-      await updateDoc(clientRef, updateData);
-      setConfirmDialog({ open: false, client: null, type: null, password: "", error: "" });
+
+      if (action === "deactivate") {
+        const updateData = {
+          status: 'deactivated',
+          deactivatedAt: serverTimestamp(),
+          ...(userName && { deactivatedBy: userName }),
+          deactivatedById: user.uid,
+        };
+
+        if (type === "dedicated") {
+          updateData.selectedSeats = deleteField();
+        } else if (type === "private") {
+          updateData.selectedPO = deleteField();
+        }
+
+        await updateDoc(clientRef, updateData);
+      } else if (action === "delete") {
+        await deleteDoc(clientRef);
+      }
+
+      setConfirmDialog({ open: false, client: null, type: null, action: null, password: "", error: "" });
       await refreshClients();
     } catch (error) {
-      console.error("Error during deactivation process:", error);
-      let errorMessage = "Failed to deactivate client.";
+      console.error(`Error during ${action} process:`, error);
+      let errorMessage = `Failed to ${action} client.`;
       if (error.code === "auth/wrong-password") {
         errorMessage = "Incorrect password. Please try again.";
       } else if (error.code === "auth/invalid-credential") {
@@ -328,8 +351,8 @@ export default function SeatMapTable() {
     }
   };
 
-  const cancelDeactivate = () => {
-    setConfirmDialog({ open: false, client: null, type: null, password: "", error: "" });
+  const cancelAction = () => {
+    setConfirmDialog({ open: false, client: null, type: null, action: null, password: "", error: "" });
   };
 
   const dedicatedDeskClients = clients.filter(
@@ -974,6 +997,24 @@ export default function SeatMapTable() {
                           >
                             Deactivate
                           </Button>
+                          <Button
+                            size="small"
+                            startIcon={<DeleteIcon fontSize="small" />}
+                            sx={{ 
+                              color: red[600],
+                              textTransform: 'none',
+                              fontSize: '0.75rem',
+                              py: 0.5,
+                              px: 1,
+                              minWidth: 'auto',
+                              '&:hover': { 
+                                bgcolor: red[50],
+                              },
+                            }}
+                            onClick={() => handleDeleteClient(client, tabIndex === 0 ? "dedicated" : tabIndex === 1 ? "private" : "virtual")}
+                          >
+                            Delete
+                          </Button>
                         </Stack>
                       </TableCell>
                     </TableRow>
@@ -1162,23 +1203,27 @@ export default function SeatMapTable() {
         />
       )}
 
-      {/* Confirm Deactivation Dialog */}
+      {/* Confirm Action Dialog */}
       <Dialog
         open={confirmDialog.open}
-        onClose={cancelDeactivate}
-        aria-labelledby="confirm-deactivate-title"
-        aria-describedby="confirm-deactivate-description"
+        onClose={cancelAction}
+        aria-labelledby="confirm-action-title"
+        aria-describedby="confirm-action-description"
         PaperProps={{
           sx: { borderRadius: 1 }
         }}
       >
-        <DialogTitle id="confirm-deactivate-title" sx={{ borderBottom: `1px solid ${grey[200]}` }}>
-          Confirm Deactivation
+        <DialogTitle id="confirm-action-title" sx={{ borderBottom: `1px solid ${grey[200]}` }}>
+          Confirm {confirmDialog.action === "delete" ? "Deletion" : "Deactivation"}
         </DialogTitle>
         <DialogContent dividers sx={{ p: 2 }}>
-          <Typography id="confirm-deactivate-description" gutterBottom>
-            Are you sure you want to deactivate <strong>{confirmDialog.client?.name}</strong> ({confirmDialog.client?.company})?
-            This action cannot be undone. To proceed, please enter your password.
+          <Typography id="confirm-action-description" gutterBottom>
+            Are you sure you want to {confirmDialog.action} <strong>{confirmDialog.client?.name}</strong> ({confirmDialog.client?.company})?
+            {confirmDialog.action === "delete" 
+              ? " This action will permanently delete the tenant and all associated data. This action cannot be undone."
+              : " This action will deactivate the tenant. This action cannot be undone."
+            }
+            To proceed, please enter your password.
           </Typography>
           <TextField
             autoFocus
@@ -1197,7 +1242,7 @@ export default function SeatMapTable() {
         </DialogContent>
         <DialogActions sx={{ p: 2, pt: 0 }}>
           <Button 
-            onClick={cancelDeactivate} 
+            onClick={cancelAction} 
             color="primary" 
             variant="outlined"
             sx={{ borderRadius: 1, fontWeight: 500 }}
@@ -1205,13 +1250,13 @@ export default function SeatMapTable() {
             Cancel
           </Button>
           <Button
-            onClick={confirmDeactivate}
-            color="error"
+            onClick={confirmAction}
+            color={confirmDialog.action === "delete" ? "error" : "warning"}
             variant="contained"
             disabled={!confirmDialog.password}
             sx={{ borderRadius: 1, fontWeight: 500 }}
           >
-            Deactivate
+            {confirmDialog.action === "delete" ? "Delete" : "Deactivate"}
           </Button>
         </DialogActions>
       </Dialog>

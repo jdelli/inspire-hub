@@ -112,6 +112,8 @@ import {
   PictureAsPdf as PictureAsPdfIcon,
   Build as BuildIcon,
 } from "@mui/icons-material";
+import { getFirestore, doc, deleteDoc } from "firebase/firestore";
+import { db } from "../../../../script/firebaseConfig";
 import {
   generateMonthlyBilling,
   getBillingStatistics,
@@ -729,6 +731,32 @@ export default function BillingManagement() {
       });
     } finally {
       setLoadingStates(prev => ({ ...prev, bulkAction: false }));
+    }
+  };
+
+  // Delete billing record
+  const handleDeleteBilling = async (billId) => {
+    if (!window.confirm('Are you sure you want to delete this billing record? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      // Delete billing record from Firestore
+      await deleteDoc(doc(db, 'billing', billId));
+      
+      setSnackbar({
+        open: true,
+        message: 'Billing record deleted successfully',
+        severity: 'success'
+      });
+      loadBillingData();
+    } catch (error) {
+      console.error('Error deleting billing record:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to delete billing record',
+        severity: 'error'
+      });
     }
   };
 
@@ -1695,74 +1723,7 @@ export default function BillingManagement() {
           >
             Generate Billing
           </Button>
-          
-          <Button
-            variant="outlined"
-            startIcon={<AssessmentIcon />}
-            onClick={async () => {
-              try {
-                const configCheck = await checkTenantBillingConfiguration();
-                setAlert({
-                  type: 'info',
-                  message: `Tenant Configuration Check: ${configCheck.totalTenants} total tenants, ${configCheck.tenantsWithBilling} with billing config, ${configCheck.tenantsWithoutBilling} without billing config, ${configCheck.tenantsWithZeroRate} with zero rates.`
-                });
-              } catch (error) {
-                setAlert({
-                  type: 'error',
-                  message: 'Failed to check tenant configuration'
-                });
-              }
-            }}
-            sx={{ minWidth: 140 }}
-          >
-            Check Tenants
-          </Button>
-          
-          <Button
-            variant="outlined"
-            startIcon={<BuildIcon />}
-            onClick={async () => {
-              try {
-                const result = await updateTenantBillingDefaults();
-                setAlert({
-                  type: 'success',
-                  message: `Updated ${result.totalUpdated} tenants with default billing rates. Skipped ${result.totalSkipped} tenants (already configured).`
-                });
-              } catch (error) {
-                setAlert({
-                  type: 'error',
-                  message: 'Failed to update tenant billing defaults'
-                });
-              }
-            }}
-            sx={{ minWidth: 140 }}
-          >
-            Fix Billing
-          </Button>
-          
-          <Button
-            variant="outlined"
-            startIcon={<AssessmentIcon />}
-            onClick={() => {
-              try {
-                const testResult = testExports();
-                console.log('Export test result:', testResult);
-                setAlert({
-                  type: 'info',
-                  message: `Export test completed. Check console for details. All functions: ${Object.values(testResult).filter(Boolean).length}/${Object.keys(testResult).length} working.`
-                });
-              } catch (error) {
-                setAlert({
-                  type: 'error',
-                  message: `Export test failed: ${error.message}`
-                });
-              }
-            }}
-            sx={{ minWidth: 140 }}
-          >
-            Test Exports
-          </Button>
-          
+
           <Button
             variant="contained"
             startIcon={<AnalyticsIcon />}
@@ -1778,7 +1739,7 @@ export default function BillingManagement() {
           >
             Analytics
           </Button>
-          
+
           <Button
             variant="contained"
             startIcon={<CloudDownloadIcon />}
@@ -2144,7 +2105,7 @@ export default function BillingManagement() {
             </Typography>
           </Box>
           
-          <TableContainer>
+          <TableContainer sx={{ display: 'flex', justifyContent: 'center' }}>
             <Table>
               <TableHead>
                 <TableRow sx={{ backgroundColor: 'grey.50' }}>
@@ -2326,11 +2287,10 @@ export default function BillingManagement() {
                           <Tooltip title="More Actions">
                             <IconButton
                               size="small"
-                              onClick={(e) => {
-                                // Add more actions menu
-                              }}
+                              color="error"
+                              onClick={(e) => handleDeleteBilling(bill.id)}
                             >
-                              <MoreVertIcon />
+                              <DeleteIcon />
                             </IconButton>
                           </Tooltip>
                         </Stack>
@@ -2474,7 +2434,7 @@ export default function BillingManagement() {
                 
                 <Grid item xs={12}>
                   <Typography variant="h6" gutterBottom>Items Breakdown</Typography>
-                  <TableContainer component={Paper} variant="outlined">
+                  <TableContainer sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                     <Table>
                       <TableHead>
                         <TableRow>
