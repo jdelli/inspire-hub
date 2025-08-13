@@ -340,11 +340,11 @@ const Dashboard = () => {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {/* Total Seats */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Total Seats</p>
-              <h3 className="mt-2 text-3xl font-semibold text-gray-900">{totalSeats}</h3>
+              <h3 className="mt-2 text-4xl font-semibold text-gray-900">{totalSeats}</h3>
               <p className="mt-1 text-sm text-gray-500">Across all workspaces</p>
             </div>
             <div className="p-3 rounded-lg bg-blue-50 text-blue-600">
@@ -354,11 +354,11 @@ const Dashboard = () => {
         </div>
 
         {/* Available Seats */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Available</p>
-              <h3 className="mt-2 text-3xl font-semibold text-green-600">{availableSeats}</h3>
+              <h3 className="mt-2 text-4xl font-semibold text-green-600">{availableSeats}</h3>
               <p className="mt-1 text-sm text-gray-500">{Math.round((availableSeats / totalSeats) * 100)}% of capacity</p>
             </div>
             <div className="p-3 rounded-lg bg-green-50 text-green-600">
@@ -368,11 +368,11 @@ const Dashboard = () => {
         </div>
 
         {/* Occupied Seats */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+        <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Occupied</p>
-              <h3 className="mt-2 text-3xl font-semibold text-red-600">{occupiedSeats.length}</h3>
+              <h3 className="mt-2 text-4xl font-semibold text-red-600">{occupiedSeats.length}</h3>
               <p className="mt-1 text-sm text-gray-500">{Math.round((occupiedSeats.length / totalSeats) * 100)}% utilization</p>
             </div>
             <div className="p-3 rounded-lg bg-red-50 text-red-600">
@@ -382,11 +382,11 @@ const Dashboard = () => {
         </div>
 
         {/* Private Offices */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Private Offices</p>
-              <h3 className="mt-2 text-3xl font-semibold text-purple-600">{occupiedPrivateOffices.length}</h3>
+              <h3 className="mt-2 text-4xl font-semibold text-purple-600">{occupiedPrivateOffices.length}</h3>
               <p className="mt-1 text-sm text-gray-500">{privateOfficeList.length} total offices</p>
             </div>
             <div className="p-3 rounded-lg bg-purple-50 text-purple-600">
@@ -399,7 +399,7 @@ const Dashboard = () => {
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Seat Occupancy Pie Chart */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-semibold text-gray-900">Seat Occupancy</h2>
             <div className="flex items-center space-x-2">
@@ -424,8 +424,8 @@ const Dashboard = () => {
                   label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
                   labelLine={false}
                 >
-                  <Cell fill="#10b981" stroke="#fff" strokeWidth={2} />
-                  <Cell fill="#ef4444" stroke="#fff" strokeWidth={2} />
+                  <Cell fill="#34D399" stroke="#fff" strokeWidth={2} />
+                  <Cell fill="#F87171" stroke="#fff" strokeWidth={2} />
                 </Pie>
                 <RechartsTooltip
                   formatter={(value, name) => [`${value} seats`, name]}
@@ -449,7 +449,7 @@ const Dashboard = () => {
         </div>
 
         {/* Visit Requests Trend */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-semibold text-gray-900">Visit Requests Trend</h2>
             <div className="flex items-center space-x-1 text-blue-600">
@@ -485,7 +485,7 @@ const Dashboard = () => {
                 />
                 <Bar
                   dataKey="Pending Visits"
-                  fill="#3b82f6"
+                  fill="#6366F1"
                   radius={[4, 4, 0, 0]}
                   barSize={24}
                 />
@@ -512,7 +512,7 @@ const Dashboard = () => {
             expiringTenants.map((tenant) => (
               <div
                 key={tenant.id}
-                className="px-6 py-4 hover:bg-gray-50 transition"
+                className="px-6 py-4 hover:bg-gray-100 transition"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
@@ -522,7 +522,7 @@ const Dashboard = () => {
                       </div>
                     </div>
                     <div>
-                      <h3 className="text-base font-medium text-gray-900">{tenant.name || 'N/A'} - {tenant.company || 'N/A'}</h3>
+                      <h3 className="text-base font-semibold text-gray-900">{tenant.name || 'N/A'} - {tenant.company || 'N/A'}</h3>
                       <p className="text-sm text-gray-500">{tenant.type} Tenant</p>
                     </div>
                   </div>
@@ -577,21 +577,21 @@ const Dashboard = () => {
           <div className="overflow-x-auto">
             {meetingRoomBookings[activeMeetingRoomTab].length > 0 ? (
               <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-100">
                   <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                       Room
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                       Booked By
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                       Date
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                       Time
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                       Attendees
                     </th>
                   </tr>
@@ -599,7 +599,7 @@ const Dashboard = () => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {meetingRoomBookings[activeMeetingRoomTab].map(booking => (
                     <tr key={booking.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                         {booking.room || 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
