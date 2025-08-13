@@ -61,7 +61,6 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import InfoIcon from "@mui/icons-material/Info";
 import { blue, green, grey, red, purple, orange } from "@mui/material/colors";
-import { sendSubscriptionExpiryNotification } from "../../(admin)/utils/email";
 import { getAuth, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
 
 // Utility functions (keeping them as is)
@@ -128,93 +127,7 @@ export default function SeatMapTable() {
     error: "",
   });
 
-  // Email notification hooks (keeping them as is)
-  useEffect(() => {
-    if (!clients || clients.length === 0) return;
 
-    clients.forEach(async (client) => {
-      if (!client.billing?.billingEndDate || !client.email || client.status === "deactivated") return;
-
-      const now = new Date();
-      const end = new Date(client.billing.billingEndDate);
-      const daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
-
-      if (daysLeft === 30 && !client.billing?.notified30days) {
-        try {
-          await sendSubscriptionExpiryNotification({
-            ...client,
-            expiry_date: end.toLocaleDateString(undefined, {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            }),
-          });
-          const clientRef = doc(db, "seatMap", client.id);
-          await updateDoc(clientRef, { "billing.notified30days": true });
-        } catch (err) {
-          console.error("Failed to send notification to", client.email, err);
-        }
-      }
-    });
-  }, [clients]);
-
-  useEffect(() => {
-    if (!privateOfficeClients || privateOfficeClients.length === 0) return;
-
-    privateOfficeClients.forEach(async (client) => {
-      if (!client.billing?.billingEndDate || !client.email || client.status === "deactivated") return;
-
-      const now = new Date();
-      const end = new Date(client.billing.billingEndDate);
-      const daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
-
-      if (daysLeft === 30 && !client.billing?.notified30days) {
-        try {
-          await sendSubscriptionExpiryNotification({
-            ...client,
-            expiry_date: end.toLocaleDateString(undefined, {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            }),
-          });
-          const clientRef = doc(db, "privateOffice", client.id);
-          await updateDoc(clientRef, { "billing.notified30days": true });
-        } catch (err) {
-          console.error("Failed to send notification to", client.email, err);
-        }
-      }
-    });
-  }, [privateOfficeClients]);
-
-  useEffect(() => {
-    if (!virtualOfficeClients || virtualOfficeClients.length === 0) return;
-
-    virtualOfficeClients.forEach(async (client) => {
-      if (!client.billing?.billingEndDate || !client.email || client.status === "deactivated") return;
-
-      const now = new Date();
-      const end = new Date(client.billing.billingEndDate);
-      const daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
-
-      if (daysLeft === 30 && !client.billing?.notified30days) {
-        try {
-          await sendSubscriptionExpiryNotification({
-            ...client,
-            expiry_date: end.toLocaleDateString(undefined, {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            }),
-          });
-          const clientRef = doc(db, "virtualOffice", client.id);
-          await updateDoc(clientRef, { "billing.notified30days": true });
-        } catch (err) {
-          console.error("Failed to send notification to", client.email, err);
-        }
-      }
-    });
-  }, [virtualOfficeClients]);
 
   // Initial data fetching
   useEffect(() => {

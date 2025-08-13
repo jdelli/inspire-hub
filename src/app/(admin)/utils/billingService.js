@@ -7,21 +7,35 @@ import {
   where, 
   updateDoc, 
   doc,
+  getDoc,
   serverTimestamp,
   Timestamp 
 } from "firebase/firestore";
+import { sendBillingNotification } from "./email";
 
 
 // Helper to format number as PHP currency with thousands separator
-function formatPHP(amount) {
+export function formatPHP(amount) {
   return `₱${Number(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 // Calculate billing amount based on tenant type and configuration
-function calculateBillingAmount(tenant) {
-  const rate = parseFloat(tenant.billing?.rate) || 0;
+export function calculateBillingAmount(tenant) {
+  // Set default rates if not provided
+  let defaultRate = 0;
+  if (tenant.selectedSeats && tenant.selectedSeats.length > 0) {
+    defaultRate = 5000; // Default rate for dedicated desk
+  } else if (tenant.selectedPO && tenant.selectedPO.length > 0) {
+    defaultRate = 15000; // Default rate for private office
+  } else {
+    defaultRate = 3000; // Default rate for virtual office
+  }
+  
+  const rate = parseFloat(tenant.billing?.rate) || defaultRate;
   const cusaFee = parseFloat(tenant.billing?.cusaFee) || 0;
   const parkingFee = parseFloat(tenant.billing?.parkingFee) || 0;
+  const penaltyFee = parseFloat(tenant.billing?.penaltyFee) || 0;
+  const damageFee = parseFloat(tenant.billing?.damageFee) || 0;
   
   let baseAmount = 0;
   
@@ -37,7 +51,7 @@ function calculateBillingAmount(tenant) {
     baseAmount = rate;
   }
   
-  const subtotal = baseAmount + cusaFee + parkingFee;
+  const subtotal = baseAmount + cusaFee + parkingFee + penaltyFee + damageFee;
   const vat = subtotal * 0.12; // 12% VAT
   const total = subtotal + vat;
   
@@ -45,6 +59,8 @@ function calculateBillingAmount(tenant) {
     baseAmount,
     cusaFee,
     parkingFee,
+    penaltyFee,
+    damageFee,
     subtotal,
     vat,
     total
@@ -52,28 +68,44 @@ function calculateBillingAmount(tenant) {
 }
 
 // Generate billing record for a tenant
-async function generateBillingRecord(tenant, billingMonth, tenantType, billingDate = new Date()) {
+export async function generateBillingRecord(tenant, billingMonth, tenantType, billingDate = new Date()) {
   const billingAmounts = calculateBillingAmount(tenant);
+  
+  // Use tenant's billing start date if available, otherwise use billingDate
+  const startDate = tenant.billing?.startDate ? new Date(tenant.billing.startDate) : billingDate;
+  const dueDate = new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days from start date
+  
+  // Set default rate if not provided
+  let defaultRate = 0;
+  if (tenant.selectedSeats && tenant.selectedSeats.length > 0) {
+    defaultRate = 5000; // Default rate for dedicated desk
+  } else if (tenant.selectedPO && tenant.selectedPO.length > 0) {
+    defaultRate = 15000; // Default rate for private office
+  } else {
+    defaultRate = 3000; // Default rate for virtual office
+  }
   
   const billingRecord = {
     tenantId: tenant.id,
-    tenantName: tenant.name,
-    tenantEmail: tenant.email,
-    tenantCompany: tenant.company,
-    tenantPhone: tenant.phone,
-    tenantAddress: tenant.address,
+    tenantName: tenant.name || 'Unknown',
+    tenantEmail: tenant.email || 'No email provided',
+    tenantCompany: tenant.company || 'No company provided',
+    tenantPhone: tenant.phone || 'No phone provided',
+    tenantAddress: tenant.address || 'No address provided',
     tenantType: tenantType, // 'dedicated-desk', 'private-office', 'virtual-office'
     
     // Billing period
     billingMonth: billingMonth, // Format: '2024-01'
     billingDate: billingDate.toISOString(),
-    dueDate: new Date(billingDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from billing date
+    dueDate: dueDate.toISOString(), // 30 days from tenant's billing start date
     
     // Billing details
-    baseRate: tenant.billing?.rate || 0,
+    baseRate: tenant.billing?.rate || defaultRate,
     quantity: tenant.selectedSeats?.length || tenant.selectedPO?.length || 1,
     cusaFee: billingAmounts.cusaFee,
     parkingFee: billingAmounts.parkingFee,
+    penaltyFee: billingAmounts.penaltyFee,
+    damageFee: billingAmounts.damageFee,
     
     // Calculated amounts
     subtotal: billingAmounts.subtotal,
@@ -89,7 +121,7 @@ async function generateBillingRecord(tenant, billingMonth, tenantType, billingDa
     updatedAt: serverTimestamp(),
     
     // Additional info
-    billingAddress: tenant.billing?.billingAddress || tenant.address,
+    billingAddress: tenant.billing?.billingAddress || tenant.address || 'No billing address provided',
     currency: 'PHP',
     
     // Items breakdown for invoice
@@ -98,7 +130,7 @@ async function generateBillingRecord(tenant, billingMonth, tenantType, billingDa
         description: tenantType === 'dedicated-desk' ? 'Dedicated Desk Rental' :
                     tenantType === 'private-office' ? 'Private Office Rental' : 'Virtual Office Services',
         quantity: tenant.selectedSeats?.length || tenant.selectedPO?.length || 1,
-        unitPrice: tenant.billing?.rate || 0,
+        unitPrice: tenant.billing?.rate || defaultRate,
         amount: billingAmounts.baseAmount
       },
       ...(billingAmounts.cusaFee > 0 ? [{
@@ -112,6 +144,18 @@ async function generateBillingRecord(tenant, billingMonth, tenantType, billingDa
         quantity: 1,
         unitPrice: billingAmounts.parkingFee,
         amount: billingAmounts.parkingFee
+      }] : []),
+      ...(billingAmounts.penaltyFee > 0 ? [{
+        description: 'Late Payment Penalty',
+        quantity: 1,
+        unitPrice: billingAmounts.penaltyFee,
+        amount: billingAmounts.penaltyFee
+      }] : []),
+      ...(billingAmounts.damageFee > 0 ? [{
+        description: 'Damage Fee',
+        quantity: 1,
+        unitPrice: billingAmounts.damageFee,
+        amount: billingAmounts.damageFee
       }] : [])
     ]
   };
@@ -140,6 +184,7 @@ export async function generateMonthlyBilling(targetMonth = null) {
     
     const billingRecords = [];
     const errors = [];
+    const skippedTenants = [];
     
     // Process each tenant type
     const tenantTypes = [
@@ -150,6 +195,8 @@ export async function generateMonthlyBilling(targetMonth = null) {
     
     for (const { collection: collectionName, type } of tenantTypes) {
       try {
+        console.log(`Processing ${collectionName} collection for ${type}...`);
+        
         // Get all active tenants
         const tenantsQuery = query(
           collection(db, collectionName),
@@ -157,30 +204,54 @@ export async function generateMonthlyBilling(targetMonth = null) {
         );
         
         const querySnapshot = await getDocs(tenantsQuery);
+        console.log(`Found ${querySnapshot.docs.length} active tenants in ${collectionName}`);
+        
+        // Debug: Log tenant details
+        querySnapshot.docs.forEach((doc, index) => {
+          const tenant = doc.data();
+          console.log(`Tenant ${index + 1}: ${tenant.name || 'Unknown'} (${tenant.id}) - Status: ${tenant.status}, Rate: ${tenant.billing?.rate || 'Not set'}`);
+        });
         
         for (const doc of querySnapshot.docs) {
           const tenant = { id: doc.id, ...doc.data() };
           
-          // Check if billing already exists for this month
-          const existingBillingQuery = query(
-            collection(db, 'billing'),
-            where('tenantId', '==', tenant.id),
-            where('billingMonth', '==', billingMonth)
-          );
-          
-          const existingBilling = await getDocs(existingBillingQuery);
-          
-          if (existingBilling.empty) {
-            // Generate new billing record
-            const billingRecord = await generateBillingRecord(tenant, billingMonth, type, billingDate);
+          try {
+            // Check if billing already exists for this month
+            const existingBillingQuery = query(
+              collection(db, 'billing'),
+              where('tenantId', '==', tenant.id),
+              where('billingMonth', '==', billingMonth)
+            );
             
-            // Add to billing collection
-            const billingDocRef = await addDoc(collection(db, 'billing'), billingRecord);
-            billingRecord.id = billingDocRef.id;
+            const existingBilling = await getDocs(existingBillingQuery);
             
-            billingRecords.push(billingRecord);
-          } else {
-            console.log(`Billing already exists for tenant ${tenant.id} for ${billingMonth}`);
+            if (existingBilling.empty) {
+              // Generate new billing record
+              const billingRecord = await generateBillingRecord(tenant, billingMonth, type, billingDate);
+              
+              // Add to billing collection
+              const billingDocRef = await addDoc(collection(db, 'billing'), billingRecord);
+              billingRecord.id = billingDocRef.id;
+              
+              billingRecords.push(billingRecord);
+              console.log(`Generated billing for tenant: ${tenant.name || tenant.id} (${type}) - Amount: ₱${billingRecord.total}`);
+            } else {
+              console.log(`Billing already exists for tenant ${tenant.name || tenant.id} for ${billingMonth}`);
+              skippedTenants.push({
+                tenantId: tenant.id,
+                tenantName: tenant.name || 'Unknown',
+                reason: 'Billing already exists for this month'
+              });
+            }
+          } catch (tenantError) {
+            console.error(`Error processing tenant ${tenant.id}:`, tenantError);
+            errors.push({
+              tenantId: tenant.id,
+              tenantName: tenant.name || 'Unknown',
+              collection: collectionName,
+              error: 'Tenant processing failed',
+              details: tenantError.message
+            });
           }
         }
       } catch (collectionError) {
@@ -194,13 +265,17 @@ export async function generateMonthlyBilling(targetMonth = null) {
     }
     
     console.log(`Monthly billing generation completed. Generated ${billingRecords.length} billing records.`);
+    console.log(`Skipped ${skippedTenants.length} tenants (billing already exists).`);
+    console.log(`Errors: ${errors.length}`);
     
     return {
       success: true,
       billingRecords,
       errors,
+      skippedTenants,
       billingMonth,
       totalGenerated: billingRecords.length,
+      totalSkipped: skippedTenants.length,
       totalErrors: errors.length
     };
     
@@ -210,7 +285,8 @@ export async function generateMonthlyBilling(targetMonth = null) {
       success: false,
       error: error.message,
       billingRecords: [],
-      errors: [error]
+      errors: [error],
+      skippedTenants: []
     };
   }
 }
@@ -423,4 +499,241 @@ export async function checkAndUpdateOverdueBills() {
   }
 }
 
-export { formatPHP, calculateBillingAmount };
+// Update additional fees for existing billing records
+export async function updateBillingFees(billingId, additionalFees) {
+  try {
+    const billingRef = doc(db, 'billing', billingId);
+    const billingDoc = await getDoc(billingRef);
+    
+    if (!billingDoc.exists()) {
+      throw new Error('Billing record not found');
+    }
+    
+    const billingData = billingDoc.data();
+    const { penaltyFee = 0, damageFee = 0, notes = '' } = additionalFees;
+    
+    // Calculate new totals
+    const baseSubtotal = billingData.subtotal - (billingData.penaltyFee || 0) - (billingData.damageFee || 0);
+    const newSubtotal = baseSubtotal + penaltyFee + damageFee;
+    const newVat = newSubtotal * 0.12;
+    const newTotal = newSubtotal + newVat;
+    
+    // Update items array to include new fees
+    const updatedItems = billingData.items.filter(item => 
+      item.description !== 'Late Payment Penalty' && item.description !== 'Damage Fee'
+    );
+    
+    if (penaltyFee > 0) {
+      updatedItems.push({
+        description: 'Late Payment Penalty',
+        quantity: 1,
+        unitPrice: penaltyFee,
+        amount: penaltyFee
+      });
+    }
+    
+    if (damageFee > 0) {
+      updatedItems.push({
+        description: 'Damage Fee',
+        quantity: 1,
+        unitPrice: damageFee,
+        amount: damageFee
+      });
+    }
+    
+    // Update the billing record
+    await updateDoc(billingRef, {
+      penaltyFee,
+      damageFee,
+      subtotal: newSubtotal,
+      vat: newVat,
+      total: newTotal,
+      items: updatedItems,
+      additionalFeesNotes: notes,
+      updatedAt: serverTimestamp()
+    });
+    
+    return {
+      success: true,
+      billingId,
+      newTotal,
+      penaltyFee,
+      damageFee
+    };
+  } catch (error) {
+    console.error('Error updating billing fees:', error);
+    throw error;
+  }
+}
+
+// Check tenant billing configuration
+export async function checkTenantBillingConfiguration() {
+  try {
+    const tenantTypes = [
+      { collection: 'seatMap', type: 'dedicated-desk' },
+      { collection: 'privateOffice', type: 'private-office' },
+      { collection: 'virtualOffice', type: 'virtual-office' }
+    ];
+    
+    const results = {
+      totalTenants: 0,
+      tenantsWithBilling: 0,
+      tenantsWithoutBilling: 0,
+      tenantsWithZeroRate: 0,
+      tenantsWithMissingInfo: 0,
+      details: []
+    };
+    
+    for (const { collection: collectionName, type } of tenantTypes) {
+      try {
+        const tenantsQuery = query(
+          collection(db, collectionName),
+          where('status', '==', 'active')
+        );
+        
+        const querySnapshot = await getDocs(tenantsQuery);
+        
+        for (const doc of querySnapshot.docs) {
+          const tenant = { id: doc.id, ...doc.data() };
+          results.totalTenants++;
+          
+          const hasBilling = tenant.billing && Object.keys(tenant.billing).length > 0;
+          const hasRate = tenant.billing?.rate && parseFloat(tenant.billing.rate) > 0;
+          const hasRequiredInfo = tenant.name && tenant.email;
+          
+          const detail = {
+            tenantId: tenant.id,
+            tenantName: tenant.name || 'Unknown',
+            collection: collectionName,
+            type: type,
+            hasBilling,
+            hasRate,
+            hasRequiredInfo,
+            rate: tenant.billing?.rate || 0,
+            issues: []
+          };
+          
+          if (!hasBilling) {
+            results.tenantsWithoutBilling++;
+            detail.issues.push('No billing configuration');
+          } else {
+            results.tenantsWithBilling++;
+          }
+          
+          if (!hasRate) {
+            results.tenantsWithZeroRate++;
+            detail.issues.push('Zero or missing billing rate');
+          }
+          
+          if (!hasRequiredInfo) {
+            results.tenantsWithMissingInfo++;
+            detail.issues.push('Missing required tenant information');
+          }
+          
+          results.details.push(detail);
+        }
+      } catch (error) {
+        console.error(`Error checking ${collectionName} collection:`, error);
+      }
+    }
+    
+    return results;
+  } catch (error) {
+    console.error('Error checking tenant billing configuration:', error);
+    throw error;
+  }
+}
+
+// Update tenant billing configuration with default rates if missing
+export async function updateTenantBillingDefaults() {
+  try {
+    const tenantTypes = [
+      { collection: 'seatMap', type: 'dedicated-desk', defaultRate: 5000 },
+      { collection: 'privateOffice', type: 'private-office', defaultRate: 15000 },
+      { collection: 'virtualOffice', type: 'virtual-office', defaultRate: 3000 }
+    ];
+    
+    const results = {
+      totalUpdated: 0,
+      totalSkipped: 0,
+      errors: []
+    };
+    
+    for (const { collection: collectionName, type, defaultRate } of tenantTypes) {
+      try {
+        const tenantsQuery = query(
+          collection(db, collectionName),
+          where('status', '==', 'active')
+        );
+        
+        const querySnapshot = await getDocs(tenantsQuery);
+        
+        for (const doc of querySnapshot.docs) {
+          const tenant = { id: doc.id, ...doc.data() };
+          
+          try {
+            const needsUpdate = !tenant.billing || !tenant.billing.rate || parseFloat(tenant.billing.rate) === 0;
+            
+            if (needsUpdate) {
+              const updateData = {
+                billing: {
+                  ...tenant.billing,
+                  rate: defaultRate,
+                  currency: 'PHP',
+                  plan: tenant.billing?.plan || 'monthly',
+                  paymentMethod: tenant.billing?.paymentMethod || 'credit',
+                  startDate: tenant.billing?.startDate || new Date().toISOString().split('T')[0]
+                }
+              };
+              
+              await updateDoc(doc(db, collectionName, tenant.id), updateData);
+              results.totalUpdated++;
+              console.log(`Updated billing for tenant: ${tenant.name || tenant.id} with rate: ₱${defaultRate}`);
+            } else {
+              results.totalSkipped++;
+            }
+          } catch (tenantError) {
+            console.error(`Error updating tenant ${tenant.id}:`, tenantError);
+            results.errors.push({
+              tenantId: tenant.id,
+              tenantName: tenant.name || 'Unknown',
+              error: tenantError.message
+            });
+          }
+        }
+      } catch (collectionError) {
+        console.error(`Error processing ${collectionName} collection:`, collectionError);
+        results.errors.push({
+          collection: collectionName,
+          error: collectionError.message
+        });
+      }
+    }
+    
+    return results;
+  } catch (error) {
+    console.error('Error updating tenant billing defaults:', error);
+    throw error;
+  }
+}
+
+// Test function to verify exports are working
+export function testExports() {
+  console.log('Billing service exports are working correctly');
+  return {
+    formatPHP: typeof formatPHP === 'function',
+    calculateBillingAmount: typeof calculateBillingAmount === 'function',
+    generateBillingRecord: typeof generateBillingRecord === 'function',
+    generateMonthlyBilling: typeof generateMonthlyBilling === 'function',
+    getBillingStatistics: typeof getBillingStatistics === 'function',
+    getMonthlyBillingRecords: typeof getMonthlyBillingRecords === 'function',
+    updateBillingStatus: typeof updateBillingStatus === 'function',
+    checkAndUpdateOverdueBills: typeof checkAndUpdateOverdueBills === 'function',
+    updateBillingFees: typeof updateBillingFees === 'function',
+    checkTenantBillingConfiguration: typeof checkTenantBillingConfiguration === 'function',
+    updateTenantBillingDefaults: typeof updateTenantBillingDefaults === 'function',
+    sendOverdueReminders: typeof sendOverdueReminders === 'function'
+  };
+}
+
+
