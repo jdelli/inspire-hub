@@ -17,7 +17,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   Button,
   TextField,
   Pagination,
@@ -27,8 +26,9 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogContentText,
   DialogActions,
+  DialogContentText,
+  Zoom,
   useTheme,
   useMediaQuery,
   Tabs,
@@ -37,21 +37,14 @@ import {
   Grid,
   Card,
   CardContent,
-  Fade,
-  Zoom,
-  LinearProgress,
-  Alert,
-  Divider,
   Avatar
 } from "@mui/material";
 import { 
-  Save, 
-  Close, 
-  Event, 
-  Schedule, 
-  InfoOutlined,
+  Save,
+  Event,
+  Schedule,
+  Close,
   MeetingRoom,
-  Refresh,
   TrendingUp,
   People,
   CheckCircle,
@@ -350,6 +343,18 @@ const AdminDashboard = () => {
     rejected: reservations.filter(r => r.status === "rejected").length
   };
 
+  const getChipProps = (status, isCurrent) => {
+    const statusMap = {
+      accepted: { label: isCurrent ? "Ongoing" : "Accepted", color: isCurrent ? "info" : "success" },
+      pending: { label: "Pending", color: "warning" },
+      done: { label: "Done", color: "primary" },
+      rejected: { label: "Rejected", color: "error" }
+    };
+    
+    const props = statusMap[status] || { label: "-", color: "default" };
+    return { ...props, variant: "filled" };
+  };
+
   return (
     <Box sx={{ py: 4, px: { xs: 2, sm: 3, md: 4 }, width: "100%" }}>
       {/* Header Section */}
@@ -636,31 +641,19 @@ const AdminDashboard = () => {
             </TableHead>
           <TableBody>
             {currentItems.map((res) => {
-              let chipLabel = "-";
-              let chipColor = "default";
-                let chipVariant = "outlined";
+              const getChipProps = (status, isCurrent) => {
+                const statusMap = {
+                  accepted: { label: isCurrent ? "Ongoing" : "Accepted", color: isCurrent ? "info" : "success" },
+                  pending: { label: "Pending", color: "warning" },
+                  done: { label: "Done", color: "primary" },
+                  rejected: { label: "Rejected", color: "error" }
+                };
                 
-              if (res.status === "accepted" && !isCurrentMeeting(res, nowLocalRef.current)) {
-                chipLabel = "Accepted";
-                chipColor = "success";
-                  chipVariant = "filled";
-              } else if (res.status === "pending") {
-                chipLabel = "Pending";
-                chipColor = "warning";
-                  chipVariant = "filled";
-              } else if (res.status === "accepted" && isCurrentMeeting(res, nowLocalRef.current)) {
-                chipLabel = "Ongoing";
-                chipColor = "info";
-                  chipVariant = "filled";
-                } else if (res.status === "done") {
-                chipLabel = "Done";
-                chipColor = "primary";
-                  chipVariant = "filled";
-              } else if (res.status === "rejected") {
-                chipLabel = "Rejected";
-                chipColor = "error";
-                  chipVariant = "filled";
-              }
+                const props = statusMap[status] || { label: "-", color: "default" };
+                return { ...props, variant: "filled" };
+              };
+
+              const chipProps = getChipProps(res.status, isCurrentMeeting(res, nowLocalRef.current));
 
               return (
                   <Zoom in timeout={200} key={res.id}>
@@ -828,14 +821,14 @@ const AdminDashboard = () => {
                   </TableCell>
                   <TableCell align="center">
                     <Chip
-                      label={chipLabel}
-                      color={chipColor}
-                          variant={chipVariant}
+                      label={chipProps.label}
+                      color={chipProps.color}
+                      variant={chipProps.variant}
                       size="small"
-                          sx={{ 
-                            fontWeight: 600,
-                            minWidth: 80
-                          }}
+                      sx={{ 
+                        fontWeight: 600,
+                        minWidth: 80
+                      }}
                     />
                   </TableCell>
                   <TableCell align="center">
@@ -949,7 +942,7 @@ const AdminDashboard = () => {
                                     '&:hover': { bgcolor: 'primary.dark' }
                                   }}
                             >
-                              <InfoOutlined />
+                              <MeetingRoom />
                             </IconButton>
                           </Tooltip>
                         )}
@@ -1044,7 +1037,7 @@ const AdminDashboard = () => {
           alignItems: 'center',
           gap: 1
         }}>
-          <InfoOutlined />
+          <MeetingRoom />
           Reservation Details
         </DialogTitle>
         <DialogContent dividers sx={{ p: 3 }}>
