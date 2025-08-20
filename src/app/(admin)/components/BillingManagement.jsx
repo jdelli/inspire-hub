@@ -112,7 +112,7 @@ import {
   PictureAsPdf as PictureAsPdfIcon,
   Build as BuildIcon,
 } from "@mui/icons-material";
-import { getFirestore, doc, deleteDoc } from "firebase/firestore";
+import { getFirestore, doc, deleteDoc, getDoc } from "firebase/firestore";
 import { db } from "../../../../script/firebaseConfig";
 import {
   generateMonthlyBilling,
@@ -126,6 +126,7 @@ import {
   formatPHP,
   testExports,
 } from "../utils/billingService";
+import EditTenantModal from './EditTenantModal';
 
 const getStatusColor = (status) => {
   switch (status) {
@@ -246,6 +247,10 @@ export default function BillingManagement() {
     analytics: false
   });
   const [showBackdrop, setShowBackdrop] = useState(false);
+
+  // Add state for EditTenantModal
+  const [showEditTenantModal, setShowEditTenantModal] = useState(false);
+  const [selectedTenantForEdit, setSelectedTenantForEdit] = useState(null);
 
   // Enhanced data processing and filtering
   const processAndFilterBills = useCallback((bills) => {
@@ -1651,6 +1656,74 @@ export default function BillingManagement() {
     }
   };
 
+  // Handle edit tenant from billing record
+  const handleEditTenant = async (bill) => {
+    try {
+      // Determine the collection based on tenant type
+      let collectionName;
+      switch (bill.tenantType) {
+        case 'dedicated-desk':
+          collectionName = 'seatMap';
+          break;
+        case 'private-office':
+          collectionName = 'privateOffice';
+          break;
+        case 'virtual-office':
+          collectionName = 'virtualOffice';
+          break;
+        default:
+          throw new Error(`Unknown tenant type: ${bill.tenantType}`);
+      }
+
+      // Fetch the tenant data from the appropriate collection
+      const tenantDoc = await getDoc(doc(db, collectionName, bill.tenantId));
+      
+      if (tenantDoc.exists()) {
+        const tenantData = { id: tenantDoc.id, ...tenantDoc.data() };
+        setSelectedTenantForEdit(tenantData);
+        setShowEditTenantModal(true);
+      } else {
+        setSnackbar({
+          open: true,
+          message: 'Tenant not found in database',
+          severity: 'error'
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching tenant data:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to fetch tenant data',
+        severity: 'error'
+      });
+    }
+  };
+
+  // Handle save edited tenant
+  const handleSaveEditedTenant = async (updatedTenantData) => {
+    try {
+      // The EditTenantModal already handles the billing update
+      // We just need to refresh the billing data
+      await loadBillingData();
+      
+      setSnackbar({
+        open: true,
+        message: 'Tenant and billing information updated successfully',
+        severity: 'success'
+      });
+      
+      setShowEditTenantModal(false);
+      setSelectedTenantForEdit(null);
+    } catch (error) {
+      console.error('Error saving edited tenant:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to save tenant changes',
+        severity: 'error'
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <Box sx={{ p: 3 }}>
@@ -2282,6 +2355,17 @@ export default function BillingManagement() {
                             sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
                           >
                             Fees
+                          </Button>
+                          
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="info"
+                            startIcon={<EditIcon />}
+                            onClick={() => handleEditTenant(bill)}
+                            sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
+                          >
+                            Edit Tenant
                           </Button>
                           
                           <Tooltip title="More Actions">
@@ -3008,6 +3092,17 @@ export default function BillingManagement() {
           <Button onClick={() => setShowAnalyticsDialog(false)}>Close</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Edit Tenant Modal */}
+      <EditTenantModal
+        open={showEditTenantModal}
+        onClose={() => {
+          setShowEditTenantModal(false);
+          setSelectedTenantForEdit(null);
+        }}
+        client={selectedTenantForEdit}
+        onSave={handleSaveEditedTenant}
+      />
 
       {/* Enhanced Snackbar */}
       <Snackbar

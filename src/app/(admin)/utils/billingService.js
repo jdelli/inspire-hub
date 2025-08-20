@@ -717,6 +717,132 @@ export async function updateTenantBillingDefaults() {
   }
 }
 
+// Update tenant billing information and recalculate existing billing records
+export async function updateTenantBillingInfo(tenantId, tenantType, updatedBillingInfo) {
+  try {
+    // Determine the collection based on tenant type
+    let collectionName;
+    switch (tenantType) {
+      case 'dedicated':
+      case 'dedicated-desk':
+        collectionName = 'seatMap';
+        break;
+      case 'private':
+      case 'private-office':
+        collectionName = 'privateOffice';
+        break;
+      case 'virtual':
+      case 'virtual-office':
+        collectionName = 'virtualOffice';
+        break;
+      default:
+        throw new Error(`Unknown tenant type: ${tenantType}`);
+    }
+
+    // Update the tenant's billing information
+    const tenantRef = doc(db, collectionName, tenantId);
+    await updateDoc(tenantRef, {
+      billing: updatedBillingInfo,
+      updatedAt: serverTimestamp()
+    });
+
+    // Get the updated tenant data
+    const tenantDoc = await getDoc(tenantRef);
+    if (!tenantDoc.exists()) {
+      throw new Error('Tenant not found after update');
+    }
+
+    const updatedTenant = { id: tenantDoc.id, ...tenantDoc.data() };
+
+    // Find and update existing billing records for this tenant
+    const billingQuery = query(
+      collection(db, 'billing'),
+      where('tenantId', '==', tenantId),
+      where('status', 'in', ['pending', 'overdue'])
+    );
+
+    const billingSnapshot = await getDocs(billingQuery);
+    const updatedBillingRecords = [];
+
+    for (const billingDoc of billingSnapshot.docs) {
+      const billingData = billingDoc.data();
+      
+      // Recalculate billing amounts with updated tenant information
+      const newBillingAmounts = calculateBillingAmount(updatedTenant);
+      
+      // Update the billing record
+      await updateDoc(doc(db, 'billing', billingDoc.id), {
+        baseRate: updatedBillingInfo.rate || billingData.baseRate,
+        subtotal: newBillingAmounts.subtotal,
+        vat: newBillingAmounts.vat,
+        total: newBillingAmounts.total,
+        cusaFee: newBillingAmounts.cusaFee,
+        parkingFee: newBillingAmounts.parkingFee,
+        penaltyFee: newBillingAmounts.penaltyFee,
+        damageFee: newBillingAmounts.damageFee,
+        updatedAt: serverTimestamp(),
+        // Update items array to reflect new amounts
+        items: [
+          {
+            description: updatedTenant.selectedSeats?.length > 0 
+              ? `Dedicated Desk (${updatedTenant.selectedSeats.length} seat${updatedTenant.selectedSeats.length > 1 ? 's' : ''})`
+              : updatedTenant.selectedPO?.length > 0
+              ? `Private Office (${updatedTenant.selectedPO.length} office${updatedTenant.selectedPO.length > 1 ? 's' : ''})`
+              : 'Virtual Office Services',
+            quantity: updatedTenant.selectedSeats?.length || updatedTenant.selectedPO?.length || 1,
+            unitPrice: updatedBillingInfo.rate || billingData.baseRate,
+            amount: newBillingAmounts.baseAmount
+          },
+          ...(newBillingAmounts.cusaFee > 0 ? [{
+            description: 'CUSA Fee',
+            quantity: 1,
+            unitPrice: newBillingAmounts.cusaFee,
+            amount: newBillingAmounts.cusaFee
+          }] : []),
+          ...(newBillingAmounts.parkingFee > 0 ? [{
+            description: 'Parking Fee',
+            quantity: 1,
+            unitPrice: newBillingAmounts.parkingFee,
+            amount: newBillingAmounts.parkingFee
+          }] : []),
+          ...(newBillingAmounts.penaltyFee > 0 ? [{
+            description: 'Late Payment Penalty',
+            quantity: 1,
+            unitPrice: newBillingAmounts.penaltyFee,
+            amount: newBillingAmounts.penaltyFee
+          }] : []),
+          ...(newBillingAmounts.damageFee > 0 ? [{
+            description: 'Damage Fee',
+            quantity: 1,
+            unitPrice: newBillingAmounts.damageFee,
+            amount: newBillingAmounts.damageFee
+          }] : [])
+        ]
+      });
+
+      updatedBillingRecords.push({
+        billingId: billingDoc.id,
+        oldTotal: billingData.total,
+        newTotal: newBillingAmounts.total,
+        billingMonth: billingData.billingMonth
+      });
+    }
+
+    return {
+      success: true,
+      tenantId,
+      tenantType,
+      updatedBillingInfo,
+      updatedBillingRecords,
+      message: `Successfully updated billing for tenant ${updatedTenant.name || tenantId}. Updated ${updatedBillingRecords.length} billing records.`
+    };
+
+  } catch (error) {
+    console.error('Error updating tenant billing information:', error);
+    throw error;
+  }
+}
+
 // Test function to verify exports are working
 export function testExports() {
   console.log('Billing service exports are working correctly');
@@ -732,6 +858,7 @@ export function testExports() {
     updateBillingFees: typeof updateBillingFees === 'function',
     checkTenantBillingConfiguration: typeof checkTenantBillingConfiguration === 'function',
     updateTenantBillingDefaults: typeof updateTenantBillingDefaults === 'function',
+    updateTenantBillingInfo: typeof updateTenantBillingInfo === 'function',
     sendOverdueReminders: typeof sendOverdueReminders === 'function'
   };
 }
