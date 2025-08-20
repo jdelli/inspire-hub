@@ -604,6 +604,16 @@ const AdminDashboard = () => {
                 </TableCell>
                 <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
                   <Typography variant="subtitle2" fontWeight={600}>
+                    Phone
+                  </Typography>
+                </TableCell>
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Company
+                  </Typography>
+                </TableCell>
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
                     Room
                   </Typography>
                 </TableCell>
@@ -625,6 +635,51 @@ const AdminDashboard = () => {
                 <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
                   <Typography variant="subtitle2" fontWeight={600}>
                     Guests
+                  </Typography>
+                </TableCell>
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Purpose
+                  </Typography>
+                </TableCell>
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Equipment
+                  </Typography>
+                </TableCell>
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Refreshments
+                  </Typography>
+                </TableCell>
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Special Request
+                  </Typography>
+                </TableCell>
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Notes
+                  </Typography>
+                </TableCell>
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Priority
+                  </Typography>
+                </TableCell>
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Category
+                  </Typography>
+                </TableCell>
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Setup Type
+                  </Typography>
+                </TableCell>
+                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Follow-up
                   </Typography>
                 </TableCell>
                 <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
@@ -690,6 +745,43 @@ const AdminDashboard = () => {
                           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                             {res.email}
                           </Typography>
+                    )}
+                  </TableCell>
+                  <TableCell align="center">
+                    {editId === res.id ? (
+                      <TextField
+                        variant="outlined"
+                        value={editedData.phone || ""}
+                        onChange={(e) =>
+                          setEditedData({ ...editedData, phone: e.target.value })
+                        }
+                        size="small"
+                        sx={{ minWidth: 120 }}
+                      />
+                    ) : (
+                      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                        {res.phone || "Not provided"}
+                      </Typography>
+                    )}
+                  </TableCell>
+                  <TableCell align="center">
+                    {editId === res.id ? (
+                      <TextField
+                        variant="outlined"
+                        value={editedData.company || ""}
+                        onChange={(e) =>
+                          setEditedData({ ...editedData, company: e.target.value })
+                        }
+                        size="small"
+                        sx={{ minWidth: 150 }}
+                      />
+                    ) : (
+                      <Chip 
+                        label={res.company || "Individual"} 
+                        size="small" 
+                        variant="outlined"
+                        color="secondary"
+                      />
                     )}
                   </TableCell>
                   <TableCell align="center">
@@ -817,6 +909,256 @@ const AdminDashboard = () => {
                             color="default"
                             icon={<People sx={{ fontSize: 16 }} />}
                           />
+                    )}
+                  </TableCell>
+                  <TableCell align="center">
+                    {editId === res.id ? (
+                      <TextField
+                        variant="outlined"
+                        value={editedData.purpose || ""}
+                        onChange={(e) =>
+                          setEditedData({ ...editedData, purpose: e.target.value })
+                        }
+                        size="small"
+                        sx={{ minWidth: 150 }}
+                      />
+                    ) : (
+                      <Chip 
+                        label={res.purpose || "Not specified"}
+                        size="small" 
+                        variant="outlined"
+                        color="primary"
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell align="center">
+                    {editId === res.id ? (
+                      <TextField
+                        variant="outlined"
+                        value={editedData.equipment || ""}
+                        onChange={(e) =>
+                          setEditedData({ ...editedData, equipment: e.target.value })
+                        }
+                        size="small"
+                        multiline
+                        rows={2}
+                        sx={{ minWidth: 150 }}
+                      />
+                    ) : (
+                      <Typography 
+                        variant="body2" 
+                        sx={{ 
+                          color: 'text.secondary',
+                          maxWidth: 150,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                        title={res.equipment || "No equipment needed"}
+                      >
+                        {res.equipment || "No equipment needed"}
+                      </Typography>
+                    )}
+                  </TableCell>
+                  <TableCell align="center">
+                    {editId === res.id ? (
+                      <TextField
+                        variant="outlined"
+                        value={editedData.refreshments || ""}
+                        onChange={(e) =>
+                          setEditedData({ ...editedData, refreshments: e.target.value })
+                        }
+                        size="small"
+                        multiline
+                        rows={2}
+                        sx={{ minWidth: 150 }}
+                      />
+                    ) : (
+                      <Typography 
+                        variant="body2" 
+                        sx={{ 
+                          color: 'text.secondary',
+                          maxWidth: 150,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                        title={res.refreshments || "No refreshments requested"}
+                      >
+                        {res.refreshments || "No refreshments requested"}
+                      </Typography>
+                    )}
+                  </TableCell>
+                  <TableCell align="center">
+                    {editId === res.id ? (
+                      <TextField
+                        variant="outlined"
+                        value={editedData.specialRequest || ""}
+                        onChange={(e) =>
+                          setEditedData({ ...editedData, specialRequest: e.target.value })
+                        }
+                        size="small"
+                        multiline
+                        rows={2}
+                        sx={{ minWidth: 150 }}
+                      />
+                    ) : (
+                      <Typography 
+                        variant="body2" 
+                        sx={{ 
+                          color: 'text.secondary',
+                          maxWidth: 150,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                        title={res.specialRequest || "No special request"}
+                      >
+                        {res.specialRequest || "No special request"}
+                      </Typography>
+                    )}
+                  </TableCell>
+                  <TableCell align="center">
+                    {editId === res.id ? (
+                      <TextField
+                        variant="outlined"
+                        value={editedData.notes || ""}
+                        onChange={(e) =>
+                          setEditedData({ ...editedData, notes: e.target.value })
+                        }
+                        size="small"
+                        multiline
+                        rows={2}
+                        sx={{ minWidth: 150 }}
+                      />
+                    ) : (
+                      <Typography 
+                        variant="body2" 
+                        sx={{ 
+                          color: 'text.secondary',
+                          maxWidth: 150,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                        title={res.notes || "No notes"}
+                      >
+                        {res.notes || "No notes"}
+                      </Typography>
+                    )}
+                  </TableCell>
+                  <TableCell align="center">
+                    {editId === res.id ? (
+                      <TextField
+                        variant="outlined"
+                        select
+                        value={editedData.priority || "Medium"}
+                        onChange={(e) =>
+                          setEditedData({ ...editedData, priority: e.target.value })
+                        }
+                        size="small"
+                        sx={{ minWidth: 120 }}
+                      >
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Urgent">Urgent</option>
+                      </TextField>
+                    ) : (
+                      <Chip 
+                        label={res.priority || "Medium"}
+                        size="small" 
+                        variant="filled"
+                        color={
+                          res.priority === "Urgent" ? "error" :
+                          res.priority === "High" ? "warning" :
+                          res.priority === "Low" ? "default" : "info"
+                        }
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell align="center">
+                    {editId === res.id ? (
+                      <TextField
+                        variant="outlined"
+                        select
+                        value={editedData.category || "General"}
+                        onChange={(e) =>
+                          setEditedData({ ...editedData, category: e.target.value })
+                        }
+                        size="small"
+                        sx={{ minWidth: 120 }}
+                      >
+                        <option value="General">General</option>
+                        <option value="Business">Business</option>
+                        <option value="Training">Training</option>
+                        <option value="Interview">Interview</option>
+                        <option value="Presentation">Presentation</option>
+                        <option value="Conference">Conference</option>
+                      </TextField>
+                    ) : (
+                      <Chip 
+                        label={res.category || "General"}
+                        size="small" 
+                        variant="outlined"
+                        color="info"
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell align="center">
+                    {editId === res.id ? (
+                      <TextField
+                        variant="outlined"
+                        select
+                        value={editedData.setupType || "Standard"}
+                        onChange={(e) =>
+                          setEditedData({ ...editedData, setupType: e.target.value })
+                        }
+                        size="small"
+                        sx={{ minWidth: 120 }}
+                      >
+                        <option value="Standard">Standard</option>
+                        <option value="Theater">Theater</option>
+                        <option value="Classroom">Classroom</option>
+                        <option value="U-Shape">U-Shape</option>
+                        <option value="Boardroom">Boardroom</option>
+                        <option value="Cocktail">Cocktail</option>
+                      </TextField>
+                    ) : (
+                      <Chip 
+                        label={res.setupType || "Standard"}
+                        size="small" 
+                        variant="outlined"
+                        color="success"
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell align="center">
+                    {editId === res.id ? (
+                      <TextField
+                        variant="outlined"
+                        select
+                        value={editedData.followUp || "No"}
+                        onChange={(e) =>
+                          setEditedData({ ...editedData, followUp: e.target.value })
+                        }
+                        size="small"
+                        sx={{ minWidth: 100 }}
+                      >
+                        <option value="No">No</option>
+                        <option value="Yes">Yes</option>
+                        <option value="Pending">Pending</option>
+                      </TextField>
+                    ) : (
+                      <Chip 
+                        label={res.followUp || "No"}
+                        size="small" 
+                        variant="filled"
+                        color={
+                          res.followUp === "Yes" ? "success" :
+                          res.followUp === "Pending" ? "warning" : "default"
+                        }
+                      />
                     )}
                   </TableCell>
                   <TableCell align="center">
@@ -972,7 +1314,7 @@ const AdminDashboard = () => {
             })}
             {currentItems.length === 0 && (
               <TableRow>
-                <TableCell colSpan={9} align="center" sx={{ py: 8 }}>
+                <TableCell colSpan={20} align="center" sx={{ py: 8 }}>
                   <Stack spacing={2} alignItems="center">
                     <Event sx={{ fontSize: 48, color: 'text.secondary', opacity: 0.5 }} />
                     <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 500 }}>
@@ -1062,6 +1404,25 @@ const AdminDashboard = () => {
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Phone
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    {detailsDialog.data.phone || "Not provided"}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Company
+                  </Typography>
+                  <Chip 
+                    label={detailsDialog.data.company || "Individual"} 
+                    color="secondary" 
+                    variant="outlined"
+                    sx={{ fontWeight: 500 }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
                     Room
               </Typography>
                   <Chip 
@@ -1125,6 +1486,112 @@ const AdminDashboard = () => {
                       : "-")
                 }
               </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Purpose
+                  </Typography>
+                  <Chip 
+                    label={detailsDialog.data.purpose || "Not specified"}
+                    color="primary"
+                    variant="outlined"
+                    sx={{ fontWeight: 500 }}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Equipment Needed
+                  </Typography>
+                  <Typography variant="body1" sx={{ 
+                    fontStyle: detailsDialog.data.equipment ? 'normal' : 'italic',
+                    color: detailsDialog.data.equipment ? 'text.primary' : 'text.secondary'
+                  }}>
+                    {detailsDialog.data.equipment || "No equipment needed"}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Refreshments
+                  </Typography>
+                  <Typography variant="body1" sx={{ 
+                    fontStyle: detailsDialog.data.refreshments ? 'normal' : 'italic',
+                    color: detailsDialog.data.refreshments ? 'text.primary' : 'text.secondary'
+                  }}>
+                    {detailsDialog.data.refreshments || "No refreshments requested"}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Special Request
+                  </Typography>
+                  <Typography variant="body1" sx={{ 
+                    fontStyle: detailsDialog.data.specialRequest ? 'normal' : 'italic',
+                    color: detailsDialog.data.specialRequest ? 'text.primary' : 'text.secondary'
+                  }}>
+                    {detailsDialog.data.specialRequest || "No special request"}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Notes
+                  </Typography>
+                  <Typography variant="body1" sx={{ 
+                    fontStyle: detailsDialog.data.notes ? 'normal' : 'italic',
+                    color: detailsDialog.data.notes ? 'text.primary' : 'text.secondary'
+                  }}>
+                    {detailsDialog.data.notes || "No notes"}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Priority Level
+                  </Typography>
+                  <Chip 
+                    label={detailsDialog.data.priority || "Medium"}
+                    color={
+                      detailsDialog.data.priority === "Urgent" ? "error" :
+                      detailsDialog.data.priority === "High" ? "warning" :
+                      detailsDialog.data.priority === "Low" ? "default" : "info"
+                    }
+                    variant="filled"
+                    sx={{ fontWeight: 600 }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Meeting Category
+                  </Typography>
+                  <Chip 
+                    label={detailsDialog.data.category || "General"}
+                    color="info"
+                    variant="outlined"
+                    sx={{ fontWeight: 500 }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Setup Type
+                  </Typography>
+                  <Chip 
+                    label={detailsDialog.data.setupType || "Standard"}
+                    color="success"
+                    variant="outlined"
+                    sx={{ fontWeight: 500 }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Follow-up Required
+                  </Typography>
+                  <Chip 
+                    label={detailsDialog.data.followUp || "No"}
+                    color={
+                      detailsDialog.data.followUp === "Yes" ? "success" :
+                      detailsDialog.data.followUp === "Pending" ? "warning" : "default"
+                    }
+                    variant="filled"
+                    sx={{ fontWeight: 600 }}
+                  />
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <Typography variant="subtitle2" color="text.secondary" gutterBottom>

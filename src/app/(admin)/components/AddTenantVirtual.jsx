@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { db } from "../../../../script/firebaseConfig";
 import { collection, addDoc } from "firebase/firestore";
 import {
@@ -33,6 +33,9 @@ import {
   Fade,
   Zoom,
   Alert,
+  Snackbar,
+  Tooltip,
+  Slide,
   LinearProgress,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
@@ -143,6 +146,10 @@ export default function AddVirtualOfficeTenantModal({
     billingRate: false,
     monthsToAvail: false,
   });
+  const [openSuccess, setOpenSuccess] = useState(false);
+  const [openError, setOpenError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const nameRef = useRef(null);
 
   // Effect to calculate initial billing end date and due date when modal opens
   useEffect(() => {
@@ -162,8 +169,24 @@ export default function AddVirtualOfficeTenantModal({
           }
         };
       });
+      // focus the name input for faster entry
+      setTimeout(() => nameRef.current?.focus(), 120);
     }
   }, [showAddModal]);
+
+  // compute form validity without setting errors (used to disable submit)
+  const formValid = useMemo(() => {
+    const emailRegex = /^\S+@\S+\.\S+$/;
+    return (
+      newTenant.name.trim().length > 0 &&
+      newTenant.company.trim().length > 0 &&
+      emailRegex.test((newTenant.email || "").trim()) &&
+      (newTenant.phone || "").toString().trim().length > 0 &&
+      (newTenant.address || "").toString().trim().length > 0 &&
+      Number(newTenant.billing.rate) > 0 &&
+      Number(newTenant.billing.monthsToAvail) > 0
+    );
+  }, [newTenant]);
 
   const calculateTotal = () => {
     const rate = parseFloat(`${newTenant.billing.rate}`) || 0;
@@ -217,11 +240,17 @@ export default function AddVirtualOfficeTenantModal({
         status: "active",
       };
       await addDoc(collection(db, "virtualOffice"), tenantData);
-
+      // show success briefly, refresh, then close modal
+      setOpenSuccess(true);
       refreshClients();
-      handleClose();
+      setTimeout(() => {
+        setOpenSuccess(false);
+        handleClose();
+      }, 700);
     } catch (error) {
       console.error("Error adding virtual office tenant: ", error);
+      setErrorMessage(error?.message || "Failed to add tenant");
+      setOpenError(true);
     } finally {
       setIsSubmitting(false);
     }
@@ -297,12 +326,26 @@ export default function AddVirtualOfficeTenantModal({
     }
   };
 
+  const handleKeyDown = (e) => {
+    // Submit on Enter (not inside multiline)
+    if (e.key === 'Enter') {
+      const tag = e.target.tagName.toLowerCase();
+      const type = e.target.type;
+      const isMultiline = tag === 'textarea' || type === 'textarea';
+      if (!isMultiline) {
+        e.preventDefault();
+        handleAddTenant();
+      }
+    }
+  };
+
   return (
     <Dialog
       open={showAddModal}
       onClose={handleClose}
       maxWidth="md"
       fullWidth
+  onKeyDown={handleKeyDown}
       PaperProps={{
         sx: { 
           maxHeight: "95vh", 
@@ -384,6 +427,7 @@ export default function AddVirtualOfficeTenantModal({
                 <TextField
                   label="Tenant Name"
                   fullWidth
+                  inputRef={nameRef}
                   value={newTenant.name}
                   onChange={(e) => handleInputChange("name", e.target.value)}
                   variant="outlined"
@@ -397,6 +441,7 @@ export default function AddVirtualOfficeTenantModal({
                     ),
                   }}
                   disabled={isSubmitting}
+                  inputProps={{ 'aria-label': 'tenant name' }}
                 />
               </Grid>
               <Grid item xs={12}>
@@ -442,6 +487,7 @@ export default function AddVirtualOfficeTenantModal({
                     ),
                   }}
                   disabled={isSubmitting}
+                    inputProps={{ 'aria-label': 'email address' }}
                 />
               </Grid>
               <Grid item xs={12}>
@@ -483,6 +529,7 @@ export default function AddVirtualOfficeTenantModal({
                     ),
                   }}
                   disabled={isSubmitting}
+                    inputProps={{ 'aria-label': 'address' }}
                 />
               </Grid>
             </Grid>
@@ -523,6 +570,7 @@ export default function AddVirtualOfficeTenantModal({
                       ),
                     }}
                     disabled={isSubmitting}
+                    inputProps={{ inputMode: 'numeric', 'aria-label': 'rate' }}
                   />
 
                   <TextField
@@ -534,7 +582,6 @@ export default function AddVirtualOfficeTenantModal({
                     onChange={(e) => handleBillingChange('monthsToAvail', parseInt(e.target.value))}
                     error={errors.monthsToAvail}
                     helperText={errors.monthsToAvail ? "Must be at least 1 month" : ""}
-                    inputProps={{ min: 1 }}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -543,6 +590,7 @@ export default function AddVirtualOfficeTenantModal({
                       ),
                     }}
                     disabled={isSubmitting}
+                    inputProps={{ 'aria-label': 'months to avail', min: 1 }}
                   />
 
                   <TextField
@@ -560,6 +608,7 @@ export default function AddVirtualOfficeTenantModal({
                       ),
                     }}
                     disabled={isSubmitting}
+                    inputProps={{ 'aria-label': 'cusa fee' }}
                   />
 
                   <TextField
@@ -590,6 +639,7 @@ export default function AddVirtualOfficeTenantModal({
                       shrink: true,
                     }}
                     disabled={isSubmitting}
+                    inputProps={{ 'aria-label': 'billing start date' }}
                   />
                 </Grid>
 
@@ -618,6 +668,7 @@ export default function AddVirtualOfficeTenantModal({
                     multiline
                     rows={3}
                     disabled={isSubmitting}
+                    inputProps={{ 'aria-label': 'billing address' }}
                   />
                 </Grid>
               </Grid>
@@ -763,10 +814,12 @@ export default function AddVirtualOfficeTenantModal({
         >
           Cancel
         </Button>
-        <Button
-          onClick={handleAddTenant}
-          variant="contained"
-          startIcon={isSubmitting ? <CircularProgress size={20} color="inherit" /> : <AddIcon />}
+        <Tooltip title={`Total: ${formatPHP(calculateTotal())}`} placement="top">
+          <span>
+            <Button
+              onClick={handleAddTenant}
+              variant="contained"
+              startIcon={isSubmitting ? <CircularProgress size={20} color="inherit" /> : <AddIcon />}
           sx={{
             px: 3,
             py: 1.5,
@@ -782,11 +835,21 @@ export default function AddVirtualOfficeTenantModal({
               bgcolor: grey[400],
             },
           }}
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? "Processing..." : "Add Tenant"}
-        </Button>
+            disabled={isSubmitting || !formValid}
+            aria-label="add-tenant"
+          >
+            {isSubmitting ? "Processing..." : "Add Tenant"}
+          </Button>
+        </span>
+        </Tooltip>
       </DialogActions>
+      {/* Success / Error Snackbars */}
+      <Snackbar open={openSuccess} autoHideDuration={1500} onClose={() => setOpenSuccess(false)} TransitionComponent={Slide} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+        <Alert severity="success" sx={{ width: '100%' }}>Tenant added successfully</Alert>
+      </Snackbar>
+      <Snackbar open={openError} autoHideDuration={4000} onClose={() => setOpenError(false)} TransitionComponent={Slide} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+        <Alert severity="error" sx={{ width: '100%' }}>{errorMessage || 'Failed to add tenant'}</Alert>
+      </Snackbar>
     </Dialog>
   );
 }
