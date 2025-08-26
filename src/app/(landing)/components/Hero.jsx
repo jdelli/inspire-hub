@@ -97,7 +97,7 @@ const Hero = () => {
           <div className="w-full md:w-1/2 text-white flex flex-col justify-center items-start text-left space-y-6">
             {/* Main heading */}
             <h1 className="mt-30 md:mt-0 text-4xl md:text-6xl font-bold leading-tight">
-              Welcome Home to <br className="hidden md:block" /> Inspire Hub
+              Welcome to <br className="hidden md:block" /> Inspire Hub
             </h1>
             {/* Supporting paragraph */}
             <p className="text-lg md:text-2xl max-w-xl">
