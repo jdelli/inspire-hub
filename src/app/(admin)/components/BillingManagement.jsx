@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import * as XLSX from 'xlsx';
 import {
   Box,
   Typography,
@@ -39,8 +40,6 @@ import {
   ListItemIcon,
   ListItemText,
   ListItemButton,
-  Tabs,
-  Tab,
   LinearProgress,
   Accordion,
   AccordionSummary,
@@ -108,9 +107,10 @@ import {
   CloudDownload as CloudDownloadIcon,
   AutoAwesome as AutoAwesomeIcon,
   Speed as SpeedIcon,
-  Analytics as AnalyticsIcon,
   PictureAsPdf as PictureAsPdfIcon,
   Build as BuildIcon,
+  Info as InfoIcon,
+  TableChart as TableChartIcon,
 } from "@mui/icons-material";
 import { getFirestore, doc, deleteDoc, getDoc } from "firebase/firestore";
 import { db } from "../../../../script/firebaseConfig";
@@ -118,6 +118,7 @@ import {
   generateMonthlyBilling,
   getBillingStatistics,
   getMonthlyBillingRecords,
+  getAllBillingRecords,
   updateBillingStatus,
   checkAndUpdateOverdueBills,
   updateBillingFees,
@@ -188,7 +189,7 @@ export default function BillingManagement() {
   const [showBulkActionsDialog, setShowBulkActionsDialog] = useState(false);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
-  const [showAnalyticsDialog, setShowAnalyticsDialog] = useState(false);
+
   const [showAdditionalFeesDialog, setShowAdditionalFeesDialog] = useState(false);
   const [billingTargetMonth, setBillingTargetMonth] = useState(
     `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
@@ -233,9 +234,7 @@ export default function BillingManagement() {
     recipients: []
   });
   
-  // Analytics and insights
-  const [analyticsData, setAnalyticsData] = useState(null);
-  const [activeTab, setActiveTab] = useState(0);
+
   
   // UI states
   const [alert, setAlert] = useState(null);
@@ -243,14 +242,16 @@ export default function BillingManagement() {
   const [loadingStates, setLoadingStates] = useState({
     bulkAction: false,
     email: false,
-    export: false,
-    analytics: false
+    export: false
   });
   const [showBackdrop, setShowBackdrop] = useState(false);
 
   // Add state for EditTenantModal
   const [showEditTenantModal, setShowEditTenantModal] = useState(false);
   const [selectedTenantForEdit, setSelectedTenantForEdit] = useState(null);
+
+  // Add state for storing all billing records for export summary
+  const [allBillsForExportSummary, setAllBillsForExportSummary] = useState([]);
 
   // Enhanced data processing and filtering
   const processAndFilterBills = useCallback((bills) => {
@@ -375,46 +376,7 @@ export default function BillingManagement() {
     }
   };
 
-  // Enhanced analytics data loading
-  const loadAnalyticsData = async () => {
-    setLoadingStates(prev => ({ ...prev, analytics: true }));
-    try {
-      // Simulate analytics data - replace with actual API call
-      const analytics = {
-        monthlyTrends: [
-          { month: 'Jan', revenue: 150000, bills: 45 },
-          { month: 'Feb', revenue: 180000, bills: 52 },
-          { month: 'Mar', revenue: 220000, bills: 58 },
-          { month: 'Apr', revenue: 195000, bills: 55 },
-          { month: 'May', revenue: 240000, bills: 62 },
-          { month: 'Jun', revenue: 280000, bills: 68 }
-        ],
-        paymentMethods: [
-          { method: 'Credit Card', count: 45, percentage: 60 },
-          { method: 'Bank Transfer', count: 20, percentage: 27 },
-          { method: 'Cash', count: 8, percentage: 11 },
-          { method: 'Check', count: 2, percentage: 2 }
-        ],
-        overdueAnalysis: {
-          totalOverdue: billingStats?.overdueAmount || 0,
-          overdueCount: currentMonthBills.filter(b => b.status === 'overdue').length,
-          averageDaysOverdue: 15,
-          riskLevel: 'Medium'
-        }
-      };
-      
-      setAnalyticsData(analytics);
-    } catch (error) {
-      console.error('Error loading analytics:', error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to load analytics data',
-        severity: 'error'
-      });
-    } finally {
-      setLoadingStates(prev => ({ ...prev, analytics: false }));
-    }
-  };
+
 
   useEffect(() => {
     loadBillingData();
@@ -425,6 +387,23 @@ export default function BillingManagement() {
       processAndFilterBills(currentMonthBills);
     }
   }, [currentMonthBills, processAndFilterBills]);
+
+  // Fetch all billing data for export summary when dialog opens
+  useEffect(() => {
+    if (showExportDialog) {
+      const loadAllBillsForSummary = async () => {
+        try {
+          const allBills = await getAllBillingRecords();
+          setAllBillsForExportSummary(allBills);
+        } catch (error) {
+          console.error('Error loading all bills for export summary:', error);
+          // Fallback to current month bills if API fails
+          setAllBillsForExportSummary(currentMonthBills);
+        }
+      };
+      loadAllBillsForSummary();
+    }
+  }, [showExportDialog, currentMonthBills]);
 
   // Enhanced bulk actions
   const handleBulkAction = async () => {
@@ -505,14 +484,34 @@ export default function BillingManagement() {
     }
   };
 
+  // Fetch all billing data from all months
+  const fetchAllBillingData = async () => {
+    try {
+      const allBills = await getAllBillingRecords();
+      return allBills;
+    } catch (error) {
+      console.error('Error fetching all billing data:', error);
+      // Fallback to current bills if API fails
+      return bills;
+    }
+  };
+
   // Enhanced export functionality
   const handleExport = async (format = 'csv') => {
     setLoadingStates(prev => ({ ...prev, export: true }));
     try {
-      // Get the data to export (either selected bills or all filtered bills)
-      const dataToExport = selectedBills.length > 0 
+      let dataToExport;
+      
+      if (format === 'excel') {
+        // For Excel export, fetch all billing data from all months
+        const allBills = await fetchAllBillingData();
+        dataToExport = allBills;
+      } else {
+        // For CSV and PDF, use the current filtered data
+        dataToExport = selectedBills.length > 0 
         ? filteredBills.filter(bill => selectedBills.includes(bill.id))
         : filteredBills;
+      }
       
       if (dataToExport.length === 0) {
         setSnackbar({
@@ -593,40 +592,233 @@ export default function BillingManagement() {
     document.body.removeChild(link);
   };
 
-  // Export to Excel (using CSV format with .xlsx extension)
+  // Export to Excel with professional formatting and separate sheets for each month
   const exportToExcel = async (data) => {
-    // For now, we'll use CSV format but with .xlsx extension
-    // In a real implementation, you'd use a library like xlsx
     const headers = [
+      'ID',
       'Tenant Name',
       'Company',
       'Email',
       'Type',
       'Status',
-      'Amount',
+      'Amount (₱)',
       'Due Date',
-      'Billing Month'
+      'Billing Month',
+      'Created Date',
+      'Payment Method'
     ];
 
-    const csvContent = [
-      headers.join(','),
-      ...data.map(bill => [
-        `"${bill.tenantName || ''}"`,
-        `"${bill.tenantCompany || ''}"`,
-        `"${bill.tenantEmail || ''}"`,
-        `"${bill.tenantType || ''}"`,
-        `"${bill.status || ''}"`,
-        bill.total || 0,
-        `"${new Date(bill.dueDate).toLocaleDateString()}"`,
-        `"${bill.billingMonth || ''}"`
-      ].join(','))
-    ].join('\n');
+    // Group data by billing month
+    const groupedData = data.reduce((acc, bill) => {
+      const month = bill.billingMonth || 'Unknown';
+      if (!acc[month]) {
+        acc[month] = [];
+      }
+      acc[month].push(bill);
+      return acc;
+    }, {});
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // Create a new workbook
+    const workbook = XLSX.utils.book_new();
+
+    // Helper function to create professional worksheet
+    const createProfessionalSheet = (sheetName, data, isSummary = false) => {
+      // Prepare data with ID column
+      const sheetData = data.map((bill, index) => [
+        bill.id || `BILL-${String(index + 1).padStart(4, '0')}`,
+        bill.tenantName || '',
+        bill.tenantCompany || '',
+        bill.tenantEmail || '',
+        bill.tenantType || '',
+        bill.status || '',
+        bill.total || 0,
+        bill.dueDate ? new Date(bill.dueDate) : null,
+        bill.billingMonth || '',
+        bill.createdAt ? new Date(bill.createdAt) : (bill.dueDate ? new Date(bill.dueDate) : null),
+        bill.paymentMethod || 'credit'
+      ]);
+
+      // Create worksheet
+      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...sheetData]);
+
+      // Define column widths
+      const columnWidths = [
+        { wch: 15 }, // ID
+        { wch: 25 }, // Tenant Name
+        { wch: 30 }, // Company
+        { wch: 35 }, // Email
+        { wch: 18 }, // Type
+        { wch: 12 }, // Status
+        { wch: 15 }, // Amount
+        { wch: 12 }, // Due Date
+        { wch: 15 }, // Billing Month
+        { wch: 12 }, // Created Date
+        { wch: 15 }  // Payment Method
+      ];
+      worksheet['!cols'] = columnWidths;
+
+      // Add professional styling
+      const range = XLSX.utils.decode_range(worksheet['!ref']);
+      
+      // Style header row
+      for (let col = range.s.c; col <= range.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+        if (!worksheet[cellAddress]) continue;
+        
+        worksheet[cellAddress].s = {
+          font: { bold: true, color: { rgb: "FFFFFF" } },
+          fill: { fgColor: { rgb: "2E7D32" } }, // Dark green background
+          alignment: { horizontal: "center", vertical: "center" },
+          border: {
+            top: { style: "thin", color: { rgb: "000000" } },
+            bottom: { style: "thin", color: { rgb: "000000" } },
+            left: { style: "thin", color: { rgb: "000000" } },
+            right: { style: "thin", color: { rgb: "000000" } }
+          }
+        };
+      }
+
+      // Style data rows
+      for (let row = 1; row <= range.e.r; row++) {
+        for (let col = range.s.c; col <= range.e.c; col++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+          if (!worksheet[cellAddress]) continue;
+          
+          const isEvenRow = row % 2 === 0;
+          const cell = worksheet[cellAddress];
+          
+          // Base styling
+          cell.s = {
+            ...cell.s,
+            border: {
+              top: { style: "thin", color: { rgb: "CCCCCC" } },
+              bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+              left: { style: "thin", color: { rgb: "CCCCCC" } },
+              right: { style: "thin", color: { rgb: "CCCCCC" } }
+            },
+            alignment: { vertical: "center" }
+          };
+
+          // Alternating row colors
+          if (isEvenRow) {
+            cell.s.fill = { fgColor: { rgb: "F8F9FA" } };
+          }
+
+          // Special formatting for specific columns
+          if (col === 6) { // Amount column
+            cell.s.numFmt = '"₱"#,##0.00';
+            cell.s.alignment = { horizontal: "right", vertical: "center" };
+          } else if (col === 7 || col === 9) { // Date columns
+            cell.s.numFmt = 'mm/dd/yyyy';
+            cell.s.alignment = { horizontal: "center", vertical: "center" };
+          } else if (col === 5) { // Status column
+            cell.s.alignment = { horizontal: "center", vertical: "center" };
+            // Color code status
+            const status = cell.v;
+            if (status === 'paid') {
+              cell.s.font = { color: { rgb: "2E7D32" }, bold: true };
+            } else if (status === 'overdue') {
+              cell.s.font = { color: { rgb: "D32F2F" }, bold: true };
+            } else if (status === 'pending') {
+              cell.s.font = { color: { rgb: "F57C00" }, bold: true };
+            }
+          } else if (col === 4) { // Type column
+            cell.s.alignment = { horizontal: "center", vertical: "center" };
+          }
+        }
+      }
+
+      // Add summary statistics at the bottom if it's a summary sheet
+      if (isSummary && data.length > 0) {
+        const summaryStartRow = range.e.r + 3;
+        
+        // Calculate statistics
+        const totalAmount = data.reduce((sum, bill) => sum + (bill.total || 0), 0);
+        const paidAmount = data.filter(bill => bill.status === 'paid').reduce((sum, bill) => sum + (bill.total || 0), 0);
+        const pendingAmount = data.filter(bill => bill.status === 'pending').reduce((sum, bill) => sum + (bill.total || 0), 0);
+        const overdueAmount = data.filter(bill => bill.status === 'overdue').reduce((sum, bill) => sum + (bill.total || 0), 0);
+        
+        const summaryData = [
+          ['SUMMARY STATISTICS', '', '', '', '', '', '', '', '', '', ''],
+          ['Total Records:', data.length, '', '', '', '', '', '', '', '', ''],
+          ['Total Amount:', totalAmount, '', '', '', '', '', '', '', '', ''],
+          ['Paid Amount:', paidAmount, '', '', '', '', '', '', '', '', ''],
+          ['Pending Amount:', pendingAmount, '', '', '', '', '', '', '', '', ''],
+          ['Overdue Amount:', overdueAmount, '', '', '', '', '', '', '', '', ''],
+          ['', '', '', '', '', '', '', '', '', '', ''],
+          ['Generated on:', new Date(), '', '', '', '', '', '', '', '', '']
+        ];
+
+        // Add summary data to worksheet
+        XLSX.utils.sheet_add_aoa(worksheet, summaryData, { origin: `A${summaryStartRow}` });
+
+        // Style summary section
+        for (let i = 0; i < summaryData.length; i++) {
+          const row = summaryStartRow + i;
+          for (let col = 0; col < headers.length; col++) {
+            const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+            if (!worksheet[cellAddress]) continue;
+            
+            const cell = worksheet[cellAddress];
+            if (i === 0) { // Header row
+              cell.s = {
+                font: { bold: true, color: { rgb: "FFFFFF" } },
+                fill: { fgColor: { rgb: "1976D2" } },
+                alignment: { horizontal: "center", vertical: "center" },
+                border: {
+                  top: { style: "medium", color: { rgb: "000000" } },
+                  bottom: { style: "medium", color: { rgb: "000000" } },
+                  left: { style: "medium", color: { rgb: "000000" } },
+                  right: { style: "medium", color: { rgb: "000000" } }
+                }
+              };
+            } else if (col === 1 && (i === 2 || i === 3 || i === 4 || i === 5)) { // Amount columns
+              cell.s = {
+                numFmt: '"₱"#,##0.00',
+                alignment: { horizontal: "right", vertical: "center" },
+                font: { bold: true }
+              };
+            } else if (col === 0) { // Label columns
+              cell.s = {
+                font: { bold: true },
+                alignment: { horizontal: "left", vertical: "center" }
+              };
+            }
+          }
+        }
+      }
+
+      return worksheet;
+    };
+
+    // Create summary sheet with all data
+    const summarySheet = createProfessionalSheet('All Data', data, true);
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'All Data');
+
+    // Create separate sheets for each month
+    Object.keys(groupedData).sort().forEach(month => {
+      const monthData = groupedData[month];
+      const monthSheet = createProfessionalSheet(month, monthData, false);
+      
+      // Clean sheet name (Excel sheet names have restrictions)
+      const cleanMonthName = month.replace(/[\\\/\?\*\[\]]/g, '_').substring(0, 31);
+      XLSX.utils.book_append_sheet(workbook, monthSheet, cleanMonthName);
+    });
+
+    // Generate Excel file and download
+    const excelBuffer = XLSX.write(workbook, { 
+      bookType: 'xlsx', 
+      type: 'array',
+      cellStyles: true,
+      cellNF: true,
+      cellHTML: false
+    });
+    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `billing_data_${selectedMonth}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    link.setAttribute('download', `Billing_Report_All_Months_${new Date().toISOString().split('T')[0]}.xlsx`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -709,6 +901,478 @@ export default function BillingManagement() {
         printWindow.close();
       }, 1000);
     }, 500);
+  };
+
+  // Enhanced PDF export with professional styling, charts, and executive summary
+  const handleEnhancedPDFExport = async () => {
+    setLoadingStates(prev => ({ ...prev, export: true }));
+    try {
+      // Get data to export - use all data if no specific bills selected
+      let dataToExport;
+      if (selectedBills.length > 0) {
+        dataToExport = filteredBills.filter(bill => selectedBills.includes(bill.id));
+      } else {
+        // For overall export, fetch all billing data
+        dataToExport = await fetchAllBillingData();
+      }
+      
+      if (dataToExport.length === 0) {
+        setSnackbar({
+          open: true,
+          message: 'No data to export',
+          severity: 'warning'
+        });
+        return;
+      }
+
+      // Calculate statistics for the executive summary
+      const totalAmount = dataToExport.reduce((sum, bill) => sum + (bill.total || 0), 0);
+      const paidAmount = dataToExport
+        .filter(bill => bill.status === 'paid')
+        .reduce((sum, bill) => sum + (bill.total || 0), 0);
+      const pendingAmount = dataToExport
+        .filter(bill => bill.status === 'pending')
+        .reduce((sum, bill) => sum + (bill.total || 0), 0);
+      const overdueAmount = dataToExport
+        .filter(bill => bill.status === 'overdue')
+        .reduce((sum, bill) => sum + (bill.total || 0), 0);
+      
+      const paidPercentage = totalAmount > 0 ? (paidAmount / totalAmount * 100).toFixed(1) : 0;
+      const pendingPercentage = totalAmount > 0 ? (pendingAmount / totalAmount * 100).toFixed(1) : 0;
+      const overduePercentage = totalAmount > 0 ? (overdueAmount / totalAmount * 100).toFixed(1) : 0;
+
+      // Group data by status for better organization
+      const groupedByStatus = dataToExport.reduce((acc, bill) => {
+        const status = bill.status || 'unknown';
+        if (!acc[status]) acc[status] = [];
+        acc[status].push(bill);
+        return acc;
+      }, {});
+
+      // Create enhanced HTML content with professional styling
+      const enhancedHTMLContent = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>INSPIRE HUB - Professional Billing Report</title>
+            <meta charset="UTF-8">
+            <style>
+              @page { 
+                size: A4; 
+                margin: 20mm 15mm; 
+                @top-center { content: "INSPIRE HUB - Billing Report"; font-size: 10px; color: #666; }
+                @bottom-center { content: "Page " counter(page) " of " counter(pages); font-size: 10px; color: #666; }
+              }
+              
+              * { box-sizing: border-box; }
+              
+              body { 
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                margin: 0; 
+                padding: 0; 
+                color: #2c3e50; 
+                line-height: 1.6; 
+                font-size: 11px; 
+                background: #ffffff;
+              }
+              
+              .page-break { page-break-before: always; }
+              .no-break { page-break-inside: avoid; }
+              
+              /* Enhanced Header */
+              .header { 
+                text-align: center; 
+                margin-bottom: 30px; 
+                padding: 25px 20px; 
+                background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+                color: white;
+                border-radius: 12px;
+                box-shadow: 0 4px 20px rgba(25, 118, 210, 0.3);
+              }
+              
+              .company-logo { 
+                font-size: 32px; 
+                font-weight: 900; 
+                margin-bottom: 10px; 
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+                letter-spacing: 2px;
+              }
+              
+              .report-title { 
+                font-size: 24px; 
+                font-weight: 600; 
+                margin-bottom: 8px; 
+                opacity: 0.95;
+              }
+              
+              .report-subtitle {
+                font-size: 14px;
+                opacity: 0.8;
+                margin-bottom: 5px;
+              }
+              
+              .report-meta {
+                font-size: 12px;
+                opacity: 0.7;
+                margin-top: 10px;
+              }
+              
+              /* Executive Summary */
+              .executive-summary {
+                background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+                padding: 25px;
+                border-radius: 12px;
+                margin-bottom: 30px;
+                border-left: 5px solid #1976d2;
+              }
+              
+              .summary-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                gap: 20px;
+                margin-top: 20px;
+              }
+              
+              .summary-box {
+                background: white;
+                padding: 20px;
+                border-radius: 8px;
+                text-align: center;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                border: 1px solid #e9ecef;
+              }
+              
+              .summary-box h3 {
+                margin: 0 0 10px 0;
+                color: #1976d2;
+                font-size: 16px;
+                font-weight: 600;
+              }
+              
+              .summary-box .value {
+                font-size: 24px;
+                font-weight: 700;
+                color: #2c3e50;
+                margin-bottom: 5px;
+              }
+              
+              .summary-box .label {
+                font-size: 12px;
+                color: #6c757d;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+              }
+              
+              /* Revenue Distribution Chart */
+              .chart-section {
+                background: white;
+                padding: 20px;
+                border-radius: 12px;
+                margin: 25px 0;
+                box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+                border: 1px solid #e9ecef;
+              }
+              
+              .chart-title {
+                font-size: 18px;
+                font-weight: 600;
+                color: #1976d2;
+                margin-bottom: 15px;
+                text-align: center;
+              }
+              
+              .progress-bar {
+                width: 100%;
+                height: 20px;
+                background-color: #e9ecef;
+                border-radius: 10px;
+                overflow: hidden;
+                margin: 10px 0;
+              }
+              
+              .progress-fill {
+                height: 100%;
+                border-radius: 10px;
+              }
+              
+              .progress-paid { background: linear-gradient(90deg, #28a745 0%, #20c997 100%); }
+              .progress-pending { background: linear-gradient(90deg, #ffc107 0%, #fd7e14 100%); }
+              .progress-overdue { background: linear-gradient(90deg, #dc3545 0%, #e83e8c 100%); }
+              
+              /* Enhanced Tables */
+              .data-table { 
+                width: 100%; 
+                border-collapse: collapse; 
+                margin-bottom: 25px; 
+                font-size: 10px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                border-radius: 8px;
+                overflow: hidden;
+              }
+              
+              .data-table th { 
+                background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+                padding: 12px 8px; 
+                text-align: left; 
+                border-bottom: 2px solid #dee2e6; 
+                font-weight: 700;
+                color: #495057;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                font-size: 10px;
+              }
+              
+              .data-table td { 
+                padding: 10px 8px; 
+                border-bottom: 1px solid #e9ecef; 
+                vertical-align: middle;
+              }
+              
+              .data-table tr:nth-child(even) {
+                background-color: #f8f9fa;
+              }
+              
+              /* Status Badges */
+              .status-badge { 
+                display: inline-block; 
+                padding: 4px 8px; 
+                border-radius: 20px; 
+                font-size: 9px; 
+                font-weight: 700; 
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                min-width: 60px;
+                text-align: center;
+              }
+              
+              .status-paid { 
+                background: linear-gradient(135deg, #28a745 0%, #20c997 100%); 
+                color: white;
+                box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
+              }
+              
+              .status-pending { 
+                background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%); 
+                color: white;
+                box-shadow: 0 2px 4px rgba(255, 193, 7, 0.3);
+              }
+              
+              .status-overdue { 
+                background: linear-gradient(135deg, #dc3545 0%, #e83e8c 100%); 
+                color: white;
+                box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+              }
+              
+              /* Utility Classes */
+              .text-center { text-align: center; }
+              .text-success { color: #28a745; }
+              .text-warning { color: #ffc107; }
+              .text-danger { color: #dc3545; }
+              .font-bold { font-weight: 700; }
+              
+              @media print { 
+                body { margin: 0; font-size: 10px; } 
+                .page-break { page-break-before: always; } 
+                .no-break { page-break-inside: avoid; }
+              }
+            </style>
+          </head>
+          <body>
+            <!-- Professional Header -->
+            <div class="header">
+              <div class="company-logo">INSPIRE HUB</div>
+              <div class="report-title">PROFESSIONAL BILLING REPORT</div>
+              <div class="report-subtitle">Enhanced Financial Analysis & Export</div>
+              <div class="report-meta">
+                Generated on: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()} | 
+                Total Records: ${dataToExport.length} | 
+                Month: ${selectedMonth}
+              </div>
+            </div>
+            
+            <!-- Executive Summary -->
+            <div class="executive-summary">
+              <h2 style="color: #1976d2; margin: 0 0 15px 0; font-size: 20px;">
+                📊 Executive Summary
+              </h2>
+              <div class="summary-grid">
+                <div class="summary-box">
+                  <h3>Total Revenue</h3>
+                  <div class="value text-success">${formatPHP(totalAmount)}</div>
+                  <div class="label">This Month</div>
+                </div>
+                <div class="summary-box">
+                  <h3>Total Bills</h3>
+                  <div class="value text-primary">${dataToExport.length}</div>
+                  <div class="label">Records</div>
+                </div>
+                <div class="summary-box">
+                  <h3>Collection Rate</h3>
+                  <div class="value text-success">${paidPercentage}%</div>
+                  <div class="label">Paid</div>
+                </div>
+                <div class="summary-box">
+                  <h3>Pending Amount</h3>
+                  <div class="value text-warning">${formatPHP(pendingAmount)}</div>
+                  <div class="label">Outstanding</div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Revenue Distribution Chart -->
+            <div class="chart-section">
+              <div class="chart-title">💰 Revenue Distribution by Status</div>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                <div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span class="font-bold">Paid</span>
+                    <span class="text-success">${formatPHP(paidAmount)}</span>
+                  </div>
+                  <div class="progress-bar">
+                    <div class="progress-fill progress-paid" style="width: ${paidPercentage}%"></div>
+                  </div>
+                  <div class="text-center text-success font-bold">${paidPercentage}%</div>
+                </div>
+                <div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span class="font-bold">Pending</span>
+                    <span class="text-warning">${formatPHP(pendingAmount)}</span>
+                  </div>
+                  <div class="progress-bar">
+                    <div class="progress-fill progress-pending" style="width: ${pendingPercentage}%"></div>
+                  </div>
+                  <div class="text-center text-warning font-bold">${pendingPercentage}%</div>
+                </div>
+                <div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span class="font-bold">Overdue</span>
+                    <span class="text-danger">${formatPHP(overdueAmount)}</span>
+                  </div>
+                  <div class="progress-bar">
+                    <div class="progress-fill progress-overdue" style="width: ${overduePercentage}%"></div>
+                  </div>
+                  <div class="text-center text-danger font-bold">${overduePercentage}%</div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Detailed Data Table -->
+            <div class="chart-section">
+              <div class="chart-title">📋 Detailed Billing Records</div>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Tenant Name</th>
+                    <th>Company</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Amount (₱)</th>
+                    <th>Due Date</th>
+                    <th>Payment Method</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${dataToExport.map(bill => `
+                    <tr>
+                      <td>${bill.tenantName || ''}</td>
+                      <td>${bill.tenantCompany || ''}</td>
+                      <td>${bill.tenantType || ''}</td>
+                      <td><span class="status-badge status-${bill.status}">${bill.status.toUpperCase()}</span></td>
+                      <td>${formatPHP(bill.total || 0)}</td>
+                      <td>${new Date(bill.dueDate).toLocaleDateString()}</td>
+                      <td>${bill.paymentMethod || 'N/A'}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            
+            <!-- Status Breakdown -->
+            <div class="chart-section">
+              <div class="chart-title">📊 Status Breakdown</div>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                ${Object.entries(groupedByStatus).map(([status, bills]) => {
+                  const statusAmount = bills.reduce((sum, bill) => sum + (bill.total || 0), 0);
+                  const statusCount = bills.length;
+                  const statusPercentage = totalAmount > 0 ? (statusAmount / totalAmount * 100).toFixed(1) : 0;
+                  
+                  return `
+                    <div style="text-align: center; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                      <div style="font-size: 24px; font-weight: 700; color: #1976d2; margin-bottom: 5px;">
+                        ${statusCount}
+                      </div>
+                      <div style="font-size: 14px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">
+                        ${status}
+                      </div>
+                      <div style="font-size: 18px; font-weight: 600; color: #2c3e50; margin-bottom: 5px;">
+                        ${formatPHP(statusAmount)}
+                      </div>
+                      <div style="font-size: 12px; color: #6c757d;">
+                        ${statusPercentage}% of total
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+            
+            <!-- Footer -->
+            <div style="margin-top: 40px; padding: 25px; border-top: 2px solid #e9ecef; text-align: center; font-size: 11px; color: #6c757d; background: #f8f9fa; border-radius: 8px;">
+              <strong>INSPIRE HUB</strong><br>
+              Professional Workspace Solutions<br>
+              This report was generated by the Enhanced Billing Management System<br>
+              Report includes ${dataToExport.length} billing records for ${selectedMonth}
+            </div>
+          </body>
+        </html>
+      `;
+
+      // Create a new window and print it with enhanced styling
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(enhancedHTMLContent);
+      printWindow.document.close();
+      
+      // Wait for content to load, then print
+      setTimeout(() => {
+        printWindow.focus();
+        
+        // Add print styles and trigger print
+        const style = printWindow.document.createElement('style');
+        style.textContent = `
+          @media print {
+            body { margin: 0; }
+            .page-break { page-break-before: always; }
+            .no-break { page-break-inside: avoid; }
+          }
+        `;
+        printWindow.document.head.appendChild(style);
+        
+        setTimeout(() => {
+          printWindow.print();
+          
+          // Close window after printing
+          setTimeout(() => {
+            printWindow.close();
+          }, 1500);
+        }, 500);
+      }, 1000);
+
+      setSnackbar({
+        open: true,
+        message: `Successfully exported ${dataToExport.length} records in Enhanced PDF format`,
+        severity: 'success'
+      });
+      setShowExportDialog(false);
+    } catch (error) {
+      console.error('Error exporting to Enhanced PDF:', error);
+      setSnackbar({
+        open: true,
+        message: `Failed to export Enhanced PDF: ${error.message}`,
+        severity: 'error'
+      });
+    } finally {
+      setLoadingStates(prev => ({ ...prev, export: false }));
+    }
   };
 
   // Enhanced payment recording
@@ -1797,21 +2461,7 @@ export default function BillingManagement() {
             Generate Billing
           </Button>
 
-          <Button
-            variant="contained"
-            startIcon={<AnalyticsIcon />}
-            onClick={() => {
-              setShowAnalyticsDialog(true);
-              loadAnalyticsData();
-            }}
-            sx={{ 
-              bgcolor: 'info.main',
-              '&:hover': { bgcolor: 'info.dark' },
-              minWidth: 140
-            }}
-          >
-            Analytics
-          </Button>
+
 
           <Button
             variant="contained"
@@ -2873,68 +3523,250 @@ export default function BillingManagement() {
         </DialogActions>
       </Dialog>
 
-      {/* Export Dialog */}
+      {/* Enhanced Export Dialog */}
       <Dialog
         open={showExportDialog}
         onClose={() => setShowExportDialog(false)}
-        maxWidth="sm"
+        maxWidth="md"
         fullWidth
       >
-        <DialogTitle>
-          Export Billing Data
+        <DialogTitle sx={{
+          background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
+          color: 'white',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <Box display="flex" alignItems="center" gap={1}>
+            <FileDownloadIcon />
+            <Typography variant="h6">Enhanced Export Options</Typography>
+          </Box>
+          <IconButton onClick={() => setShowExportDialog(false)} sx={{ color: 'white' }}>
+            <CloseIcon />
+          </IconButton>
         </DialogTitle>
-        <DialogContent>
-          <Stack spacing={3} sx={{ mt: 1 }}>
-            <Alert severity="info">
-              <Typography variant="body2">
-                <strong>Export Summary:</strong><br />
-                • Records to export: {selectedBills.length > 0 ? selectedBills.length : filteredBills.length} records<br />
-                • Month: {selectedMonth}<br />
-                • Total amount: {formatPHP((selectedBills.length > 0 ? filteredBills.filter(bill => selectedBills.includes(bill.id)) : filteredBills).reduce((sum, bill) => sum + (bill.total || 0), 0))}
-              </Typography>
-            </Alert>
-            
-            <Typography variant="body2" color="text.secondary">
-              Choose export format:
+        
+        <DialogContent sx={{ p: 3 }}>
+          {/* Overall Export Notice */}
+          <Box mb={2} p={2} bgcolor="info.light" borderRadius={2} border={1} borderColor="info.main">
+            <Typography variant="body1" color="info.contrastText" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <InfoIcon />
+              <strong>Overall Export:</strong> This export will include ALL billing records from ALL months, providing a comprehensive view of your complete billing data.
             </Typography>
+          </Box>
+          
+          <Grid container spacing={3}>
+            {/* Export Summary */}
+            <Grid item xs={12}>
+              <Card variant="outlined" sx={{ p: 2, bgcolor: '#f8f9fa' }}>
+                <Typography variant="h6" color="primary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <InfoIcon color="primary" />
+                  Export Summary
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={4}>
+                    <Box textAlign="center" p={2} bgcolor="white" borderRadius={2} border={1} borderColor="divider">
+                                            <Typography variant="h4" color="primary" fontWeight="bold">
+                        {allBillsForExportSummary.length}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Total Records
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Box textAlign="center" p={2} bgcolor="white" borderRadius={2} border={1} borderColor="divider">
+                      <Typography variant="h4" color="success.main" fontWeight="bold">
+                        {(() => {
+                          const months = [...new Set(allBillsForExportSummary.map(bill => {
+                            if (bill.billingMonth) {
+                              const date = new Date(bill.billingMonth);
+                              return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                            }
+                            return 'N/A';
+                          }))];
+                          return months.filter(m => m !== 'N/A').length || 1;
+                        })()}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Total Months
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Box textAlign="center" p={2} bgcolor="white" borderRadius={2} border={1} borderColor="divider">
+                      <Typography variant="h4" color="warning.main" fontWeight="bold">
+                        {formatPHP(allBillsForExportSummary.reduce((sum, bill) => sum + (bill.total || 0), 0))}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Total Amount
+                      </Typography>
+                    </Box>
+                  </Grid>
+                </Grid>
+                <Box mt={2} p={2} bgcolor="white" borderRadius={2} border={1} borderColor="divider">
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Export Details:</strong> {(() => {
+                      const months = [...new Set(allBillsForExportSummary.map(bill => {
+                        if (bill.billingMonth) {
+                          const date = new Date(bill.billingMonth);
+                          return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                        }
+                        return 'N/A';
+                      }))];
+                      const validMonths = months.filter(m => m !== 'N/A');
+                      if (validMonths.length > 0) {
+                        return `Overall export: ${allBillsForExportSummary.length} total records from ${validMonths.length} month(s): ${validMonths.join(', ')}`;
+                      } else {
+                        return `Overall export: ${allBillsForExportSummary.length} total records`;
+                      }
+                    })()}
+                  </Typography>
+                </Box>
+              </Card>
+            </Grid>
             
-            <Stack direction="row" spacing={2}>
-              <Button
+            {/* Export Options */}
+           
+            
+            {/* Excel Export */}
+            <Grid item xs={12} md={6}>
+              <Card 
                 variant="outlined"
-                onClick={() => handleExport('csv')}
-                disabled={loadingStates.export}
-                startIcon={loadingStates.export ? <CircularProgress size={16} /> : <FileDownloadIcon />}
-                sx={{ minWidth: 100 }}
-              >
-                {loadingStates.export ? 'Exporting...' : 'CSV'}
-              </Button>
-              <Button
-                variant="outlined"
+                sx={{ 
+                  p: 2, 
+                  cursor: 'pointer',
+                  borderColor: '#4caf50',
+                  '&:hover': { 
+                    borderColor: '#2e7d32',
+                    boxShadow: 2,
+                    transform: 'translateY(-2px)'
+                  },
+                  transition: 'all 0.2s ease-in-out'
+                }}
                 onClick={() => handleExport('excel')}
-                disabled={loadingStates.export}
-                startIcon={loadingStates.export ? <CircularProgress size={16} /> : <FileDownloadIcon />}
-                sx={{ minWidth: 100 }}
               >
-                {loadingStates.export ? 'Exporting...' : 'Excel'}
-              </Button>
+                <Box textAlign="center">
+                  <TableChartIcon sx={{ fontSize: 48, color: '#4caf50', mb: 1 }} />
+                  <Typography variant="h6" color="primary" gutterBottom>
+                    Overall Excel Export
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Export ALL billing data with multiple sheets, data validation, and formatting
+                  </Typography>
               <Button
-                variant="outlined"
-                onClick={() => handleExport('pdf')}
+                    variant="contained"
+                    color="success"
                 disabled={loadingStates.export}
                 startIcon={loadingStates.export ? <CircularProgress size={16} /> : <FileDownloadIcon />}
-                sx={{ minWidth: 100 }}
+                    fullWidth
               >
-                {loadingStates.export ? 'Exporting...' : 'PDF'}
+                    {loadingStates.export ? 'Exporting...' : 'Export ALL Data to Excel'}
               </Button>
-            </Stack>
+                </Box>
+              </Card>
+            </Grid>
             
-            <Typography variant="caption" color="text.secondary">
-              <strong>Note:</strong> CSV and Excel files will download automatically. PDF will open in a new window for printing.
+            {/* Enhanced PDF Export */}
+            <Grid item xs={12} md={6}>
+              <Card 
+                variant="outlined"
+                sx={{ 
+                  p: 2, 
+                  cursor: 'pointer',
+                  borderColor: '#d32f2f',
+                  '&:hover': { 
+                    borderColor: '#b71c1c',
+                    boxShadow: 2,
+                    transform: 'translateY(-2px)'
+                  },
+                  transition: 'all 0.2s ease-in-out'
+                }}
+                onClick={() => handleEnhancedPDFExport()}
+              >
+                <Box textAlign="center">
+                  <PictureAsPdfIcon sx={{ fontSize: 48, color: '#d32f2f', mb: 1 }} />
+                  <Typography variant="h6" color="error" gutterBottom>
+                    Enhanced PDF Export
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Export ALL billing data with charts, executive summary, and monthly breakdowns
+                  </Typography>
+                  <Button
+                    variant="contained"
+                    color="error"
+                disabled={loadingStates.export}
+                    startIcon={loadingStates.export ? <CircularProgress size={16} /> : <PictureAsPdfIcon />}
+                    fullWidth
+              >
+                    {loadingStates.export ? 'Exporting...' : 'Export ALL Data to PDF'}
+              </Button>
+                </Box>
+              </Card>
+            </Grid>
+            
+            {/* Export Features */}
+            <Grid item xs={12}>
+              <Card variant="outlined" sx={{ p: 2, bgcolor: '#f8f9fa' }}>
+                <Typography variant="h6" color="primary" gutterBottom>
+                  🚀 Enhanced Export Features
             </Typography>
-          </Stack>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="subtitle2" color="success.main" gutterBottom>
+                      ✅ Overall Excel Export:
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      • Exports ALL billing data<br />
+                      • Data validation & corruption prevention<br />
+                      • Multiple sheets by month<br />
+                      • Professional formatting<br />
+                      • Safe file naming<br />
+                      • Summary sheets
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="subtitle2" color="error.main" gutterBottom>
+                      ✅ Overall PDF Export:
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      • Exports ALL billing data<br />
+                      • Executive summary dashboard<br />
+                      • Revenue charts & progress bars<br />
+                      • Monthly data separation<br />
+                      • Professional styling<br />
+                      • Print-optimized layout
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Card>
+            </Grid>
+            
+            {/* Export Progress */}
+            {loadingStates.export && (
+              <Grid item xs={12}>
+                <Card variant="outlined" sx={{ p: 2 }}>
+                  <Typography variant="subtitle2" color="primary" gutterBottom>
+                    Export Progress
+                  </Typography>
+                  <LinearProgress sx={{ height: 8, borderRadius: 4 }} />
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    Processing your export request...
+                  </Typography>
+                </Card>
+              </Grid>
+            )}
+          </Grid>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowExportDialog(false)}>Close</Button>
+        
+        <DialogActions sx={{ p: 3, borderTop: 1, borderColor: 'divider' }}>
+          <Button 
+            onClick={() => setShowExportDialog(false)} 
+            variant="outlined"
+            startIcon={<CloseIcon />}
+          >
+            Close
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -3019,79 +3851,7 @@ export default function BillingManagement() {
         </DialogActions>
       </Dialog>
 
-      {/* Analytics Dialog */}
-      <Dialog
-        open={showAnalyticsDialog}
-        onClose={() => setShowAnalyticsDialog(false)}
-        maxWidth="lg"
-        fullWidth
-      >
-        <DialogTitle sx={{
-          background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
-          color: 'white'
-        }}>
-          <Box display="flex" alignItems="center" gap={1}>
-            <AnalyticsIcon />
-            Billing Analytics & Insights
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          {loadingStates.analytics ? (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
-              <CircularProgress />
-            </Box>
-          ) : analyticsData ? (
-            <Box>
-              <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)} sx={{ mb: 2 }}>
-                <Tab label="Overview" />
-                <Tab label="Payment Methods" />
-                <Tab label="Overdue Analysis" />
-              </Tabs>
-              
-              {activeTab === 0 && (
-                <Grid container spacing={3}>
-                  <Grid item xs={12} md={6}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="h6" gutterBottom>Monthly Revenue Trend</Typography>
-                        <Box height={200} display="flex" alignItems="center" justifyContent="center">
-                          <Typography color="text.secondary">Chart placeholder</Typography>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="h6" gutterBottom>Key Metrics</Typography>
-                        <Stack spacing={2}>
-                          <Box display="flex" justifyContent="space-between">
-                            <Typography>Collection Rate:</Typography>
-                            <Typography fontWeight={600}>
-                              {billingStats?.totalBills ? Math.round((billingStats.paidAmount / billingStats.totalAmount) * 100) : 0}%
-                            </Typography>
-                          </Box>
-                          <Box display="flex" justifyContent="space-between">
-                            <Typography>Overdue Rate:</Typography>
-                            <Typography fontWeight={600} color="error.main">
-                              {billingStats?.totalBills ? Math.round((billingStats.overdueAmount / billingStats.totalAmount) * 100) : 0}%
-                            </Typography>
-                          </Box>
-                        </Stack>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                </Grid>
-              )}
-            </Box>
-          ) : (
-            <Typography color="text.secondary">No analytics data available</Typography>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowAnalyticsDialog(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
+
 
       {/* Edit Tenant Modal */}
       <EditTenantModal

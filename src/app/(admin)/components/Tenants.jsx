@@ -60,7 +60,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import InfoIcon from "@mui/icons-material/Info";
-import { blue, green, grey, red, purple, orange } from "@mui/material/colors";
+import { blue, green, grey, red, purple } from "@mui/material/colors";
 import { getAuth, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
 
 // Utility functions (keeping them as is)
@@ -71,6 +71,7 @@ function groupIntoPairs(entries) {
   }
   return groups;
 }
+
 function groupSeatsByRow(seatMap) {
   return seatMap.reduce((acc, seat) => {
     const row = seat.number[0];
@@ -79,6 +80,8 @@ function groupSeatsByRow(seatMap) {
     return acc;
   }, {});
 }
+
+
 const groupedSeats1 = groupSeatsByRow(seatMap1);
 const groupedSeats2 = groupSeatsByRow(seatMap2);
 const groupedSeats3 = groupSeatsByRow(seatMap3);
@@ -513,17 +516,7 @@ export default function SeatMapTable() {
     </Button>,
   ];
 
-  const getStatusColor = (daysLeft) => {
-    if (daysLeft <= 7) return red[500];
-    if (daysLeft <= 30) return orange[500];
-    return green[500];
-  };
 
-  const getStatusText = (daysLeft) => {
-    if (daysLeft <= 7) return "Critical";
-    if (daysLeft <= 30) return "Warning";
-    return "Active";
-  };
 
   const formatCurrency = (amount) => {
     if (!amount) return '₱0.00';
@@ -745,11 +738,6 @@ export default function SeatMapTable() {
                 </TableCell>
                 <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
                   <Typography variant="subtitle2" fontWeight={600}>
-                    Status
-                  </Typography>
-                </TableCell>
-                <TableCell sx={{ py: 2, px: 3, borderBottom: `1px solid ${grey[200]}` }}>
-                  <Typography variant="subtitle2" fontWeight={600}>
                     Actions
                   </Typography>
                 </TableCell>
@@ -757,10 +745,6 @@ export default function SeatMapTable() {
             </TableHead>
             <TableBody>
               {paginatedClients[tabIndex].map((client, index) => {
-                const daysLeft = client?.billing?.billingEndDate 
-                  ? Math.ceil((new Date(client.billing.billingEndDate) - new Date()) / (1000 * 60 * 60 * 24))
-                  : null;
-                
                 return (
                   <Zoom in={true} timeout={300 + (index * 100)} key={client.id}>
                     <TableRow 
@@ -871,49 +855,6 @@ export default function SeatMapTable() {
                               : <Typography variant="body2" color="text.secondary" fontSize="0.875rem">None</Typography>
                           )}
                         </Stack>
-                      </TableCell>
-                      <TableCell sx={{ py: 2, px: 3 }}>
-                        {daysLeft !== null ? (
-                          <Stack spacing={0.5}>
-                            <Chip
-                              label={getStatusText(daysLeft)}
-                              size="small"
-                              sx={{
-                                bgcolor: getStatusColor(daysLeft),
-                                color: 'white',
-                                fontWeight: 500,
-                                width: 'fit-content',
-                                fontSize: '0.75rem'
-                              }}
-                            />
-                            <Typography variant="caption" color="text.secondary">
-                              {daysLeft} days remaining
-                            </Typography>
-                            <LinearProgress 
-                              variant="determinate" 
-                              value={Math.max(0, Math.min(100, (daysLeft / 365) * 100))}
-                              sx={{ 
-                                height: 4, 
-                                borderRadius: 2,
-                                bgcolor: grey[200],
-                                '& .MuiLinearProgress-bar': {
-                                  bgcolor: getStatusColor(daysLeft)
-                                }
-                              }} 
-                            />
-                          </Stack>
-                        ) : (
-                          <Chip
-                            label="Active"
-                            size="small"
-                            sx={{
-                              bgcolor: green[500],
-                              color: 'white',
-                              fontWeight: 500,
-                              fontSize: '0.75rem'
-                            }}
-                          />
-                        )}
                       </TableCell>
                       <TableCell sx={{ py: 2, px: 3 }}>
                         <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>

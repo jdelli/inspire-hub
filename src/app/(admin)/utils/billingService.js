@@ -338,6 +338,31 @@ export async function getMonthlyBillingRecords(billingMonth) {
   }
 }
 
+// Get all billing records from all months
+export async function getAllBillingRecords() {
+  try {
+    const billingQuery = query(collection(db, 'billing'));
+    
+    const querySnapshot = await getDocs(billingQuery);
+    const billingRecords = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    // Sort by billing month and then by tenant name
+    billingRecords.sort((a, b) => {
+      const monthCompare = (b.billingMonth || '').localeCompare(a.billingMonth || '');
+      if (monthCompare !== 0) return monthCompare;
+      return (a.tenantName || '').localeCompare(b.tenantName || '');
+    });
+    
+    return billingRecords;
+  } catch (error) {
+    console.error('Error fetching all billing records:', error);
+    throw error;
+  }
+}
+
 // Update billing record status (e.g., mark as paid)
 export async function updateBillingStatus(billingId, status, paymentDetails = {}) {
   try {
