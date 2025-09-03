@@ -77,9 +77,9 @@ export default function Login({ closeModal, showSignupModal }) { // Added showSi
         <div className="bg-gray-500/70 p-4 rounded-t text-center">
           <div className="flex justify-center items-center space-x-2">
             <img
-              src="/images/inspirelogo.png"
+              src="/images/icon24.png"
               alt="I-Hub Logo"
-              className="w-8 h-8 object-contain"
+              className="w-10 h-10 object-contain"
             />
             <h1 className="text-2xl font-bold text-white">I-Hub</h1>
           </div>

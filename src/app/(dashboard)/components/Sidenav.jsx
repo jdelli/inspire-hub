@@ -49,10 +49,10 @@ const Sidenav = () => {
         {/* Logo flex left */}
         <div className="flex items-center space-x-2">
           <Image
-            src="/images/inspirelogo.png"
+            src="/images/icon24.png"
             alt="Website Logo"
-            width={40}
-            height={40}
+            width={50}
+            height={50}
           />
           <span className="text-white font-bold text-lg">Inspire Hub</span>
         </div>
