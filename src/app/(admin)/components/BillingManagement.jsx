@@ -411,11 +411,26 @@ export default function BillingManagement() {
     
     setLoadingStates(prev => ({ ...prev, bulkAction: true }));
     try {
+      console.log('Starting bulk action:', bulkAction, 'for bills:', selectedBills);
+      
       switch (bulkAction) {
         case 'mark_paid':
-          await Promise.all(selectedBills.map(billId => 
-            updateBillingStatus(billId, 'paid', { method: 'bulk', reference: 'Bulk Payment' })
-          ));
+          // Validate that updateBillingStatus function exists
+          if (typeof updateBillingStatus !== 'function') {
+            throw new Error('updateBillingStatus function is not available');
+          }
+          
+          console.log('Updating billing status for bills:', selectedBills);
+          await Promise.all(selectedBills.map(async (billId) => {
+            try {
+              console.log('Updating bill:', billId);
+              return await updateBillingStatus(billId, 'paid', { method: 'bulk', reference: 'Bulk Payment' });
+            } catch (billError) {
+              console.error('Error updating bill:', billId, billError);
+              throw billError;
+            }
+          }));
+          
           setSnackbar({
             open: true,
             message: `Marked ${selectedBills.length} bills as paid`,
@@ -439,6 +454,7 @@ export default function BillingManagement() {
           });
           break;
         default:
+          console.warn('Unknown bulk action:', bulkAction);
           break;
       }
       
@@ -450,7 +466,7 @@ export default function BillingManagement() {
       console.error('Error performing bulk action:', error);
       setSnackbar({
         open: true,
-        message: 'Failed to perform bulk action',
+        message: `Failed to perform bulk action: ${error.message}`,
         severity: 'error'
       });
     } finally {
@@ -3454,7 +3470,10 @@ export default function BillingManagement() {
         <DialogActions>
           <Button onClick={() => setShowBulkActionsDialog(false)}>Cancel</Button>
           <Button 
-            onClick={handleBulkAction} 
+            onClick={() => {
+              console.log('Button clicked, bulkAction:', bulkAction, 'selectedBills:', selectedBills);
+              handleBulkAction();
+            }} 
             variant="contained" 
             color="primary"
             disabled={!bulkAction || loadingStates.bulkAction}
