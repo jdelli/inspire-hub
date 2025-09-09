@@ -801,25 +801,45 @@ export async function exportContractAsPDF(contract, tenantName, tenantCompany) {
     const contractHTML = contract.templateBased ? contract.content : generateContractHTML(contract);
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = contractHTML;
+    
+    // Apply better styles for PDF generation
     tempDiv.style.position = 'absolute';
     tempDiv.style.left = '-9999px';
     tempDiv.style.top = '0';
     tempDiv.style.width = '210mm'; // A4 width
-    tempDiv.style.fontSize = '12px';
+    tempDiv.style.minHeight = '297mm'; // A4 height
+    tempDiv.style.fontSize = '14px';
     tempDiv.style.lineHeight = '1.6';
     tempDiv.style.padding = '20mm';
     tempDiv.style.backgroundColor = '#ffffff';
+    tempDiv.style.color = '#000000';
     tempDiv.style.fontFamily = 'Times New Roman, serif';
+    tempDiv.style.boxSizing = 'border-box';
+    
+    // Ensure all text is visible
+    tempDiv.style.webkitPrintColorAdjust = 'exact';
+    tempDiv.style.printColorAdjust = 'exact';
+    
     document.body.appendChild(tempDiv);
 
+    // Wait for any async content to load
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
     // Convert to canvas then to PDF
     const canvas = await html2canvas(tempDiv, {
       scale: 2,
       useCORS: true,
-      allowTaint: true,
+      allowTaint: false,
       backgroundColor: '#ffffff',
       width: tempDiv.offsetWidth,
-      height: tempDiv.offsetHeight
+      height: tempDiv.offsetHeight,
+      logging: false,
+      removeContainer: true,
+      foreignObjectRendering: true,
+      ignoreElements: (element) => {
+        // Ignore elements that might cause issues
+        return element.classList && element.classList.contains('no-pdf');
+      }
     });
 
     const imgData = canvas.toDataURL('image/png');

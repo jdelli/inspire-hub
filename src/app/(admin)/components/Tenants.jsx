@@ -17,6 +17,7 @@ import EditTenantModal from "./EditTenantModal";
 import TemplateUploadDialog from "./TemplateUploadDialog";
 import PDFContractGenerator from "./PDFContractGenerator";
 import PublicDocsContractGenerator from "./PublicDocsContractGenerator";
+import ContractGenerator from "./ContractGenerator";
 import {
   Box,
   Button,
@@ -138,6 +139,7 @@ export default function SeatMapTable() {
   });
   const [showPDFContractGenerator, setShowPDFContractGenerator] = useState(false);
   const [showPublicDocsContractGenerator, setShowPublicDocsContractGenerator] = useState(false);
+  const [showContractGenerator, setShowContractGenerator] = useState(false);
   const [selectedTenantForContract, setSelectedTenantForContract] = useState(null);
 
 
@@ -377,6 +379,12 @@ export default function SeatMapTable() {
     const tenantType = tabIndex === 0 ? "dedicated" : tabIndex === 1 ? "private" : "virtual";
     setSelectedTenantForContract({ ...client, contractType: tenantType });
     setShowPublicDocsContractGenerator(true);
+  };
+
+  const handleGenerateContract = (client) => {
+    const tenantType = tabIndex === 0 ? "dedicated" : tabIndex === 1 ? "private" : "virtual";
+    setSelectedTenantForContract({ ...client, contractType: tenantType });
+    setShowContractGenerator(true);
   };
 
   const dedicatedDeskClients = clients.filter(
@@ -956,7 +964,7 @@ export default function SeatMapTable() {
                                 bgcolor: grey[100],
                               },
                             }}
-                            onClick={() => handleGeneratePublicDocsContract(client)}
+                            onClick={() => handleGenerateContract(client)}
                           >
                             Contract
                           </Button>
@@ -1278,6 +1286,14 @@ export default function SeatMapTable() {
       <PublicDocsContractGenerator
         open={showPublicDocsContractGenerator}
         onClose={() => setShowPublicDocsContractGenerator(false)}
+        tenant={selectedTenantForContract}
+        templateType={selectedTenantForContract?.contractType}
+      />
+
+      {/* Contract Generator */}
+      <ContractGenerator
+        open={showContractGenerator}
+        onClose={() => setShowContractGenerator(false)}
         tenant={selectedTenantForContract}
         templateType={selectedTenantForContract?.contractType}
       />

@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -16,12 +18,17 @@ import {
   Card,
   CardContent,
   Stack,
-  Chip,
   Divider,
   Grid,
+  Paper,
+  LinearProgress,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
   IconButton,
   Tooltip,
-  Paper
+  Chip
 } from '@mui/material';
 import {
   Description as ContractIcon,
@@ -34,462 +41,574 @@ import {
   AttachMoney as MoneyIcon,
   Download as DownloadIcon,
   Preview as PreviewIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  PictureAsPdf as PdfIcon,
+  CheckCircle as CheckIcon,
+  Error as ErrorIcon,
+  Info as InfoIcon,
+  Close as CloseIcon,
+  Print as PrintIcon
 } from '@mui/icons-material';
-import { storage } from '../../../../script/firebaseConfig';
-import { ref, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
+import ContractTemplate from './ContractTemplate';
+import { mapTenantToContractData, validateTenantForContract, getContractPreviewData } from '../utils/contractDataMapper';
 
 const ContractGenerator = ({ open, onClose, tenant, templateType = 'dedicated' }) => {
-  const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [templates, setTemplates] = useState([]);
-  const [generatedContract, setGeneratedContract] = useState('');
-  const [contractVariables, setContractVariables] = useState({});
-  const [loading, setLoading] = useState(false);
-  const [previewMode, setPreviewMode] = useState(false);
+  const [contractData, setContractData] = useState({});
+  const [tenantData, setTenantData] = useState({});
+  const [validation, setValidation] = useState({ isValid: true, missingFields: [], message: '' });
+  const [processing, setProcessing] = useState(false);
   const [result, setResult] = useState(null);
-
-  // Available template variables
-  const availableVariables = {
-    // Tenant Information
-    '{{tenant.name}}': 'Tenant Full Name',
-    '{{tenant.company}}': 'Tenant Company',
-    '{{tenant.email}}': 'Tenant Email',
-    '{{tenant.phone}}': 'Tenant Phone',
-    '{{tenant.address}}': 'Tenant Address',
-    
-    // Contract Details
-    '{{contract.startDate}}': 'Contract Start Date',
-    '{{contract.endDate}}': 'Contract End Date',
-    '{{contract.duration}}': 'Contract Duration',
-    '{{contract.type}}': 'Contract Type',
-    '{{contract.seats}}': 'Selected Seats/Offices',
-    
-    // Financial Information
-    '{{billing.monthlyRate}}': 'Monthly Rate',
-    '{{billing.totalAmount}}': 'Total Contract Amount',
-    '{{billing.paymentMethod}}': 'Payment Method',
-    '{{billing.deposit}}': 'Security Deposit',
-    
-    // Office Information
-    '{{office.location}}': 'Office Location',
-    '{{office.floor}}': 'Floor Number',
-    '{{office.area}}': 'Office Area',
-    '{{office.amenities}}': 'Included Amenities',
-    
-    // Dates
-    '{{date.today}}': 'Current Date',
-    '{{date.signature}}': 'Signature Date',
-    '{{date.effective}}': 'Effective Date',
-    
-    // System Information
-    '{{system.companyName}}': 'Your Company Name',
-    '{{system.companyAddress}}': 'Your Company Address',
-    '{{system.contactInfo}}': 'Your Contact Information'
-  };
+  const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
     if (open && tenant) {
-      loadTemplates();
-      initializeContractVariables();
+      initializeData();
     }
-  }, [open, tenant]);
+  }, [open, tenant, templateType]);
 
-  const loadTemplates = async () => {
-    setLoading(true);
-    try {
-      // Load templates from storage (you can modify this based on your storage method)
-      const templatesList = [];
-      
-      // For now, we'll create some sample templates
-      // In real implementation, load from your storage system
-      const sampleTemplates = [
-        {
-          id: '1',
-          name: 'Standard Dedicated Desk Agreement',
-          type: 'dedicated',
-          content: `CONTRACT AGREEMENT
-
-This agreement is made between {{system.companyName}} and {{tenant.name}} ({{tenant.company}}) for the rental of dedicated desk space.
-
-TENANT DETAILS:
-Name: {{tenant.name}}
-Company: {{tenant.company}}
-Email: {{tenant.email}}
-Phone: {{tenant.phone}}
-Address: {{tenant.address}}
-
-CONTRACT TERMS:
-Start Date: {{contract.startDate}}
-End Date: {{contract.endDate}}
-Duration: {{contract.duration}}
-Monthly Rate: {{billing.monthlyRate}}
-Payment Method: {{billing.paymentMethod}}
-
-SELECTED SEATS: {{contract.seats}}
-
-OFFICE LOCATION: {{office.location}}
-
-This contract is effective from {{date.effective}} and will expire on {{contract.endDate}}.
-
-Signature Date: {{date.signature}}
-
-_________________________          _________________________
-{{tenant.name}}                     {{system.companyName}}
-Tenant Signature                    Company Representative`,
-          isActive: true
-        },
-        {
-          id: '2',
-          name: 'Private Office Lease Agreement',
-          type: 'private',
-          content: `PRIVATE OFFICE LEASE AGREEMENT
-
-This lease agreement is entered into between {{system.companyName}} and {{tenant.name}} representing {{tenant.company}}.
-
-TENANT INFORMATION:
-Full Name: {{tenant.name}}
-Company: {{tenant.company}}
-Email: {{tenant.email}}
-Phone: {{tenant.phone}}
-Business Address: {{tenant.address}}
-
-LEASE DETAILS:
-Office Type: {{contract.type}}
-Start Date: {{contract.startDate}}
-End Date: {{contract.endDate}}
-Lease Duration: {{contract.duration}}
-Monthly Rent: {{billing.monthlyRate}}
-Security Deposit: {{billing.deposit}}
-Payment Method: {{billing.paymentMethod}}
-
-OFFICE SPECIFICATIONS:
-Location: {{office.location}}
-Floor: {{office.floor}}
-Area: {{office.area}}
-Selected Offices: {{contract.seats}}
-Included Amenities: {{office.amenities}}
-
-TERMS AND CONDITIONS:
-This lease agreement is effective from {{date.effective}} and will terminate on {{contract.endDate}}.
-
-Total Contract Value: {{billing.totalAmount}}
-
-Signed on: {{date.signature}}
-
-_________________________          _________________________
-{{tenant.name}}                     {{system.companyName}}
-Lessee                               Lessor`,
-          isActive: true
-        }
-      ];
-
-      setTemplates(sampleTemplates);
-    } catch (error) {
-      console.error('Error loading templates:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const initializeContractVariables = () => {
+  const initializeData = () => {
     if (!tenant) return;
 
-    const variables = {
-      // Tenant Information
-      '{{tenant.name}}': tenant.name || '',
-      '{{tenant.company}}': tenant.company || '',
-      '{{tenant.email}}': tenant.email || '',
-      '{{tenant.phone}}': tenant.phone || '',
-      '{{tenant.address}}': tenant.address || '',
-      
-      // Contract Details
-      '{{contract.startDate}}': tenant.contractStartDate || new Date().toLocaleDateString(),
-      '{{contract.endDate}}': tenant.contractEndDate || '',
-      '{{contract.duration}}': tenant.contractDuration || '12 months',
-      '{{contract.type}}': templateType,
-      '{{contract.seats}}': tenant.selectedSeats ? 
-        (Array.isArray(tenant.selectedSeats) ? tenant.selectedSeats.join(', ') : tenant.selectedSeats) :
-        (tenant.selectedPO ? 
-          (Array.isArray(tenant.selectedPO) ? tenant.selectedPO.join(', ') : tenant.selectedPO) :
-          'Not specified'),
-      
-      // Financial Information
-      '{{billing.monthlyRate}}': tenant.billing?.monthlyRate || '₱0.00',
-      '{{billing.totalAmount}}': tenant.billing?.totalAmount || '₱0.00',
-      '{{billing.paymentMethod}}': tenant.billing?.paymentMethod || 'Not specified',
-      '{{billing.deposit}}': tenant.billing?.deposit || '₱0.00',
-      
-      // Office Information
-      '{{office.location}}': 'Inspire Hub Office Space',
-      '{{office.floor}}': 'Multiple Floors Available',
-      '{{office.area}}': 'Various Sizes Available',
-      '{{office.amenities}}': 'High-speed internet, meeting rooms, reception services, cleaning services',
-      
-      // Dates
-      '{{date.today}}': new Date().toLocaleDateString(),
-      '{{date.signature}}': new Date().toLocaleDateString(),
-      '{{date.effective}}': new Date().toLocaleDateString(),
-      
-      // System Information
-      '{{system.companyName}}': 'Inspire Hub',
-      '{{system.companyAddress}}': 'Your Company Address Here',
-      '{{system.contactInfo}}': 'Contact: +63 XXX XXX XXXX | Email: info@inspirehub.com'
+    // Initialize tenant data with defaults
+    const initialTenantData = {
+      name: tenant.name || '',
+      company: tenant.company || '',
+      email: tenant.email || '',
+      phone: tenant.phone || '',
+      address: tenant.address || '',
+      billing: {
+        rate: tenant.billing?.rate || 0,
+        cusaFee: tenant.billing?.cusaFee || 0,
+        parkingFee: tenant.billing?.parkingFee || 0,
+        startDate: tenant.billing?.startDate || new Date().toISOString().split('T')[0],
+        monthsToAvail: tenant.billing?.monthsToAvail || 12,
+        paymentMethod: tenant.billing?.paymentMethod || 'Bank Transfer',
+        paymentTerms: tenant.billing?.paymentTerms || ''
+      },
+      selectedSeats: tenant.selectedSeats || [],
+      selectedPO: tenant.selectedPO || [],
+      virtualOfficeFeatures: tenant.virtualOfficeFeatures || []
     };
 
-    setContractVariables(variables);
+    setTenantData(initialTenantData);
+    
+    // Generate initial contract data
+    const previewData = getContractPreviewData(initialTenantData, templateType);
+    setContractData(previewData.contractData);
+    setValidation(previewData.validation);
   };
 
-  const generateContract = () => {
-    if (!selectedTemplate) {
-      setResult({
-        type: 'error',
-        message: 'Please select a template first.'
-      });
-      return;
+  const updateTenantData = (field, value) => {
+    const newTenantData = { ...tenantData };
+    
+    if (field.includes('.')) {
+      const [parent, child] = field.split('.');
+      newTenantData[parent] = {
+        ...newTenantData[parent],
+        [child]: value
+      };
+    } else {
+      newTenantData[field] = value;
     }
+    
+    setTenantData(newTenantData);
+    
+    // Regenerate contract data
+    const previewData = getContractPreviewData(newTenantData, templateType);
+    setContractData(previewData.contractData);
+    setValidation(previewData.validation);
+  };
+
+  const generateContract = async () => {
+    setProcessing(true);
+    setResult(null);
 
     try {
-      let contractContent = selectedTemplate.content;
+      // Validate tenant data
+      const validationResult = validateTenantForContract(tenantData);
+      if (!validationResult.isValid) {
+        setResult({
+          type: 'error',
+          message: validationResult.message
+        });
+        return;
+      }
+
+      // Generate final contract data
+      const finalContractData = mapTenantToContractData(tenantData, templateType);
+      setContractData(finalContractData);
       
-      // Replace all variables with actual values
-      Object.keys(contractVariables).forEach(variable => {
-        const value = contractVariables[variable] || variable;
-        contractContent = contractContent.replace(new RegExp(variable.replace(/[{}]/g, '\\$&'), 'g'), value);
-      });
-      
-      setGeneratedContract(contractContent);
       setResult({
         type: 'success',
         message: 'Contract generated successfully!'
       });
+      
+      setShowPreview(true);
     } catch (error) {
       console.error('Error generating contract:', error);
       setResult({
         type: 'error',
         message: `Error generating contract: ${error.message}`
       });
+    } finally {
+      setProcessing(false);
     }
   };
 
-  const downloadContract = () => {
-    if (!generatedContract) {
+  const handleDownloadPDF = () => {
+    if (!contractData || !contractData.clientName) {
       setResult({
         type: 'error',
-        message: 'Please generate a contract first.'
+        message: 'No contract data to download. Please generate a contract first.'
       });
       return;
     }
 
     try {
-      const blob = new Blob([generatedContract], { type: 'text/plain' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Contract_${tenant.name}_${new Date().toISOString().split('T')[0]}.txt`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      // Create a new window with the contract content
+      const printWindow = window.open('', '_blank');
+      const contractHTML = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Contract - ${contractData.clientName}</title>
+            <style>
+              @page { 
+                size: A4; 
+                margin: 15mm; 
+              }
+              body { 
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                margin: 0; 
+                padding: 0; 
+                color: #333;
+                line-height: 1.5;
+                font-size: 14px;
+              }
+            </style>
+          </head>
+          <body>
+            <div id="contract-content"></div>
+            <script>
+              // Render the React component
+              const { createElement: h, render } = React;
+              const contractData = ${JSON.stringify(contractData)};
+              const ContractTemplate = ${ContractTemplate.toString()};
+              render(h(ContractTemplate, { contractData, preview: true }), document.getElementById('contract-content'));
+            </script>
+            <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+            <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+          </body>
+        </html>
+      `;
+      
+      printWindow.document.write(contractHTML);
+      printWindow.document.close();
+      
+      // Wait for content to load, then trigger print
+      setTimeout(() => {
+        printWindow.focus();
+        printWindow.print();
+        
+        // Close the window after printing
+        setTimeout(() => {
+          printWindow.close();
+        }, 1000);
+      }, 500);
       
       setResult({
         type: 'success',
-        message: 'Contract downloaded successfully!'
+        message: 'Contract PDF generated successfully!'
       });
     } catch (error) {
-      console.error('Error downloading contract:', error);
+      console.error('Error generating PDF:', error);
       setResult({
         type: 'error',
-        message: `Error downloading contract: ${error.message}`
+        message: `Error generating PDF: ${error.message}`
       });
     }
   };
 
-  const updateVariable = (variable, value) => {
-    setContractVariables(prev => ({
-      ...prev,
-      [variable]: value
-    }));
+  const handlePreview = () => {
+    setShowPreview(true);
   };
 
-  const getVariableValue = (variable) => {
-    return contractVariables[variable] || '';
+  const formatCurrency = (amount) => {
+    if (!amount) return '₱0.00';
+    return `₱${parseFloat(amount).toLocaleString('en-PH', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })}`;
+  };
+
+  const getTotalMonthly = () => {
+    const rate = parseFloat(tenantData.billing?.rate) || 0;
+    const cusaFee = parseFloat(tenantData.billing?.cusaFee) || 0;
+    const parkingFee = parseFloat(tenantData.billing?.parkingFee) || 0;
+    return rate + cusaFee + parkingFee;
+  };
+
+  const getWorkspaceInfo = () => {
+    switch (templateType) {
+      case 'dedicated':
+        return tenantData.selectedSeats?.length > 0 
+          ? `${tenantData.selectedSeats.length} seat(s): ${Array.isArray(tenantData.selectedSeats) ? tenantData.selectedSeats.join(', ') : tenantData.selectedSeats}`
+          : 'Dedicated Desk - Location to be assigned';
+      case 'private':
+        return tenantData.selectedPO?.length > 0 
+          ? `Private Office(s): ${Array.isArray(tenantData.selectedPO) ? tenantData.selectedPO.join(', ') : tenantData.selectedPO}`
+          : 'Private Office - Location to be assigned';
+      case 'virtual':
+        return tenantData.virtualOfficeFeatures?.length > 0 
+          ? `Virtual Office Features: ${Array.isArray(tenantData.virtualOfficeFeatures) ? tenantData.virtualOfficeFeatures.join(', ') : tenantData.virtualOfficeFeatures}`
+          : 'Virtual Office Services';
+      default:
+        return 'Workspace - Details to be specified';
+    }
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xl" fullWidth>
-      <DialogTitle>
-        <Box display="flex" alignItems="center" gap={1}>
-          <ContractIcon />
-          Generate Contract for {tenant?.name}
-        </Box>
-      </DialogTitle>
-      
-      <DialogContent>
-        <Grid container spacing={3}>
-          {/* Template Selection */}
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Select Template
+    <>
+      <Dialog open={open} onClose={onClose} maxWidth="xl" fullWidth>
+        <DialogTitle>
+          <Box display="flex" alignItems="center" justifyContent="space-between">
+            <Box display="flex" alignItems="center" gap={1}>
+              <ContractIcon color="primary" />
+              <Box>
+                <Typography variant="h6">Generate Contract</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {tenant?.name} - {templateType.charAt(0).toUpperCase() + templateType.slice(1)} Office
                 </Typography>
-                <FormControl fullWidth>
-                  <InputLabel>Contract Template</InputLabel>
-                  <Select
-                    value={selectedTemplate?.id || ''}
-                    onChange={(e) => {
-                      const template = templates.find(t => t.id === e.target.value);
-                      setSelectedTemplate(template);
-                    }}
-                    label="Contract Template"
-                  >
-                    {templates
-                      .filter(t => t.type === templateType)
-                      .map((template) => (
-                        <MenuItem key={template.id} value={template.id}>
-                          {template.name}
-                        </MenuItem>
-                      ))}
-                  </Select>
-                </FormControl>
-                
-                {selectedTemplate && (
-                  <Box mt={2}>
+              </Box>
+            </Box>
+            <IconButton onClick={onClose} size="small">
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        
+        <DialogContent>
+          <Grid container spacing={3}>
+            {/* Tenant Data Editor */}
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    <PersonIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                    Tenant Information
+                  </Typography>
+                  
+                  <Stack spacing={2}>
+                    <TextField
+                      fullWidth
+                      label="Tenant Name *"
+                      value={tenantData.name || ''}
+                      onChange={(e) => updateTenantData('name', e.target.value)}
+                      size="small"
+                      error={!tenantData.name}
+                      helperText={!tenantData.name ? 'Required field' : ''}
+                    />
+                    
+                    <TextField
+                      fullWidth
+                      label="Company"
+                      value={tenantData.company || ''}
+                      onChange={(e) => updateTenantData('company', e.target.value)}
+                      size="small"
+                    />
+                    
+                    <TextField
+                      fullWidth
+                      label="Email *"
+                      value={tenantData.email || ''}
+                      onChange={(e) => updateTenantData('email', e.target.value)}
+                      size="small"
+                      error={!tenantData.email}
+                      helperText={!tenantData.email ? 'Required field' : ''}
+                    />
+                    
+                    <TextField
+                      fullWidth
+                      label="Phone *"
+                      value={tenantData.phone || ''}
+                      onChange={(e) => updateTenantData('phone', e.target.value)}
+                      size="small"
+                      error={!tenantData.phone}
+                      helperText={!tenantData.phone ? 'Required field' : ''}
+                    />
+                    
+                    <TextField
+                      fullWidth
+                      label="Address *"
+                      value={tenantData.address || ''}
+                      onChange={(e) => updateTenantData('address', e.target.value)}
+                      size="small"
+                      multiline
+                      rows={2}
+                      error={!tenantData.address}
+                      helperText={!tenantData.address ? 'Required field' : ''}
+                    />
+                  </Stack>
+                  
+                  <Divider sx={{ my: 2 }} />
+                  
+                  <Typography variant="h6" gutterBottom>
+                    <MoneyIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                    Billing Information
+                  </Typography>
+                  
+                  <Stack spacing={2}>
+                    <TextField
+                      fullWidth
+                      label="Monthly Rate"
+                      type="number"
+                      value={tenantData.billing?.rate || ''}
+                      onChange={(e) => updateTenantData('billing.rate', parseFloat(e.target.value) || 0)}
+                      size="small"
+                      InputProps={{ startAdornment: '₱' }}
+                    />
+                    
+                    <TextField
+                      fullWidth
+                      label="CUSA Fee"
+                      type="number"
+                      value={tenantData.billing?.cusaFee || ''}
+                      onChange={(e) => updateTenantData('billing.cusaFee', parseFloat(e.target.value) || 0)}
+                      size="small"
+                      InputProps={{ startAdornment: '₱' }}
+                    />
+                    
+                    <TextField
+                      fullWidth
+                      label="Parking Fee"
+                      type="number"
+                      value={tenantData.billing?.parkingFee || ''}
+                      onChange={(e) => updateTenantData('billing.parkingFee', parseFloat(e.target.value) || 0)}
+                      size="small"
+                      InputProps={{ startAdornment: '₱' }}
+                    />
+                    
+                    <Paper sx={{ p: 2, bgcolor: 'primary.50' }}>
+                      <Typography variant="body2" color="primary">
+                        Total Monthly: {formatCurrency(getTotalMonthly())}
+                      </Typography>
+                    </Paper>
+                    
+                    <TextField
+                      fullWidth
+                      label="Contract Start Date"
+                      type="date"
+                      value={tenantData.billing?.startDate || ''}
+                      onChange={(e) => updateTenantData('billing.startDate', e.target.value)}
+                      size="small"
+                      InputLabelProps={{ shrink: true }}
+                    />
+                    
+                    <TextField
+                      fullWidth
+                      label="Contract Duration (months)"
+                      type="number"
+                      value={tenantData.billing?.monthsToAvail || ''}
+                      onChange={(e) => updateTenantData('billing.monthsToAvail', parseInt(e.target.value) || 12)}
+                      size="small"
+                    />
+                    
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Payment Method</InputLabel>
+                      <Select
+                        value={tenantData.billing?.paymentMethod || 'Bank Transfer'}
+                        onChange={(e) => updateTenantData('billing.paymentMethod', e.target.value)}
+                        label="Payment Method"
+                      >
+                        <MenuItem value="Bank Transfer">Bank Transfer</MenuItem>
+                        <MenuItem value="Credit Card">Credit Card</MenuItem>
+                        <MenuItem value="Cash">Cash</MenuItem>
+                        <MenuItem value="Check">Check</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Stack>
+                  
+                  <Divider sx={{ my: 2 }} />
+                  
+                  <Typography variant="h6" gutterBottom>
+                    <BusinessIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                    Workspace Information
+                  </Typography>
+                  
+                  <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
+                    <Typography variant="body2">
+                      <strong>Type:</strong> {templateType.charAt(0).toUpperCase() + templateType.slice(1)} Office
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      <strong>Details:</strong> {getWorkspaceInfo()}
+                    </Typography>
+                  </Paper>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* Contract Preview & Actions */}
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    <ContractIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                    Contract Preview
+                  </Typography>
+                  
+                  {validation.isValid ? (
+                    <Alert severity="success" sx={{ mb: 2 }}>
+                      <CheckIcon fontSize="small" sx={{ mr: 1 }} />
+                      {validation.message}
+                    </Alert>
+                  ) : (
+                    <Alert severity="warning" sx={{ mb: 2 }}>
+                      <ErrorIcon fontSize="small" sx={{ mr: 1 }} />
+                      {validation.message}
+                    </Alert>
+                  )}
+                  
+                  <Box sx={{ mb: 2 }}>
                     <Button
                       variant="contained"
                       onClick={generateContract}
+                      disabled={processing || !validation.isValid}
                       fullWidth
-                      startIcon={<RefreshIcon />}
+                      startIcon={processing ? <RefreshIcon /> : <ContractIcon />}
                     >
-                      Generate Contract
+                      {processing ? 'Generating...' : 'Generate Contract'}
                     </Button>
-                  </Box>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Variable Editor */}
-            <Card sx={{ mt: 2 }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Edit Variables
-                </Typography>
-                <Box maxHeight={300} overflow="auto">
-                  <Stack spacing={2}>
-                    {Object.entries(availableVariables).map(([variable, label]) => (
-                      <Box key={variable}>
-                        <Typography variant="caption" color="text.secondary">
-                          {label}
+                    
+                    {processing && (
+                      <Box sx={{ mt: 2 }}>
+                        <LinearProgress />
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                          Processing contract data...
                         </Typography>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          value={getVariableValue(variable)}
-                          onChange={(e) => updateVariable(variable, e.target.value)}
-                          placeholder={variable}
-                        />
                       </Box>
-                    ))}
-                  </Stack>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          {/* Contract Preview */}
-          <Grid item xs={12} md={8}>
-            <Card>
-              <CardContent>
-                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                  <Typography variant="h6">
-                    Contract Preview
-                  </Typography>
-                  <Box>
-                    <Tooltip title="Toggle Preview Mode">
-                      <IconButton
-                        onClick={() => setPreviewMode(!previewMode)}
-                        color={previewMode ? 'primary' : 'default'}
-                      >
-                        <PreviewIcon />
-                      </IconButton>
-                    </Tooltip>
-                    {generatedContract && (
-                      <Tooltip title="Download Contract">
-                        <IconButton onClick={downloadContract} color="primary">
-                          <DownloadIcon />
-                        </IconButton>
-                      </Tooltip>
                     )}
                   </Box>
-                </Box>
-                
-                {generatedContract ? (
-                  <Paper 
-                    sx={{ 
-                      p: 2, 
-                      minHeight: 400, 
-                      maxHeight: 500, 
-                      overflow: 'auto',
-                      backgroundColor: previewMode ? 'background.paper' : 'grey.50'
-                    }}
-                  >
-                    <pre style={{ 
-                      whiteSpace: 'pre-wrap', 
-                      fontFamily: 'monospace',
-                      fontSize: '0.875rem',
-                      lineHeight: 1.5
-                    }}>
-                      {generatedContract}
-                    </pre>
-                  </Paper>
-                ) : (
-                  <Box 
-                    display="flex" 
-                    alignItems="center" 
-                    justifyContent="center" 
-                    minHeight={400}
-                    textAlign="center"
-                  >
+                  
+                  {contractData.clientName && contractData.clientName !== '[CLIENT NAME]' && (
                     <Box>
-                      <ContractIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
-                      <Typography variant="body2" color="text.secondary">
-                        Select a template and click "Generate Contract" to preview
+                      <Stack spacing={1}>
+                        <Button
+                          variant="outlined"
+                          onClick={handlePreview}
+                          startIcon={<PreviewIcon />}
+                          fullWidth
+                        >
+                          Preview Contract
+                        </Button>
+                        
+                        <Button
+                          variant="contained"
+                          onClick={handleDownloadPDF}
+                          startIcon={<PdfIcon />}
+                          fullWidth
+                        >
+                          Download PDF
+                        </Button>
+                      </Stack>
+                      
+                      <Divider sx={{ my: 2 }} />
+                      
+                      <Typography variant="caption" color="text.secondary">
+                        Contract Summary:
                       </Typography>
+                      <List dense>
+                        <ListItem>
+                          <ListItemIcon><InfoIcon fontSize="small" /></ListItemIcon>
+                          <ListItemText 
+                            primary={contractData.contractNumber}
+                            secondary="Contract Number"
+                          />
+                        </ListItem>
+                        <ListItem>
+                          <ListItemIcon><CalendarIcon fontSize="small" /></ListItemIcon>
+                          <ListItemText 
+                            primary={`${contractData.startDate} - ${contractData.endDate}`}
+                            secondary="Contract Period"
+                          />
+                        </ListItem>
+                        <ListItem>
+                          <ListItemIcon><MoneyIcon fontSize="small" /></ListItemIcon>
+                          <ListItemText 
+                            primary={contractData.monthlyRate}
+                            secondary="Monthly Rate"
+                          />
+                        </ListItem>
+                      </List>
                     </Box>
-                  </Box>
-                )}
-              </CardContent>
-            </Card>
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
           </Grid>
-        </Grid>
 
-        {result && (
-          <Alert 
-            severity={result.type === 'success' ? 'success' : 'error'}
-            sx={{ mt: 2 }}
-          >
-            {result.message}
-          </Alert>
-        )}
-      </DialogContent>
-      
-      <DialogActions>
-        <Button onClick={onClose}>
-          Close
-        </Button>
-        {generatedContract && (
-          <Button
-            onClick={downloadContract}
-            variant="contained"
-            startIcon={<DownloadIcon />}
-          >
-            Download Contract
-          </Button>
-        )}
-      </DialogActions>
-    </Dialog>
+          {result && (
+            <Alert 
+              severity={result.type === 'success' ? 'success' : 'error'}
+              sx={{ mt: 2 }}
+            >
+              {result.message}
+            </Alert>
+          )}
+        </DialogContent>
+        
+        <DialogActions>
+          <Button onClick={onClose}>Close</Button>
+          {contractData.clientName && contractData.clientName !== '[CLIENT NAME]' && (
+            <>
+              <Button onClick={handlePreview} startIcon={<PreviewIcon />}>
+                Preview
+              </Button>
+              <Button onClick={handleDownloadPDF} variant="contained" startIcon={<PdfIcon />}>
+                Download PDF
+              </Button>
+            </>
+          )}
+        </DialogActions>
+      </Dialog>
+
+      {/* Contract Preview Dialog */}
+      <Dialog 
+        open={showPreview} 
+        onClose={() => setShowPreview(false)} 
+        maxWidth="lg" 
+        fullWidth
+        PaperProps={{
+          sx: { 
+            maxHeight: '90vh',
+            borderRadius: 1,
+          }
+        }}
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" justifyContent="space-between">
+            <Typography variant="h6">Contract Preview</Typography>
+            <Box>
+              <Button
+                onClick={handleDownloadPDF}
+                startIcon={<PdfIcon />}
+                sx={{ mr: 1 }}
+              >
+                Download PDF
+              </Button>
+              <IconButton onClick={() => setShowPreview(false)} size="small">
+                <CloseIcon />
+              </IconButton>
+            </Box>
+          </Box>
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: 0 }}>
+          <Box sx={{ p: 2 }}>
+            <ContractTemplate contractData={contractData} preview={true} />
+          </Box>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 
 export default ContractGenerator;
-

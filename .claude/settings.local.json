@@ -3,7 +3,10 @@
     "allow": [
       "Bash(npm run build:*)",
       "Bash(npm run dev:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(powershell:*)",
+      "Bash(del extract_docx.ps1)",
+      "Bash(Remove-Item extract_docx.ps1)"
     ],
     "deny": [],
     "ask": []
