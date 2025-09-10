@@ -167,10 +167,10 @@ const ContractTemplate = ({
         throw new Error('Failed to generate image data from canvas');
       }
 
-      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdf = new jsPDF('p', 'mm', [215.9, 330.2]); // Long bond paper size in mm (8.5" x 13")
       
       const imgWidth = 190; // Leave margins
-      const pageHeight = 277; // Leave margins
+      const pageHeight = 330; // Leave margins for long bond paper
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       let heightLeft = imgHeight;
       let position = 10; // Top margin
@@ -201,7 +201,7 @@ const ContractTemplate = ({
   // Alternative simple PDF export using basic text
   const exportSimplePDF = async () => {
     try {
-      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdf = new jsPDF('p', 'mm', [215.9, 330.2]); // Long bond paper size in mm (8.5" x 13")
       
       // Set font
       pdf.setFont('helvetica');
@@ -284,7 +284,7 @@ const ContractTemplate = ({
       pdf.setFontSize(10);
       
       terms.forEach(term => {
-        if (yPos > 270) { // Near bottom of page
+        if (yPos > 320) { // Near bottom of long bond paper page
           pdf.addPage();
           yPos = 20;
         }
@@ -363,7 +363,7 @@ const ContractTemplate = ({
           <title>Contract of Lease - ${data.clientName || 'Client'}</title>
           <style>
             @page {
-              size: A4;
+              size: 8.5in 13in;
               margin: 0.75in;
             }
             
@@ -391,8 +391,8 @@ const ContractTemplate = ({
                 margin: 0;
                 box-sizing: border-box;
                 font-family: 'Times New Roman', serif;
-                font-size: 11px;
-                line-height: 1.4;
+                font-size: 12px;
+                line-height: 1.6;
                 color: #000000;
                 background: white;
                 page-break-after: always;
@@ -421,7 +421,7 @@ const ContractTemplate = ({
                 border: 1px solid #000000;
                 padding: 6px 8px;
                 text-align: left;
-                font-size: 11px;
+                font-size: 12px;
                 color: #000000;
                 vertical-align: top;
               }
@@ -485,7 +485,7 @@ const ContractTemplate = ({
               
               .contract-page {
                 width: 8.5in;
-                min-height: 11in;
+                min-height: 13in;
                 padding: 0.75in;
                 margin: 0 auto 2rem auto;
                 box-sizing: border-box;
@@ -621,8 +621,8 @@ const ContractTemplate = ({
             margin: 0;
             padding: 0;
             font-family: 'Times New Roman', serif;
-            font-size: 11px;
-            line-height: 1.4;
+            font-size: 12px;
+            line-height: 1.6;
             color: #000000;
             background: white;
           }
@@ -638,8 +638,8 @@ const ContractTemplate = ({
             margin: 0;
             box-sizing: border-box;
             font-family: 'Times New Roman', serif;
-            font-size: 11px;
-            line-height: 1.4;
+            font-size: 12px;
+            line-height: 1.6;
             color: #000000;
             background: white;
           }
@@ -693,15 +693,15 @@ const ContractTemplate = ({
             border: 1px solid #000000;
             padding: 6px 8px;
             text-align: left;
-            font-size: 11px;
-            color: #000000;
-            vertical-align: top;
+                font-size: 12px;
+                color: #000000;
+                vertical-align: top;
           }
         }
         
         .contract-page {
           width: 8.5in;
-          min-height: 11in;
+          min-height: 13in;
           padding: 0.75in;
           margin: 0 auto 2rem auto;
           box-sizing: border-box;
@@ -719,10 +719,10 @@ const ContractTemplate = ({
       style={{ 
         backgroundColor: '#ffffff',
         color: '#000000',
-        fontFamily: 'Arial, sans-serif',
-        fontSize: '12pt',
-        lineHeight: '1.4',
-        maxWidth: '210mm', // A4 width
+          fontFamily: 'Times New Roman, serif',
+          fontSize: '13pt',
+          lineHeight: '1.6',
+        maxWidth: '8.5in', // Long bond paper width
         margin: '0 auto',
         padding: preview ? '20px' : '0'
       }}
@@ -749,7 +749,7 @@ const ContractTemplate = ({
               />
                 </div>
             <h1 className="text-2xl font-bold" style={{
-              fontSize: '20px',
+              fontSize: '24px',
                   fontWeight: 'bold',
               color: '#000000',
             letterSpacing: '0.1em'
@@ -767,7 +767,7 @@ const ContractTemplate = ({
               marginBottom: '16px'
             }}>
               <p className="font-bold" style={{
-                    fontSize: '12px',
+                    fontSize: '14px',
                     fontWeight: 'bold',
                 color: '#000000'
             }}>
@@ -777,8 +777,8 @@ const ContractTemplate = ({
           
             <div className="mb-4 text-justify" style={{
               marginBottom: '16px',
-              fontSize: '12px',
-              lineHeight: '1.15',
+              fontSize: '13px',
+              lineHeight: '1.4',
             textAlign: 'justify',
               color: '#000000'
           }}>
@@ -805,8 +805,8 @@ const ContractTemplate = ({
         {/* Parties */}
           <div className="mb-4" style={{ marginBottom: '16px' }}>
             <div className="text-justify" style={{
-              fontSize: '12px',
-              lineHeight: '1.15',
+              fontSize: '13px',
+              lineHeight: '1.4',
               textAlign: 'justify',
               color: '#000000'
             }}>
@@ -859,15 +859,15 @@ const ContractTemplate = ({
           <div className="mb-4">
             <div className="text-center mb-4">
               <p className="font-bold" style={{
-                fontSize: '12px',
+                fontSize: '14px',
                 fontWeight: 'bold',
                 color: '#000000'
               }}>WITNESSETH:</p>
           </div>
           
             <div className="space-y-2 text-justify" style={{
-              fontSize: '12px',
-              lineHeight: '1.15',
+              fontSize: '13px',
+              lineHeight: '1.4',
               textAlign: 'justify',
               color: '#000000'
             }}>
@@ -887,8 +887,8 @@ const ContractTemplate = ({
 
           {/* Terms 1-2 */}
           <div className="space-y-2 text-justify" style={{
-            fontSize: '12px',
-            lineHeight: '1.8',
+            fontSize: '13px',
+            lineHeight: '1.6',
             textAlign: 'justify',
             color: '#000000'
           }}>
@@ -932,7 +932,7 @@ const ContractTemplate = ({
                         textAlign: 'left',
                         fontWeight: 'bold',
                         color: '#000000',
-                        fontSize: '12px'
+                        fontSize: '13px'
                       }}>CATEGORY</th>
                       <th style={{
                         border: '1px solid #000000',
@@ -940,7 +940,7 @@ const ContractTemplate = ({
                         textAlign: 'left',
                         fontWeight: 'bold',
                         color: '#000000',
-                        fontSize: '12px'
+                        fontSize: '13px'
                       }}>TERMS</th>
                     </tr>
                   </thead>
@@ -950,13 +950,13 @@ const ContractTemplate = ({
                         border: '1px solid #000000',
                         padding: '10px 8px',
                         color: '#000000',
-                        fontSize: '12px'
+                        fontSize: '13px'
                       }}>Monthly Rent</td>
                       <td style={{
                         border: '1px solid #000000',
                         padding: '10px 8px',
                         color: '#000000',
-                        fontSize: '12px'
+                        fontSize: '13px'
                       }}>Php 20,000 (excluding VAT)</td>
                     </tr>
                     <tr>
@@ -964,13 +964,13 @@ const ContractTemplate = ({
                         border: '1px solid #000000',
                         padding: '10px 8px',
                         color: '#000000',
-                        fontSize: '12px'
+                        fontSize: '13px'
                       }}>CUSA</td>
                       <td style={{
                         border: '1px solid #000000',
                         padding: '10px 8px',
                         color: '#000000',
-                        fontSize: '12px'
+                        fontSize: '13px'
                       }}>Php 1,500.00</td>
                     </tr>
                     <tr>
@@ -978,13 +978,13 @@ const ContractTemplate = ({
                         border: '1px solid #000000',
                         padding: '10px 8px',
                         color: '#000000',
-                        fontSize: '12px'
+                        fontSize: '13px'
                       }}>Parking Fee (optional)</td>
                       <td style={{
                         border: '1px solid #000000',
                         padding: '10px 8px',
                         color: '#000000',
-                        fontSize: '12px'
+                        fontSize: '13px'
                       }}>10,000 per month</td>
                     </tr>
                   </tbody>
@@ -1050,8 +1050,8 @@ const ContractTemplate = ({
               
               <div style={{
                 marginLeft: '16px',
-                fontSize: '12px',
-                lineHeight: '1.8',
+                fontSize: '13px',
+                lineHeight: '1.6',
                 color: '#000000'
               }}>
                 <p style={{ marginBottom: '12px' }}><strong>6.1. Use of workspaces (shared, private, and meeting room)</strong></p>
@@ -1186,8 +1186,8 @@ const ContractTemplate = ({
               
               <div style={{
                 marginLeft: '16px',
-                fontSize: '12px',
-                lineHeight: '1.8',
+                fontSize: '13px',
+                lineHeight: '1.6',
                 color: '#000000'
               }}>
                 <p style={{ marginBottom: '2px' }}>• Failure of the LESSEE to pay any advance rental and other bills or charges no matter for any reason.</p>
@@ -1361,14 +1361,14 @@ const ContractTemplate = ({
             }}>
               <h3 style={{
                 fontWeight: 'bold',
-                fontSize: '12px',
+                fontSize: '14px',
                 color: '#000000'
               }}>ACKNOWLEDGMENT</h3>
           </div>
           
             <div style={{
-              fontSize: '12px',
-              lineHeight: '1.8',
+              fontSize: '13px',
+              lineHeight: '1.6',
               textAlign: 'justify',
               color: '#000000'
             }}>
