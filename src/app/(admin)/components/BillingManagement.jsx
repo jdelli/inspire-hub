@@ -411,11 +411,26 @@ export default function BillingManagement() {
     
     setLoadingStates(prev => ({ ...prev, bulkAction: true }));
     try {
+      console.log('Starting bulk action:', bulkAction, 'for bills:', selectedBills);
+      
       switch (bulkAction) {
         case 'mark_paid':
-          await Promise.all(selectedBills.map(billId => 
-            updateBillingStatus(billId, 'paid', { method: 'bulk', reference: 'Bulk Payment' })
-          ));
+          // Validate that updateBillingStatus function exists
+          if (typeof updateBillingStatus !== 'function') {
+            throw new Error('updateBillingStatus function is not available');
+          }
+          
+          console.log('Updating billing status for bills:', selectedBills);
+          await Promise.all(selectedBills.map(async (billId) => {
+            try {
+              console.log('Updating bill:', billId);
+              return await updateBillingStatus(billId, 'paid', { method: 'bulk', reference: 'Bulk Payment' });
+            } catch (billError) {
+              console.error('Error updating bill:', billId, billError);
+              throw billError;
+            }
+          }));
+          
           setSnackbar({
             open: true,
             message: `Marked ${selectedBills.length} bills as paid`,
@@ -439,6 +454,7 @@ export default function BillingManagement() {
           });
           break;
         default:
+          console.warn('Unknown bulk action:', bulkAction);
           break;
       }
       
@@ -450,7 +466,7 @@ export default function BillingManagement() {
       console.error('Error performing bulk action:', error);
       setSnackbar({
         open: true,
-        message: 'Failed to perform bulk action',
+        message: `Failed to perform bulk action: ${error.message}`,
         severity: 'error'
       });
     } finally {
@@ -1884,14 +1900,14 @@ export default function BillingManagement() {
               <div class="bank-section">
                 <h5>Philippine Peso Accounts:</h5>
                 <div class="bank-account">
-                  <p><strong>Account Name:</strong> Inspire Next Global Inc.</p>
-                  <p><strong>Bank Name:</strong> Bank of the Philippine Island</p>
-                  <p><strong>Account Number:</strong> 0061-000883</p>
+                  <p><strong>Account Name:</strong> Inspire Holdings Incorporated</p>
+                  <p><strong>Bank Name:</strong> BDO</p>
+                  <p><strong>Account Number:</strong> 11868006353</p>
                 </div>
                 <div class="bank-account">
-                  <p><strong>Account Name:</strong> Inspire Next Global Inc.</p>
+                  <p><strong>Account Name:</strong> Inspire Holdings Incorporated</p>
                   <p><strong>Bank Name:</strong> Union Bank of the Philippines</p>
-                  <p><strong>Account Number:</strong> 00-1560012010</p>
+                  <p><strong>Account Number:</strong> 00-1970005625</p>
                 </div>
               </div>
               <div class="bank-section">
@@ -2232,14 +2248,14 @@ export default function BillingManagement() {
               <div class="bank-section">
                 <h5>Philippine Peso Accounts:</h5>
                 <div class="bank-account">
-                  <p><strong>Account Name:</strong> Inspire Next Global Inc.</p>
-                  <p><strong>Bank Name:</strong> Bank of the Philippine Island</p>
-                  <p><strong>Account Number:</strong> 0061-000883</p>
+                  <p><strong>Account Name:</strong> Inspire Holdings Incorporated</p>
+                  <p><strong>Bank Name:</strong> BDO</p>
+                  <p><strong>Account Number:</strong> 11868006353</p>
                 </div>
                 <div class="bank-account">
-                  <p><strong>Account Name:</strong> Inspire Next Global Inc.</p>
+                  <p><strong>Account Name:</strong> Inspire Holdings Incorporated</p>
                   <p><strong>Bank Name:</strong> Union Bank of the Philippines</p>
-                  <p><strong>Account Number:</strong> 00-1560012010</p>
+                  <p><strong>Account Number:</strong> 00-1970005625</p>
                 </div>
               </div>
               <div class="bank-section">
@@ -3454,7 +3470,10 @@ export default function BillingManagement() {
         <DialogActions>
           <Button onClick={() => setShowBulkActionsDialog(false)}>Cancel</Button>
           <Button 
-            onClick={handleBulkAction} 
+            onClick={() => {
+              console.log('Button clicked, bulkAction:', bulkAction, 'selectedBills:', selectedBills);
+              handleBulkAction();
+            }} 
             variant="contained" 
             color="primary"
             disabled={!bulkAction || loadingStates.bulkAction}

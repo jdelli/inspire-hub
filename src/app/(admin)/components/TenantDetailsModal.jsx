@@ -72,6 +72,7 @@ export default function TenantDetailsModal({
     }
   };
 
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'paid':
@@ -501,6 +502,8 @@ export default function TenantDetailsModal({
             )}
           </Box>
         )}
+
+
       </DialogContent>
       <DialogActions sx={{ p: 3, pt: 0 }}>
         <Button onClick={onClose} color="primary" variant="outlined">

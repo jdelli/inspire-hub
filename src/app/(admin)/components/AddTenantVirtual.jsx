@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { db } from "../../../../script/firebaseConfig";
 import { collection, addDoc } from "firebase/firestore";
+import { generateLeaseContract, generateLeaseContractFromTemplate, generateContractHTML, saveContractToFirebase, exportContractAsPDF, exportContractAsExcel } from "../utils/contractGenerator";
 import {
   Dialog,
   DialogTitle,
@@ -149,6 +150,9 @@ export default function AddVirtualOfficeTenantModal({
   const [openSuccess, setOpenSuccess] = useState(false);
   const [openError, setOpenError] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [showContractModal, setShowContractModal] = useState(false);
+  const [generatedContract, setGeneratedContract] = useState(null);
+  const [contractHTML, setContractHTML] = useState("");
   const nameRef = useRef(null);
 
   // Effect to calculate initial billing end date and due date when modal opens
@@ -239,13 +243,28 @@ export default function AddVirtualOfficeTenantModal({
         type: "virtual-office", // Optionally tag as virtual office
         status: "active",
       };
-      await addDoc(collection(db, "virtualOffice"), tenantData);
-      // show success briefly, refresh, then close modal
+      
+      // Add tenant to database
+      const docRef = await addDoc(collection(db, "virtualOffice"), tenantData);
+      const tenantId = docRef.id;
+      
+      // Generate contract (try template first, fallback to default)
+      const contract = await generateLeaseContractFromTemplate(tenantData, 'virtual');
+      const contractHTMLContent = contract.templateBased ? contract.content : generateContractHTML(contract);
+      
+      // Save contract to Firebase
+      await saveContractToFirebase(contract, tenantId, db);
+      
+      // Set contract data for display
+      setGeneratedContract(contract);
+      setContractHTML(contractHTMLContent);
+      
+      // show success briefly, refresh, then show contract
       setOpenSuccess(true);
       refreshClients();
       setTimeout(() => {
         setOpenSuccess(false);
-        handleClose();
+        setShowContractModal(true);
       }, 700);
     } catch (error) {
       console.error("Error adding virtual office tenant: ", error);
@@ -258,6 +277,9 @@ export default function AddVirtualOfficeTenantModal({
 
   const handleClose = () => {
     setShowAddModal(false);
+    setShowContractModal(false);
+    setGeneratedContract(null);
+    setContractHTML("");
     setNewTenant({
       name: "",
       company: "",
@@ -288,6 +310,26 @@ export default function AddVirtualOfficeTenantModal({
       billingRate: false,
       monthsToAvail: false,
     });
+  };
+
+  const handlePrintContract = () => {
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(contractHTML);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
+
+  const handleDownloadContract = () => {
+    const blob = new Blob([contractHTML], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Contract_${newTenant.company || newTenant.name}_${new Date().toISOString().split('T')[0]}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const handleInputChange = (field, value) => {
@@ -850,6 +892,152 @@ export default function AddVirtualOfficeTenantModal({
       <Snackbar open={openError} autoHideDuration={4000} onClose={() => setOpenError(false)} TransitionComponent={Slide} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
         <Alert severity="error" sx={{ width: '100%' }}>{errorMessage || 'Failed to add tenant'}</Alert>
       </Snackbar>
+
+      {/* Contract Generation Modal */}
+      <Dialog
+        open={showContractModal}
+        onClose={() => setShowContractModal(false)}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: { 
+            maxHeight: "95vh", 
+            borderRadius: 4,
+            boxShadow: 24
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            background: 'primary.main',
+            color: 'black',
+            borderBottom: `1px solid ${grey[200]}`,
+            py: 3,
+            px: 4,
+          }}
+        >
+          <Box display="flex" alignItems="center">
+            <Avatar 
+              sx={{ 
+                bgcolor: 'rgba(0,0,0,0.2)', 
+                mr: 2, 
+                width: 40, 
+                height: 40,
+              }}
+            >
+              <ReceiptIcon fontSize="medium" />
+            </Avatar>
+            <Box>
+              <Typography variant="h5" fontWeight={700} sx={{ mb: 0.5 }}>
+                Lease Contract Generated
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Contract for {newTenant.company || newTenant.name}
+              </Typography>
+            </Box>
+          </Box>
+          <IconButton
+            onClick={() => setShowContractModal(false)}
+            aria-label="close"
+            size="large"
+            sx={{
+              color: 'black',
+              "&:hover": { 
+                bgcolor: 'rgba(0,0,0,0.1)',
+              },
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        
+        <DialogContent sx={{ p: 0, overflow: 'hidden' }}>
+          <Box sx={{ height: '70vh', overflow: 'auto' }}>
+            <iframe
+              srcDoc={contractHTML}
+              style={{
+                width: '100%',
+                height: '100%',
+                border: 'none',
+                borderRadius: '8px'
+              }}
+              title="Generated Contract"
+            />
+          </Box>
+        </DialogContent>
+        
+        <DialogActions sx={{ 
+          p: 4, 
+          borderTop: `1px solid ${theme.palette.divider}`,
+          bgcolor: 'background.paper',
+          gap: 2
+        }}>
+          <Button
+            onClick={() => setShowContractModal(false)}
+            variant="outlined"
+            startIcon={<CloseIcon />}
+            sx={{
+              px: 3,
+              py: 1.5,
+              borderRadius: 1,
+              textTransform: 'none',
+              fontWeight: 500,
+              fontSize: '0.875rem',
+              borderColor: grey[300],
+              color: grey[700],
+              "&:hover": { 
+                borderColor: grey[400],
+                bgcolor: grey[50],
+              },
+            }}
+          >
+            Close
+          </Button>
+          <Button
+            onClick={handleDownloadContract}
+            variant="outlined"
+            startIcon={<ReceiptIcon />}
+            sx={{
+              px: 3,
+              py: 1.5,
+              borderRadius: 1,
+              textTransform: 'none',
+              fontWeight: 500,
+              fontSize: '0.875rem',
+              borderColor: blue[300],
+              color: blue[700],
+              "&:hover": { 
+                borderColor: blue[400],
+                bgcolor: blue[50],
+              },
+            }}
+          >
+            Download Contract
+          </Button>
+          <Button
+            onClick={handlePrintContract}
+            variant="contained"
+            startIcon={<ReceiptIcon />}
+            sx={{
+              px: 3,
+              py: 1.5,
+              borderRadius: 1,
+              bgcolor: 'primary.main',
+              textTransform: 'none',
+              fontWeight: 500,
+              fontSize: '0.875rem',
+              "&:hover": { 
+                bgcolor: 'primary.dark',
+              },
+            }}
+          >
+            Print Contract
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   );
 }
