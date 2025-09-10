@@ -1707,7 +1707,7 @@ export default function BillingExportComponent({ open, onClose, onExportComplete
                 onChange={() => setShowAdvancedOptions(!showAdvancedOptions)}
                 sx={{ mt: 2 }}
               >
-                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>``
                   <Box display="flex" alignItems="center" gap={1}>
                     <AutoAwesomeIcon color="primary" />
                     <Typography variant="h6" color="primary">Advanced Options</Typography>

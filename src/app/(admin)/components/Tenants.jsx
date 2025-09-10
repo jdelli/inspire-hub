@@ -14,6 +14,9 @@ import TenantDetailsModal from "./TenantDetailsModal";
 import ExtensionBillingModal from "./ExtensionBillingModal";
 import AddTenantVirtual from "./AddTenantVirtual";
 import EditTenantModal from "./EditTenantModal";
+import PDFContractGenerator from "./PDFContractGenerator";
+import PublicDocsContractGenerator from "./PublicDocsContractGenerator";
+import ContractGenerator from "./ContractGenerator";
 import {
   Box,
   Button,
@@ -60,6 +63,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import InfoIcon from "@mui/icons-material/Info";
+import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import { blue, green, grey, red, purple } from "@mui/material/colors";
 import { getAuth, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
 
@@ -130,6 +134,10 @@ export default function SeatMapTable() {
     password: "",
     error: "",
   });
+  const [showPDFContractGenerator, setShowPDFContractGenerator] = useState(false);
+  const [showPublicDocsContractGenerator, setShowPublicDocsContractGenerator] = useState(false);
+  const [showContractGenerator, setShowContractGenerator] = useState(false);
+  const [selectedTenantForContract, setSelectedTenantForContract] = useState(null);
 
 
 
@@ -356,6 +364,24 @@ export default function SeatMapTable() {
 
   const cancelAction = () => {
     setConfirmDialog({ open: false, client: null, type: null, action: null, password: "", error: "" });
+  };
+
+  const handleGeneratePDFContract = (client) => {
+    const tenantType = tabIndex === 0 ? "dedicated" : tabIndex === 1 ? "private" : "virtual";
+    setSelectedTenantForContract({ ...client, contractType: tenantType });
+    setShowPDFContractGenerator(true);
+  };
+
+  const handleGeneratePublicDocsContract = (client) => {
+    const tenantType = tabIndex === 0 ? "dedicated" : tabIndex === 1 ? "private" : "virtual";
+    setSelectedTenantForContract({ ...client, contractType: tenantType });
+    setShowPublicDocsContractGenerator(true);
+  };
+
+  const handleGenerateContract = (client) => {
+    const tenantType = tabIndex === 0 ? "dedicated" : tabIndex === 1 ? "private" : "virtual";
+    setSelectedTenantForContract({ ...client, contractType: tenantType });
+    setShowContractGenerator(true);
   };
 
   const dedicatedDeskClients = clients.filter(
@@ -654,6 +680,7 @@ export default function SeatMapTable() {
             </Card>
           </Grid>
         </Grid>
+
       </Box>
 
       {/* Enhanced Tabs */}
@@ -901,6 +928,24 @@ export default function SeatMapTable() {
                             }}
                           >
                             Details
+                          </Button>
+                          <Button
+                            size="small"
+                            startIcon={<PictureAsPdfIcon fontSize="small" />}
+                            sx={{ 
+                              color: grey[700],
+                              textTransform: 'none',
+                              fontSize: '0.75rem',
+                              py: 0.5,
+                              px: 1,
+                              minWidth: 'auto',
+                              '&:hover': { 
+                                bgcolor: grey[100],
+                              },
+                            }}
+                            onClick={() => handleGenerateContract(client)}
+                          >
+                            Contract
                           </Button>
                           <Button
                             size="small"
@@ -1201,6 +1246,31 @@ export default function SeatMapTable() {
           </Button>
         </DialogActions>
       </Dialog>
+
+
+      {/* PDF Contract Generator */}
+      <PDFContractGenerator
+        open={showPDFContractGenerator}
+        onClose={() => setShowPDFContractGenerator(false)}
+        tenant={selectedTenantForContract}
+        templateType={selectedTenantForContract?.contractType}
+      />
+
+      {/* Public Docs Contract Generator */}
+      <PublicDocsContractGenerator
+        open={showPublicDocsContractGenerator}
+        onClose={() => setShowPublicDocsContractGenerator(false)}
+        tenant={selectedTenantForContract}
+        templateType={selectedTenantForContract?.contractType}
+      />
+
+      {/* Contract Generator */}
+      <ContractGenerator
+        open={showContractGenerator}
+        onClose={() => setShowContractGenerator(false)}
+        tenant={selectedTenantForContract}
+        templateType={selectedTenantForContract?.contractType}
+      />
     </Box>
   );
 }
