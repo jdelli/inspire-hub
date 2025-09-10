@@ -99,6 +99,7 @@ const PublicDocsContractGenerator = ({ open, onClose, tenant, templateType = 'de
       phone: tenant.phone || '',
       address: tenant.address || '',
       position: tenant.position || 'Business Owner',
+      citizenship: tenant.citizenship || tenant.nationality || '',
       idNumber: tenant.idNumber || '',
       taxId: tenant.taxId || '',
       billing: {
@@ -170,39 +171,73 @@ const PublicDocsContractGenerator = ({ open, onClose, tenant, templateType = 'de
     const endDate = calculateEndDate(startDate, monthsToAvail);
     
     const variables = {
-      '{{tenant.name}}': data.name || '',
-      '{{tenant.company}}': data.company || '',
-      '{{tenant.email}}': data.email || '',
-      '{{tenant.phone}}': data.phone || '',
-      '{{tenant.address}}': data.address || '',
+      // Tenant information
+      '{{tenant.name}}': data.name || '[CLIENT NAME]',
+      '{{tenant.company}}': data.company || '[CLIENT COMPANY]',
+      '{{tenant.email}}': data.email || '[CLIENT EMAIL]',
+      '{{tenant.phone}}': data.phone || '[CLIENT PHONE]',
+      '{{tenant.address}}': data.address || '[CLIENT ADDRESS]',
       '{{tenant.position}}': data.position || 'Business Owner',
-      '{{tenant.idNumber}}': data.idNumber || '',
-      '{{tenant.taxId}}': data.taxId || '',
+      '{{tenant.citizenship}}': data.citizenship || '',
+      '{{tenant.idNumber}}': data.idNumber || '[ID NUMBER]',
+      '{{tenant.taxId}}': data.taxId || '[TAX ID]',
+      
+      // Contract information
       '{{contract.startDate}}': startDate,
       '{{contract.endDate}}': endDate,
       '{{contract.duration}}': `${monthsToAvail} months`,
       '{{contract.type}}': type.charAt(0).toUpperCase() + type.slice(1) + ' Office',
+      '{{contract.number}}': generateContractNumber(data, type),
+      '{{contract.date}}': currentDate,
+      '{{contract.location}}': 'Taguig City, Philippines',
       '{{contract.seats}}': getSelectedSeats(data),
       '{{contract.renewal}}': 'Subject to mutual agreement and 45-day advance notice',
       '{{contract.termination}}': '30 days written notice required',
+      
+      // Financial information
       '{{billing.monthlyRate}}': formatCurrency(data.billing?.rate || 0),
+      '{{billing.monthlyRent}}': formatNumber(data.billing?.rate || 0),
+      '{{billing.cusaFee}}': formatNumber(data.billing?.cusaFee || 0),
+      '{{billing.parkingFee}}': formatNumber(data.billing?.parkingFee || 0),
+      '{{billing.totalMonthly}}': formatCurrency(getTotalMonthly(data.billing)),
       '{{billing.totalAmount}}': formatCurrency(getTotalAmount(data.billing)),
+      '{{billing.securityDeposit}}': formatCurrency((data.billing?.rate || 0) * 2),
+      '{{billing.advanceRental}}': formatCurrency((data.billing?.rate || 0) * 2),
+      '{{billing.totalInitial}}': formatCurrency(((data.billing?.rate || 0) * 4)),
       '{{billing.paymentMethod}}': data.billing?.paymentMethod || 'Bank Transfer',
       '{{billing.paymentTerms}}': data.billing?.paymentTerms || 'Monthly, due at end of each month',
+      '{{billing.paymentDate}}': currentDate,
       '{{billing.deposit}}': formatCurrency((data.billing?.rate || 0) * 2),
       '{{billing.lateFee}}': data.billing?.lateFee || '5% per month',
       '{{billing.currency}}': 'PHP',
+      
+      // Office information
       '{{office.location}}': 'INSPIRE HOLDINGS INC., 6th Floor, Alliance Global Tower, BGC, Taguig',
+      '{{office.fullAddress}}': '6th Floor, Alliance Global Tower, 11th Avenue, corner 36th St. Bonifacio Global City, Taguig City',
       '{{office.amenities}}': 'High-speed internet, meeting rooms, reception services, cleaning services',
       '{{office.access}}': 'Monday to Friday, 9:00 AM to 6:00 PM',
+      
+      // Company information
       '{{system.companyName}}': 'INSPIRE HOLDINGS INC.',
       '{{system.legalName}}': 'INSPIRE HOLDINGS INC.',
       '{{system.companyAddress}}': '6th Floor, Alliance Global Tower, 11th Avenue, corner 36th Street, Bonifacio Global City, Taguig',
+      '{{system.phone}}': '+63 (02) 123-4567',
+      '{{system.email}}': 'info@inspirehub.ph',
+      '{{system.ceoName}}': 'PATRICK PEREZ',
       '{{system.registration}}': 'SEC Registration: CS200XXXXXX',
       '{{system.taxId}}': 'TIN: XXX-XXX-XXX-XXX',
+      
+      // Date information
       '{{date.today}}': currentDate,
       '{{date.signature}}': currentDate,
-      '{{date.effective}}': startDate
+      '{{date.effective}}': startDate,
+      '{{date.notary}}': currentDate,
+      
+      // Notary information
+      '{{notary.docNo}}': generateDocNumber(),
+      '{{notary.pageNo}}': '1',
+      '{{notary.bookNo}}': generateBookNumber(),
+      '{{notary.location}}': 'Taguig City'
     };
     
     let content = template;
@@ -315,6 +350,50 @@ const PublicDocsContractGenerator = ({ open, onClose, tenant, templateType = 'de
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     })}`;
+  };
+
+  const formatNumber = (amount) => {
+    if (!amount || isNaN(amount)) return "0";
+    return parseFloat(amount).toLocaleString('en-PH', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    });
+  };
+
+  const generateContractNumber = (data, type) => {
+    const date = new Date();
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    
+    const typePrefix = {
+      'dedicated': 'DD',
+      'private': 'PO',
+      'virtual': 'VO'
+    }[type] || 'WS';
+    
+    const tenantInitials = data.name 
+      ? data.name.split(' ').map(n => n[0]).join('').toUpperCase()
+      : 'TENANT';
+    
+    return `${typePrefix}-${year}${month}${day}-${tenantInitials}`;
+  };
+
+  const generateDocNumber = () => {
+    const date = new Date();
+    const year = date.getFullYear().toString().slice(-2);
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const random = Math.floor(Math.random() * 999).toString().padStart(3, '0');
+    
+    return `DOC-${year}${month}${day}-${random}`;
+  };
+
+  const generateBookNumber = () => {
+    const year = new Date().getFullYear();
+    const bookNumber = Math.floor(Math.random() * 99) + 1;
+    
+    return `${bookNumber}/${year}`;
   };
 
   const calculateEndDate = (startDate, months) => {
@@ -507,6 +586,15 @@ const PublicDocsContractGenerator = ({ open, onClose, tenant, templateType = 'de
                   
                   <TextField
                     fullWidth
+                    label="Citizenship"
+                    value={tenantData.citizenship || ''}
+                    onChange={(e) => updateTenantData('citizenship', e.target.value)}
+                    size="small"
+                    placeholder="e.g., Filipino, American, Japanese"
+                  />
+                  
+                  <TextField
+                    fullWidth
                     label="Email"
                     value={tenantData.email || ''}
                     onChange={(e) => updateTenantData('email', e.target.value)}
@@ -594,26 +682,6 @@ const PublicDocsContractGenerator = ({ open, onClose, tenant, templateType = 'de
                       Contract generated successfully!
                     </Alert>
                     
-                    <Stack spacing={1}>
-                      <Button
-                        variant="contained"
-                        onClick={handlePreview}
-                        startIcon={<PreviewIcon />}
-                        fullWidth
-                      >
-                        Preview Contract
-                      </Button>
-                      
-                      <Button
-                        variant="outlined"
-                        onClick={handleDownload}
-                        startIcon={<DownloadIcon />}
-                        fullWidth
-                      >
-                        Download Contract
-                      </Button>
-                    </Stack>
-                    
                     <Divider sx={{ my: 2 }} />
                     
                     <List dense>
@@ -658,16 +726,6 @@ const PublicDocsContractGenerator = ({ open, onClose, tenant, templateType = 'de
       
       <DialogActions>
         <Button onClick={onClose}>Close</Button>
-        {generatedContract && (
-          <>
-            <Button onClick={handlePreview} startIcon={<PreviewIcon />}>
-              Preview
-            </Button>
-            <Button onClick={handleDownload} variant="contained" startIcon={<DownloadIcon />}>
-              Download
-            </Button>
-          </>
-        )}
       </DialogActions>
     </Dialog>
   );

@@ -1900,14 +1900,14 @@ export default function BillingManagement() {
               <div class="bank-section">
                 <h5>Philippine Peso Accounts:</h5>
                 <div class="bank-account">
-                  <p><strong>Account Name:</strong> Inspire Next Global Inc.</p>
-                  <p><strong>Bank Name:</strong> Bank of the Philippine Island</p>
-                  <p><strong>Account Number:</strong> 0061-000883</p>
+                  <p><strong>Account Name:</strong> Inspire Holdings Incorporated</p>
+                  <p><strong>Bank Name:</strong> BDO</p>
+                  <p><strong>Account Number:</strong> 11868006353</p>
                 </div>
                 <div class="bank-account">
-                  <p><strong>Account Name:</strong> Inspire Next Global Inc.</p>
+                  <p><strong>Account Name:</strong> Inspire Holdings Incorporated</p>
                   <p><strong>Bank Name:</strong> Union Bank of the Philippines</p>
-                  <p><strong>Account Number:</strong> 00-1560012010</p>
+                  <p><strong>Account Number:</strong> 00-1970005625</p>
                 </div>
               </div>
               <div class="bank-section">
@@ -2248,14 +2248,14 @@ export default function BillingManagement() {
               <div class="bank-section">
                 <h5>Philippine Peso Accounts:</h5>
                 <div class="bank-account">
-                  <p><strong>Account Name:</strong> Inspire Next Global Inc.</p>
-                  <p><strong>Bank Name:</strong> Bank of the Philippine Island</p>
-                  <p><strong>Account Number:</strong> 0061-000883</p>
+                  <p><strong>Account Name:</strong> Inspire Holdings Incorporated</p>
+                  <p><strong>Bank Name:</strong> BDO</p>
+                  <p><strong>Account Number:</strong> 11868006353</p>
                 </div>
                 <div class="bank-account">
-                  <p><strong>Account Name:</strong> Inspire Next Global Inc.</p>
+                  <p><strong>Account Name:</strong> Inspire Holdings Incorporated</p>
                   <p><strong>Bank Name:</strong> Union Bank of the Philippines</p>
-                  <p><strong>Account Number:</strong> 00-1560012010</p>
+                  <p><strong>Account Number:</strong> 00-1970005625</p>
                 </div>
               </div>
               <div class="bank-section">

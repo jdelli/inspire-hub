@@ -6,7 +6,8 @@
       "Bash(curl:*)",
       "Bash(powershell:*)",
       "Bash(del extract_docx.ps1)",
-      "Bash(Remove-Item extract_docx.ps1)"
+      "Bash(Remove-Item extract_docx.ps1)",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": []

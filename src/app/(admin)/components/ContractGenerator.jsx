@@ -47,9 +47,11 @@ import {
   Error as ErrorIcon,
   Info as InfoIcon,
   Close as CloseIcon,
-  Print as PrintIcon
+  Print as PrintIcon,
+  Receipt as ReceiptIcon
 } from '@mui/icons-material';
 import ContractTemplate from './ContractTemplate';
+import InvoiceTemplate from './InvoiceTemplate';
 import { mapTenantToContractData, validateTenantForContract, getContractPreviewData } from '../utils/contractDataMapper';
 
 const ContractGenerator = ({ open, onClose, tenant, templateType = 'dedicated' }) => {
@@ -59,6 +61,8 @@ const ContractGenerator = ({ open, onClose, tenant, templateType = 'dedicated' }
   const [processing, setProcessing] = useState(false);
   const [result, setResult] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [showInvoice, setShowInvoice] = useState(false);
+  const [invoiceData, setInvoiceData] = useState({});
 
   useEffect(() => {
     if (open && tenant) {
@@ -155,82 +159,175 @@ const ContractGenerator = ({ open, onClose, tenant, templateType = 'dedicated' }
     }
   };
 
-  const handleDownloadPDF = () => {
+
+  const handlePrintContract = () => {
     if (!contractData || !contractData.clientName) {
       setResult({
         type: 'error',
-        message: 'No contract data to download. Please generate a contract first.'
+        message: 'No contract data to print. Please generate a contract first.'
       });
       return;
     }
 
     try {
-      // Create a new window with the contract content
-      const printWindow = window.open('', '_blank');
-      const contractHTML = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Contract - ${contractData.clientName}</title>
-            <style>
-              @page { 
-                size: A4; 
-                margin: 15mm; 
-              }
-              body { 
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-                margin: 0; 
-                padding: 0; 
-                color: #333;
-                line-height: 1.5;
-                font-size: 14px;
-              }
-            </style>
-          </head>
-          <body>
-            <div id="contract-content"></div>
-            <script>
-              // Render the React component
-              const { createElement: h, render } = React;
-              const contractData = ${JSON.stringify(contractData)};
-              const ContractTemplate = ${ContractTemplate.toString()};
-              render(h(ContractTemplate, { contractData, preview: true }), document.getElementById('contract-content'));
-            </script>
-            <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-            <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-          </body>
-        </html>
-      `;
-      
-      printWindow.document.write(contractHTML);
-      printWindow.document.close();
-      
-      // Wait for content to load, then trigger print
-      setTimeout(() => {
-        printWindow.focus();
-        printWindow.print();
-        
-        // Close the window after printing
-        setTimeout(() => {
-          printWindow.close();
-        }, 1000);
-      }, 500);
-      
-      setResult({
-        type: 'success',
-        message: 'Contract PDF generated successfully!'
-      });
+      // Call the print function from ContractTemplate
+      if (window.printContract) {
+        window.printContract();
+        setResult({
+          type: 'success',
+          message: 'Print dialog opened successfully!'
+        });
+      } else {
+        setResult({
+          type: 'error',
+          message: 'Print function is not available. Please try again.'
+        });
+      }
     } catch (error) {
-      console.error('Error generating PDF:', error);
+      console.error('Error printing contract:', error);
       setResult({
         type: 'error',
-        message: `Error generating PDF: ${error.message}`
+        message: `Error printing contract: ${error.message}`
       });
     }
   };
 
   const handlePreview = () => {
     setShowPreview(true);
+  };
+
+  const generateInvoice = () => {
+    if (!contractData || !contractData.clientName) {
+      setResult({
+        type: 'error',
+        message: 'No contract data available. Please generate a contract first.'
+      });
+      return;
+    }
+
+    try {
+      // Calculate amounts
+      const monthlyRate = parseFloat(tenantData.billing?.rate) || 20000;
+      const cusaFee = parseFloat(tenantData.billing?.cusaFee) || 1500;
+      const parkingFee = parseFloat(tenantData.billing?.parkingFee) || 10000;
+
+      // Generate invoice number
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const invoiceNumber = `INV-${year}${month}${day}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+
+      const newInvoiceData = {
+        invoiceNumber,
+        invoiceDate: now.toLocaleDateString('en-PH'),
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-PH'),
+        clientName: contractData.clientName,
+        clientCompany: tenantData.company || '',
+        clientAddress: contractData.clientAddress || tenantData.address,
+        clientEmail: contractData.clientEmail || tenantData.email,
+        clientPhone: contractData.clientPhone || tenantData.phone,
+        contractNumber: contractData.contractNumber,
+        workspaceType: getWorkspaceTypeForInvoice(),
+        monthlyRate,
+        cusaFee,
+        parkingFee,
+        advanceMonths: 2,
+        securityMonths: 2,
+        startDate: contractData.startDate,
+        endDate: contractData.endDate,
+        paymentMethod: tenantData.billing?.paymentMethod || 'Bank Transfer'
+      };
+
+      setInvoiceData(newInvoiceData);
+      setShowInvoice(true);
+      
+      setResult({
+        type: 'success',
+        message: 'Invoice generated successfully!'
+      });
+    } catch (error) {
+      console.error('Error generating invoice:', error);
+      setResult({
+        type: 'error',
+        message: `Error generating invoice: ${error.message}`
+      });
+    }
+  };
+
+  const getWorkspaceTypeForInvoice = () => {
+    switch (templateType) {
+      case 'dedicated':
+        return 'Dedicated Desk';
+      case 'private':
+        return 'Private Office';
+      case 'virtual':
+        return 'Virtual Office';
+      default:
+        return 'Workspace';
+    }
+  };
+
+  const handlePrintInvoice = () => {
+    if (!invoiceData || !invoiceData.clientName) {
+      setResult({
+        type: 'error',
+        message: 'No invoice data to print. Please generate an invoice first.'
+      });
+      return;
+    }
+
+    try {
+      if (window.printInvoice) {
+        window.printInvoice();
+        setResult({
+          type: 'success',
+          message: 'Invoice print dialog opened successfully!'
+        });
+      } else {
+        setResult({
+          type: 'error',
+          message: 'Print function is not available. Please try again.'
+        });
+      }
+    } catch (error) {
+      console.error('Error printing invoice:', error);
+      setResult({
+        type: 'error',
+        message: `Error printing invoice: ${error.message}`
+      });
+    }
+  };
+
+  const handleDownloadInvoicePDF = () => {
+    if (!invoiceData || !invoiceData.clientName) {
+      setResult({
+        type: 'error',
+        message: 'No invoice data to download. Please generate an invoice first.'
+      });
+      return;
+    }
+
+    try {
+      if (window.exportInvoiceAsPDF) {
+        window.exportInvoiceAsPDF();
+        setResult({
+          type: 'success',
+          message: 'Invoice PDF generated successfully!'
+        });
+      } else {
+        setResult({
+          type: 'error',
+          message: 'PDF export function is not available. Please try again.'
+        });
+      }
+    } catch (error) {
+      console.error('Error generating invoice PDF:', error);
+      setResult({
+        type: 'error',
+        message: `Error generating invoice PDF: ${error.message}`
+      });
+    }
   };
 
   const formatCurrency = (amount) => {
@@ -491,26 +588,6 @@ const ContractGenerator = ({ open, onClose, tenant, templateType = 'dedicated' }
                   
                   {contractData.clientName && contractData.clientName !== '[CLIENT NAME]' && (
                     <Box>
-                      <Stack spacing={1}>
-                        <Button
-                          variant="outlined"
-                          onClick={handlePreview}
-                          startIcon={<PreviewIcon />}
-                          fullWidth
-                        >
-                          Preview Contract
-                        </Button>
-                        
-                        <Button
-                          variant="contained"
-                          onClick={handleDownloadPDF}
-                          startIcon={<PdfIcon />}
-                          fullWidth
-                        >
-                          Download PDF
-                        </Button>
-                      </Stack>
-                      
                       <Divider sx={{ my: 2 }} />
                       
                       <Typography variant="caption" color="text.secondary">
@@ -539,6 +616,21 @@ const ContractGenerator = ({ open, onClose, tenant, templateType = 'dedicated' }
                           />
                         </ListItem>
                       </List>
+                      
+                      <Divider sx={{ my: 2 }} />
+                      
+                      <Box>
+                        <Button
+                          variant="outlined"
+                          onClick={generateInvoice}
+                          disabled={!contractData.clientName || contractData.clientName === '[CLIENT NAME]'}
+                          fullWidth
+                          startIcon={<ReceiptIcon />}
+                          sx={{ mb: 1 }}
+                        >
+                          Generate Invoice
+                        </Button>
+                      </Box>
                     </Box>
                   )}
                 </CardContent>
@@ -558,16 +650,6 @@ const ContractGenerator = ({ open, onClose, tenant, templateType = 'dedicated' }
         
         <DialogActions>
           <Button onClick={onClose}>Close</Button>
-          {contractData.clientName && contractData.clientName !== '[CLIENT NAME]' && (
-            <>
-              <Button onClick={handlePreview} startIcon={<PreviewIcon />}>
-                Preview
-              </Button>
-              <Button onClick={handleDownloadPDF} variant="contained" startIcon={<PdfIcon />}>
-                Download PDF
-              </Button>
-            </>
-          )}
         </DialogActions>
       </Dialog>
 
@@ -589,11 +671,12 @@ const ContractGenerator = ({ open, onClose, tenant, templateType = 'dedicated' }
             <Typography variant="h6">Contract Preview</Typography>
             <Box>
               <Button
-                onClick={handleDownloadPDF}
-                startIcon={<PdfIcon />}
+                onClick={handlePrintContract}
+                startIcon={<PrintIcon />}
                 sx={{ mr: 1 }}
+                variant="outlined"
               >
-                Download PDF
+                Print
               </Button>
               <IconButton onClick={() => setShowPreview(false)} size="small">
                 <CloseIcon />
@@ -602,8 +685,66 @@ const ContractGenerator = ({ open, onClose, tenant, templateType = 'dedicated' }
           </Box>
         </DialogTitle>
         <DialogContent dividers sx={{ p: 0 }}>
-          <Box sx={{ p: 2 }}>
+          <Box sx={{ 
+            p: 2,
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '12pt',
+            lineHeight: 1.4,
+            maxWidth: '210mm', // A4 width
+            margin: '0 auto',
+            backgroundColor: '#fff'
+          }}>
             <ContractTemplate contractData={contractData} preview={true} />
+          </Box>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invoice Preview Dialog */}
+      <Dialog 
+        open={showInvoice} 
+        onClose={() => setShowInvoice(false)} 
+        maxWidth="lg" 
+        fullWidth
+        PaperProps={{
+          sx: { 
+            maxHeight: '90vh',
+            borderRadius: 1,
+          }
+        }}
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" justifyContent="space-between">
+            <Typography variant="h6">Invoice Preview</Typography>
+            <Box>
+              <Button
+                onClick={handlePrintInvoice}
+                startIcon={<PrintIcon />}
+                sx={{ mr: 1 }}
+                variant="outlined"
+              >
+                Print
+              </Button>
+              <IconButton onClick={() => setShowInvoice(false)} size="small">
+                <CloseIcon />
+              </IconButton>
+            </Box>
+          </Box>
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: 0 }}>
+          <Box sx={{ 
+            p: 2,
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '12px',
+            lineHeight: 1.4,
+            maxWidth: '210mm',
+            margin: '0 auto',
+            backgroundColor: '#fff'
+          }}>
+            {invoiceData && Object.keys(invoiceData).length > 0 ? (
+              <InvoiceTemplate invoiceData={invoiceData} preview={true} />
+            ) : (
+              <Typography>Loading invoice data...</Typography>
+            )}
           </Box>
         </DialogContent>
       </Dialog>

@@ -14,7 +14,6 @@ import TenantDetailsModal from "./TenantDetailsModal";
 import ExtensionBillingModal from "./ExtensionBillingModal";
 import AddTenantVirtual from "./AddTenantVirtual";
 import EditTenantModal from "./EditTenantModal";
-import TemplateUploadDialog from "./TemplateUploadDialog";
 import PDFContractGenerator from "./PDFContractGenerator";
 import PublicDocsContractGenerator from "./PublicDocsContractGenerator";
 import ContractGenerator from "./ContractGenerator";
@@ -64,7 +63,6 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import InfoIcon from "@mui/icons-material/Info";
-import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import { blue, green, grey, red, purple } from "@mui/material/colors";
 import { getAuth, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
@@ -119,7 +117,6 @@ export default function SeatMapTable() {
   const [showTenantDetails, setShowTenantDetails] = useState(false);
   const [tenantDetailsClient, setTenantDetailsClient] = useState(null);
   const [addModalType, setAddModalType] = useState("dedicated");
-  const [showTemplateUpload, setShowTemplateUpload] = useState(false);
   const [tabIndex, setTabIndex] = useState(0);
   const [page, setPage] = useState([1, 1, 1]);
   const [isPrivateTabLoaded, setIsPrivateTabLoaded] = useState(false);
@@ -684,24 +681,6 @@ export default function SeatMapTable() {
           </Grid>
         </Grid>
 
-        {/* Template Upload Button */}
-        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'flex-end' }}>
-          <Button
-            variant="outlined"
-            startIcon={<CloudUploadIcon />}
-            onClick={() => setShowTemplateUpload(true)}
-            sx={{
-              borderColor: 'primary.main',
-              color: 'primary.main',
-              '&:hover': {
-                borderColor: 'primary.dark',
-                backgroundColor: 'primary.50',
-              },
-            }}
-          >
-            Upload Contract Template
-          </Button>
-        </Box>
       </Box>
 
       {/* Enhanced Tabs */}
@@ -1268,11 +1247,6 @@ export default function SeatMapTable() {
         </DialogActions>
       </Dialog>
 
-      {/* Template Upload Dialog */}
-      <TemplateUploadDialog
-        open={showTemplateUpload}
-        onClose={() => setShowTemplateUpload(false)}
-      />
 
       {/* PDF Contract Generator */}
       <PDFContractGenerator

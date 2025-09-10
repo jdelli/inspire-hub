@@ -39,16 +39,6 @@ import WarningIcon from "@mui/icons-material/Warning";
 import ScheduleIcon from "@mui/icons-material/Schedule";
 import TenantExtensionHistory from "./TenantExtensionHistory";
 import { getTenantBillingHistory, formatPHP } from "../utils/billingService";
-import { getTenantContracts, generateContractHTML, generateLeaseContract, generateLeaseContractFromTemplate, saveContractToFirebase, exportContractAsPDF, exportContractAsExcel, contractGeneratorDocx } from "../utils/contractGenerator";
-import DownloadIcon from "@mui/icons-material/Download";
-import DOCXContractGenerator from "./DOCXContractGenerator";
-import DescriptionIcon from "@mui/icons-material/Description";
-import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
-import TableChartIcon from "@mui/icons-material/TableChart";
-import Menu from "@mui/material/Menu";
-import MenuItem from "@mui/material/MenuItem";
-import ListItemIcon from "@mui/material/ListItemIcon";
-import ListItemText from "@mui/material/ListItemText";
 
 export default function TenantDetailsModal({
   open,
@@ -60,17 +50,11 @@ export default function TenantDetailsModal({
   const [activeTab, setActiveTab] = useState(0);
   const [billingHistory, setBillingHistory] = useState([]);
   const [loadingBillingHistory, setLoadingBillingHistory] = useState(false);
-  const [contracts, setContracts] = useState([]);
-  const [loadingContracts, setLoadingContracts] = useState(false);
-  const [generatingContract, setGeneratingContract] = useState(false);
-  const [downloadMenuAnchor, setDownloadMenuAnchor] = useState(null);
-  const [selectedContract, setSelectedContract] = useState(null);
 
-  // Load billing history and contracts when client changes
+  // Load billing history when client changes
   useEffect(() => {
     if (client?.id) {
       loadBillingHistory();
-      loadContracts();
     }
   }, [client?.id]);
 
@@ -88,91 +72,6 @@ export default function TenantDetailsModal({
     }
   };
 
-  const loadContracts = async () => {
-    if (!client?.id) return;
-    
-    setLoadingContracts(true);
-    try {
-      const tenantContracts = await getTenantContracts(client.id);
-      setContracts(tenantContracts);
-    } catch (error) {
-      console.error('Error loading contracts:', error);
-    } finally {
-      setLoadingContracts(false);
-    }
-  };
-
-  const handleDownloadContract = (contract) => {
-    try {
-      const contractHTML = generateContractHTML(contract);
-      const blob = new Blob([contractHTML], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Contract_${client.company || client.name}_${contract.metadata?.contractId || Date.now()}.html`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Error downloading contract:', error);
-    }
-  };
-
-  const handleDownloadAsPDF = async (contract) => {
-    try {
-      await exportContractAsPDF(contract, client.name, client.company);
-    } catch (error) {
-      console.error('Error downloading PDF:', error);
-    }
-  };
-
-  const handleDownloadAsExcel = (contract) => {
-    try {
-      exportContractAsExcel(contract, client.name, client.company);
-    } catch (error) {
-      console.error('Error downloading Excel:', error);
-    }
-  };
-
-  const handleDownloadMenuOpen = (event, contract) => {
-    setDownloadMenuAnchor(event.currentTarget);
-    setSelectedContract(contract);
-  };
-
-  const handleDownloadMenuClose = () => {
-    setDownloadMenuAnchor(null);
-    setSelectedContract(null);
-  };
-
-  const handleGenerateNewContract = async () => {
-    if (!client?.id) return;
-    
-    setGeneratingContract(true);
-    try {
-      // Determine tenant type
-      let tenantType = 'dedicated';
-      if (client.selectedPO && client.selectedPO.length > 0) {
-        tenantType = 'private';
-      } else if (client.virtualOfficeFeatures && client.virtualOfficeFeatures.length > 0) {
-        tenantType = 'virtual';
-      }
-      
-      // Generate new contract (try template first, fallback to default)
-      const contract = await generateLeaseContractFromTemplate(client, tenantType);
-      
-      // Save to Firebase
-      await saveContractToFirebase(contract, client.id);
-      
-      // Reload contracts
-      await loadContracts();
-      
-    } catch (error) {
-      console.error('Error generating contract:', error);
-    } finally {
-      setGeneratingContract(false);
-    }
-  };
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -357,8 +256,6 @@ export default function TenantDetailsModal({
           <Tab label="Tenant Details" />
           <Tab label="Billing History" />
           <Tab label="Extension History" />
-          <Tab label="Contracts" />
-          <Tab label="Generate Contract (DOCX)" />
         </Tabs>
 
         {/* Tab Content */}
@@ -606,173 +503,7 @@ export default function TenantDetailsModal({
           </Box>
         )}
 
-        {/* Contracts Tab */}
-        {activeTab === 3 && (
-          <Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <DescriptionIcon />
-                Lease Contracts
-              </Typography>
-              {contracts.length > 0 && (
-                <Button
-                  variant="outlined"
-                  startIcon={<DescriptionIcon />}
-                  onClick={handleGenerateNewContract}
-                  disabled={generatingContract}
-                  size="small"
-                >
-                  {generatingContract ? 'Generating...' : 'Generate New'}
-                </Button>
-              )}
-            </Box>
-            
-            {loadingContracts ? (
-              <Box display="flex" justifyContent="center" p={3}>
-                <CircularProgress />
-              </Box>
-            ) : contracts.length === 0 ? (
-              <Box>
-                <Alert severity="info" sx={{ mb: 2 }}>
-                  No contracts found for this tenant. Contracts are automatically generated when tenants are added.
-                </Alert>
-                <Button
-                  variant="contained"
-                  startIcon={<DescriptionIcon />}
-                  onClick={handleGenerateNewContract}
-                  disabled={generatingContract}
-                  color="primary"
-                >
-                  {generatingContract ? 'Generating...' : 'Generate Contract'}
-                </Button>
-              </Box>
-            ) : (
-              <TableContainer component={Paper} variant="outlined">
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Contract ID</TableCell>
-                      <TableCell>Type</TableCell>
-                      <TableCell>Start Date</TableCell>
-                      <TableCell>End Date</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Generated</TableCell>
-                      <TableCell>Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {contracts.map((contract) => (
-                      <TableRow key={contract.id}>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight={600}>
-                            {contract.metadata?.contractId || contract.id}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={contract.metadata?.tenantType?.toUpperCase() || 'UNKNOWN'}
-                            color="primary"
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2">
-                            {contract.contractDetails?.startDate ? new Date(contract.contractDetails.startDate).toLocaleDateString() : 'N/A'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2">
-                            {contract.contractDetails?.endDate ? new Date(contract.contractDetails.endDate).toLocaleDateString() : 'N/A'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={contract.status?.toUpperCase() || 'ACTIVE'}
-                            color={contract.status === 'active' ? 'success' : 'default'}
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2">
-                            {contract.metadata?.generatedAt ? new Date(contract.metadata.generatedAt).toLocaleDateString() : 'N/A'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            size="small"
-                            startIcon={<DownloadIcon />}
-                            onClick={(e) => handleDownloadMenuOpen(e, contract)}
-                            variant="outlined"
-                            color="primary"
-                          >
-                            Download
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
-          </Box>
-        )}
 
-        {/* Download Menu */}
-        <Menu
-          anchorEl={downloadMenuAnchor}
-          open={Boolean(downloadMenuAnchor)}
-          onClose={handleDownloadMenuClose}
-          PaperProps={{
-            sx: {
-              minWidth: 200,
-              borderRadius: 1,
-              boxShadow: 3
-            }
-          }}
-        >
-          <MenuItem 
-            onClick={() => {
-              handleDownloadContract(selectedContract);
-              handleDownloadMenuClose();
-            }}
-          >
-            <ListItemIcon>
-              <DescriptionIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText primary="Download as HTML" />
-          </MenuItem>
-          <MenuItem 
-            onClick={() => {
-              handleDownloadAsPDF(selectedContract);
-              handleDownloadMenuClose();
-            }}
-          >
-            <ListItemIcon>
-              <PictureAsPdfIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText primary="Download as PDF" />
-          </MenuItem>
-          <MenuItem 
-            onClick={() => {
-              handleDownloadAsExcel(selectedContract);
-              handleDownloadMenuClose();
-            }}
-          >
-            <ListItemIcon>
-              <TableChartIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText primary="Download as Excel" />
-          </MenuItem>
-        </Menu>
-
-        {/* DOCX Contract Generator Tab */}
-        {activeTab === 4 && (
-          <Box>
-            <DOCXContractGenerator 
-              tenantData={client}
-            />
-          </Box>
-        )}
       </DialogContent>
       <DialogActions sx={{ p: 3, pt: 0 }}>
         <Button onClick={onClose} color="primary" variant="outlined">

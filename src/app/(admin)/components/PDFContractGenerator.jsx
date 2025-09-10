@@ -487,36 +487,6 @@ const PDFContractGenerator = ({ open, onClose, tenant, templateType = 'dedicated
                       </Box>
                     </Alert>
                     
-                    <Stack spacing={1}>
-                      <Button
-                        variant="contained"
-                        onClick={handlePreview}
-                        startIcon={<PreviewIcon />}
-                        fullWidth
-                      >
-                        Preview PDF
-                      </Button>
-                      
-                      <Button
-                        variant="outlined"
-                        onClick={handleDownload}
-                        startIcon={<DownloadIcon />}
-                        fullWidth
-                      >
-                        Download PDF
-                      </Button>
-                      
-                      <Button
-                        variant="text"
-                        onClick={generateContract}
-                        startIcon={<RefreshIcon />}
-                        fullWidth
-                        disabled={processing}
-                      >
-                        Regenerate
-                      </Button>
-                    </Stack>
-                    
                     <Divider sx={{ my: 2 }} />
                     
                     <Typography variant="caption" color="text.secondary">
@@ -566,23 +536,6 @@ const PDFContractGenerator = ({ open, onClose, tenant, templateType = 'dedicated
         <Button onClick={onClose}>
           Close
         </Button>
-        {generatedPDF && (
-          <>
-            <Button
-              onClick={handlePreview}
-              startIcon={<PreviewIcon />}
-            >
-              Preview
-            </Button>
-            <Button
-              onClick={handleDownload}
-              variant="contained"
-              startIcon={<DownloadIcon />}
-            >
-              Download
-            </Button>
-          </>
-        )}
       </DialogActions>
     </Dialog>
   );

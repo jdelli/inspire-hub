@@ -35,32 +35,46 @@ export function mapTenantToContractData(tenant, tenantType = 'dedicated') {
 
   return {
     // Company information (Inspire Hub details)
-    companyName: "Inspire Hub",
-    companyAddress: "123 Business District, Metro Manila, Philippines",
+    companyName: "INSPIRE HOLDINGS INC.",
+    companyAddress: "6th Floor, Alliance Global Tower, 11th Avenue, corner 36th Street, Bonifacio Global City, Taguig",
     companyPhone: "+63 (02) 123-4567",
     companyEmail: "info@inspirehub.ph",
+    ceoName: "PATRICK PEREZ",
     
     // Client information
     clientName: tenant.name || "[CLIENT NAME]",
     clientAddress: tenant.address || "[CLIENT ADDRESS]",
     clientPhone: tenant.phone || "[CLIENT PHONE]",
     clientEmail: tenant.email || "[CLIENT EMAIL]",
+    citizenship: tenant.citizenship || tenant.nationality || "",
     
     // Contract details
     contractNumber: contractNumber,
     contractDate: formatDate(new Date()),
+    contractLocation: "Taguig City, Philippines",
     startDate: formatDate(startDate),
     endDate: formatDate(endDate),
+    paymentDate: formatDate(new Date()),
     
     // Workspace information
     workspaceType: workspaceType,
-    workspaceDetails: workspaceDetails,
+    workspaceDetails: "Alliance Global Tower, 11th Avenue, corner 36th St. Bonifacio Global City, Taguig City",
     
     // Financial information
-    monthlyRate: formatCurrency(totalMonthly),
-    securityDeposit: formatCurrency(securityDeposit),
-    totalAmount: formatCurrency(totalAmount),
-    paymentTerms: getPaymentTerms(tenant.billing?.paymentMethod, tenant.billing?.paymentTerms)
+    monthlyRent: formatNumber(monthlyRate),
+    cusaFee: formatNumber(cusaFee),
+    parkingFee: formatNumber(parkingFee),
+    securityDeposit: formatNumber(monthlyRate * 2), // 2 months security deposit
+    advanceRental: formatNumber(monthlyRate * 2), // 2 months advance rental
+    totalInitialPayment: formatNumber((monthlyRate * 2) + (monthlyRate * 2)), // advance + security
+    paymentTerms: getPaymentTerms(tenant.billing?.paymentMethod, tenant.billing?.paymentTerms),
+    
+    // Notary information (placeholders for now - can be filled when contract is finalized)
+    docNo: generateDocNumber(),
+    pageNo: "1",
+    bookNo: generateBookNumber(),
+    notaryDate: formatDate(new Date()),
+    notaryLocation: "Taguig City"
   };
 }
 
@@ -104,13 +118,13 @@ function getWorkspaceDetails(tenant, tenantType) {
 function getWorkspaceType(tenantType) {
   switch (tenantType) {
     case 'dedicated':
-      return "Dedicated Desk";
+      return "one (1) dedicated desk/cubicle area";
     case 'private':
-      return "Private Office";
+      return "one (1) private office space";
     case 'virtual':
-      return "Virtual Office";
+      return "virtual office services and facilities";
     default:
-      return "Workspace";
+      return "one (1) workspace";
   }
 }
 
@@ -188,28 +202,86 @@ function formatCurrency(amount) {
 }
 
 /**
+ * Formats number without currency symbol for contract template
+ */
+function formatNumber(amount) {
+  if (!amount || isNaN(amount)) return "0";
+  
+  return parseFloat(amount).toLocaleString('en-PH', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  });
+}
+
+/**
+ * Generates a document number for notary purposes
+ */
+function generateDocNumber() {
+  const date = new Date();
+  const year = date.getFullYear().toString().slice(-2);
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const random = Math.floor(Math.random() * 999).toString().padStart(3, '0');
+  
+  return `DOC-${year}${month}${day}-${random}`;
+}
+
+/**
+ * Generates a book number for notary purposes
+ */
+function generateBookNumber() {
+  const year = new Date().getFullYear();
+  const bookNumber = Math.floor(Math.random() * 99) + 1;
+  
+  return `${bookNumber}/${year}`;
+}
+
+/**
  * Returns default contract data when no tenant is provided
  */
 function getDefaultContractData() {
   return {
-    companyName: "Inspire Hub",
-    companyAddress: "123 Business District, Metro Manila, Philippines",
+    // Company information
+    companyName: "INSPIRE HOLDINGS INC.",
+    companyAddress: "6th Floor, Alliance Global Tower, 11th Avenue, corner 36th Street, Bonifacio Global City, Taguig",
     companyPhone: "+63 (02) 123-4567",
     companyEmail: "info@inspirehub.ph",
+    ceoName: "PATRICK PEREZ",
+    
+    // Client information
     clientName: "[CLIENT NAME]",
     clientAddress: "[CLIENT ADDRESS]",
     clientPhone: "[CLIENT PHONE]",
     clientEmail: "[CLIENT EMAIL]",
+    citizenship: "[CITIZENSHIP]",
+    
+    // Contract details
     contractNumber: "[CONTRACT NUMBER]",
     contractDate: "[CONTRACT DATE]",
+    contractLocation: "[CONTRACT LOCATION]",
     startDate: "[START DATE]",
     endDate: "[END DATE]",
+    paymentDate: "[PAYMENT DATE]",
+    
+    // Workspace information
     workspaceType: "[WORKSPACE TYPE]",
     workspaceDetails: "[WORKSPACE DETAILS]",
-    monthlyRate: "[MONTHLY RATE]",
+    
+    // Financial information
+    monthlyRent: "[MONTHLY RENT]",
+    cusaFee: "[CUSA FEE]",
+    parkingFee: "[PARKING FEE]",
     securityDeposit: "[SECURITY DEPOSIT]",
-    totalAmount: "[TOTAL AMOUNT]",
-    paymentTerms: "[PAYMENT TERMS]"
+    advanceRental: "[ADVANCE RENTAL]",
+    totalInitialPayment: "[TOTAL INITIAL PAYMENT]",
+    paymentTerms: "[PAYMENT TERMS]",
+    
+    // Notary information
+    docNo: "[DOC NO]",
+    pageNo: "[PAGE NO]",
+    bookNo: "[BOOK NO]",
+    notaryDate: "[NOTARY DATE]",
+    notaryLocation: "[NOTARY LOCATION]"
   };
 }
 
@@ -218,13 +290,19 @@ function getDefaultContractData() {
  */
 export function validateTenantForContract(tenant) {
   const requiredFields = ['name', 'email', 'phone', 'address'];
+  const recommendedFields = ['citizenship', 'nationality'];
+  
   const missingFields = requiredFields.filter(field => !tenant[field]);
+  const missingRecommended = recommendedFields.filter(field => !tenant[field]);
   
   return {
     isValid: missingFields.length === 0,
     missingFields: missingFields,
+    missingRecommended: missingRecommended,
     message: missingFields.length > 0 
       ? `Missing required fields: ${missingFields.join(', ')}`
+      : missingRecommended.length > 0
+      ? `Contract ready. Optional fields missing: ${missingRecommended.join(', ')}`
       : 'Tenant data is complete for contract generation'
   };
 }
