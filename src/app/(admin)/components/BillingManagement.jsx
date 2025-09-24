@@ -1864,10 +1864,6 @@ export default function BillingManagement() {
                   <td class="amount"><strong>${formatCurrency(bill.subtotal)}</strong></td>
                 </tr>
                 <tr class="total-row">
-                  <td colspan="3" class="amount"><strong>VAT (12%)</strong></td>
-                  <td class="amount"><strong>${formatCurrency(bill.vat)}</strong></td>
-                </tr>
-                <tr class="total-row">
                   <td colspan="3" class="amount"><strong>TOTAL</strong></td>
                   <td class="amount"><strong>${formatCurrency(bill.total)}</strong></td>
                 </tr>
@@ -2210,10 +2206,6 @@ export default function BillingManagement() {
                 <tr class="total-row">
                   <td colspan="3" class="amount"><strong>Subtotal</strong></td>
                   <td class="amount"><strong>${formatCurrency(selectedBill.subtotal)}</strong></td>
-                </tr>
-                <tr class="total-row">
-                  <td colspan="3" class="amount"><strong>VAT (12%)</strong></td>
-                  <td class="amount"><strong>${formatCurrency(selectedBill.vat)}</strong></td>
                 </tr>
                 <tr class="total-row">
                   <td colspan="3" class="amount"><strong>TOTAL</strong></td>
@@ -3206,10 +3198,6 @@ export default function BillingManagement() {
                         <TableRow>
                           <TableCell colSpan={3} align="right"><strong>Subtotal:</strong></TableCell>
                           <TableCell align="right"><strong>{formatPHP(selectedBill.subtotal)}</strong></TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell colSpan={3} align="right"><strong>VAT (12%):</strong></TableCell>
-                          <TableCell align="right"><strong>{formatPHP(selectedBill.vat)}</strong></TableCell>
                         </TableRow>
                         <TableRow>
                           <TableCell colSpan={3} align="right"><strong>Total:</strong></TableCell>

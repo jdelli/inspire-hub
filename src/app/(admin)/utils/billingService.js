@@ -32,8 +32,9 @@ export function calculateBillingAmount(tenant) {
   }
   
   const rate = parseFloat(tenant.billing?.rate) || defaultRate;
-  const cusaFee = parseFloat(tenant.billing?.cusaFee) || 0;
-  const parkingFee = parseFloat(tenant.billing?.parkingFee) || 0;
+  // Only include fees if they are explicitly set and greater than 0
+  const cusaFee = (tenant.billing?.cusaFee && parseFloat(tenant.billing.cusaFee) > 0) ? parseFloat(tenant.billing.cusaFee) : 0;
+  const parkingFee = (tenant.billing?.parkingFee && parseFloat(tenant.billing.parkingFee) > 0) ? parseFloat(tenant.billing.parkingFee) : 0;
   const penaltyFee = parseFloat(tenant.billing?.penaltyFee) || 0;
   const damageFee = parseFloat(tenant.billing?.damageFee) || 0;
   
@@ -52,8 +53,8 @@ export function calculateBillingAmount(tenant) {
   }
   
   const subtotal = baseAmount + cusaFee + parkingFee + penaltyFee + damageFee;
-  const vat = subtotal * 0.12; // 12% VAT
-  const total = subtotal + vat;
+  // Remove VAT calculation
+  const total = subtotal;
   
   return {
     baseAmount,
@@ -62,7 +63,6 @@ export function calculateBillingAmount(tenant) {
     penaltyFee,
     damageFee,
     subtotal,
-    vat,
     total
   };
 }
@@ -109,7 +109,6 @@ export async function generateBillingRecord(tenant, billingMonth, tenantType, bi
     
     // Calculated amounts
     subtotal: billingAmounts.subtotal,
-    vat: billingAmounts.vat,
     total: billingAmounts.total,
     
     // Status
@@ -540,8 +539,7 @@ export async function updateBillingFees(billingId, additionalFees) {
     // Calculate new totals
     const baseSubtotal = billingData.subtotal - (billingData.penaltyFee || 0) - (billingData.damageFee || 0);
     const newSubtotal = baseSubtotal + penaltyFee + damageFee;
-    const newVat = newSubtotal * 0.12;
-    const newTotal = newSubtotal + newVat;
+    const newTotal = newSubtotal;
     
     // Update items array to include new fees
     const updatedItems = billingData.items.filter(item => 
@@ -571,7 +569,6 @@ export async function updateBillingFees(billingId, additionalFees) {
       penaltyFee,
       damageFee,
       subtotal: newSubtotal,
-      vat: newVat,
       total: newTotal,
       items: updatedItems,
       additionalFeesNotes: notes,
@@ -799,7 +796,6 @@ export async function updateTenantBillingInfo(tenantId, tenantType, updatedBilli
       await updateDoc(doc(db, 'billing', billingDoc.id), {
         baseRate: updatedBillingInfo.rate || billingData.baseRate,
         subtotal: newBillingAmounts.subtotal,
-        vat: newBillingAmounts.vat,
         total: newBillingAmounts.total,
         cusaFee: newBillingAmounts.cusaFee,
         parkingFee: newBillingAmounts.parkingFee,

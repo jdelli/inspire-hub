@@ -36,14 +36,14 @@ const InvoiceTemplate = ({
 
   const data = { ...defaultData, ...invoiceData };
 
-  // Calculate amounts
-  const monthlyTotal = data.monthlyRate + data.cusaFee + data.parkingFee;
+  // Calculate amounts - only include fees if they are set and greater than 0
+  const cusaFee = (data.cusaFee && parseFloat(data.cusaFee) > 0) ? parseFloat(data.cusaFee) : 0;
+  const parkingFee = (data.parkingFee && parseFloat(data.parkingFee) > 0) ? parseFloat(data.parkingFee) : 0;
+  const monthlyTotal = data.monthlyRate + cusaFee + parkingFee;
   const advanceRental = monthlyTotal * data.advanceMonths;
   const securityDeposit = monthlyTotal * data.securityMonths;
   const subtotal = advanceRental + securityDeposit;
-  const vatRate = 0.12;
-  const vatAmount = data.monthlyRate * data.advanceMonths * vatRate;
-  const totalAmount = subtotal + vatAmount;
+  const totalAmount = subtotal;
 
   const formatCurrency = (amount) => {
     return `₱${parseFloat(amount).toLocaleString('en-PH', {
@@ -488,7 +488,9 @@ const InvoiceTemplate = ({
                 <td style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>
                   <div style={{ fontWeight: 'bold' }}>Advance Rental Payment</div>
                   <div style={{ fontSize: '11px', color: '#666' }}>
-                    Monthly Rent: {formatCurrency(data.monthlyRate)} + CUSA: {formatCurrency(data.cusaFee)} + Parking: {formatCurrency(data.parkingFee)}
+                    Monthly Rent: {formatCurrency(data.monthlyRate)}
+                    {cusaFee > 0 && ` + CUSA: ${formatCurrency(cusaFee)}`}
+                    {parkingFee > 0 && ` + Parking: ${formatCurrency(parkingFee)}`}
                   </div>
                 </td>
                 <td style={{ padding: '10px 8px', textAlign: 'center', borderBottom: '1px solid #eee' }}>
@@ -521,24 +523,6 @@ const InvoiceTemplate = ({
                 </td>
               </tr>
 
-              {/* VAT */}
-              <tr>
-                <td style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>
-                  <div style={{ fontWeight: 'bold' }}>Value Added Tax (12%)</div>
-                  <div style={{ fontSize: '11px', color: '#666' }}>
-                    Applied to advance rental payments only
-                  </div>
-                </td>
-                <td style={{ padding: '10px 8px', textAlign: 'center', borderBottom: '1px solid #eee' }}>
-                  -
-                </td>
-                <td style={{ padding: '10px 8px', textAlign: 'right', borderBottom: '1px solid #eee' }}>
-                  12%
-                </td>
-                <td style={{ padding: '10px 8px', textAlign: 'right', borderBottom: '1px solid #eee' }}>
-                  {formatCurrency(vatAmount)}
-                </td>
-              </tr>
             </tbody>
           </table>
         </div>
@@ -558,15 +542,6 @@ const InvoiceTemplate = ({
             }}>
               <span>Subtotal:</span>
               <span>{formatCurrency(subtotal)}</span>
-            </div>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              padding: '8px 0',
-              borderBottom: '1px solid #eee'
-            }}>
-              <span>VAT (12%):</span>
-              <span>{formatCurrency(vatAmount)}</span>
             </div>
             <div style={{
               display: 'flex',
