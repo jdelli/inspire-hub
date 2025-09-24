@@ -1275,20 +1275,6 @@ const ContractTemplate = ({
                   margin: '0',
                   textAlign: 'left'
                 }}>LESSOR</p>
-                <p style={{
-                  fontWeight: 'normal',
-                  fontSize: '11pt',
-                  color: '#000000',
-                  margin: '4px 0 0 0',
-                  textAlign: 'left'
-                }}>{data.ceoName}</p>
-                <p style={{
-                  fontWeight: 'normal',
-                  fontSize: '10pt',
-                  color: '#000000',
-                  margin: '2px 0 0 0',
-                  textAlign: 'left'
-                }}>Chief Executive Officer</p>
               </div>
               
               {/* LESSEE Signature */}
@@ -1307,25 +1293,11 @@ const ContractTemplate = ({
                   margin: '0',
                   textAlign: 'right'
                 }}>LESSEE</p>
-                <p style={{
-                  fontWeight: 'normal',
-                  fontSize: '11pt',
-                  color: '#000000',
-                  margin: '4px 0 0 0',
-                  textAlign: 'right'
-                }}>{data.clientName}</p>
-                <p style={{
-                  fontWeight: 'normal',
-                  fontSize: '10pt',
-                  color: '#000000',
-                  margin: '2px 0 0 0',
-                  textAlign: 'right'
-                }}>Authorized Representative</p>
               </div>
             </div>
           </div>
 
-        {/* Witness Signature */}
+        {/* Witness Signatures */}
           <div style={{ marginTop: '60px' }}>
             <div style={{
               textAlign: 'center',
@@ -1340,13 +1312,19 @@ const ContractTemplate = ({
             </div>
             <div style={{
               display: 'flex',
-              justifyContent: 'center',
-              marginTop: '16px'
+              justifyContent: 'space-between',
+              marginTop: '16px',
+              gap: '80px'
             }}>
               <div style={{
                 borderBottom: '1px solid #000000',
                 height: '20px',
-                width: '300px'
+                width: '200px'
+              }}></div>
+              <div style={{
+                borderBottom: '1px solid #000000',
+                height: '20px',
+                width: '200px'
               }}></div>
             </div>
           </div>
