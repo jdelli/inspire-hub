@@ -1564,14 +1564,15 @@ export default function BillingManagement() {
 
 
 
-  // Generate month options for the last 12 months
+  // Generate month options for the current year (all 12 months)
   const generateMonthOptions = () => {
     const options = [];
     const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
     
-    for (let i = 0; i < 12; i++) {
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
-      const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    for (let month = 0; month < 12; month++) {
+      const date = new Date(currentYear, month, 1);
+      const value = `${currentYear}-${String(month + 1).padStart(2, '0')}`;
       const label = date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
       options.push({ value, label });
     }
@@ -1862,10 +1863,6 @@ export default function BillingManagement() {
                 <tr class="total-row">
                   <td colspan="3" class="amount"><strong>Subtotal</strong></td>
                   <td class="amount"><strong>${formatCurrency(bill.subtotal)}</strong></td>
-                </tr>
-                <tr class="total-row">
-                  <td colspan="3" class="amount"><strong>VAT (12%)</strong></td>
-                  <td class="amount"><strong>${formatCurrency(bill.vat)}</strong></td>
                 </tr>
                 <tr class="total-row">
                   <td colspan="3" class="amount"><strong>TOTAL</strong></td>
@@ -2210,10 +2207,6 @@ export default function BillingManagement() {
                 <tr class="total-row">
                   <td colspan="3" class="amount"><strong>Subtotal</strong></td>
                   <td class="amount"><strong>${formatCurrency(selectedBill.subtotal)}</strong></td>
-                </tr>
-                <tr class="total-row">
-                  <td colspan="3" class="amount"><strong>VAT (12%)</strong></td>
-                  <td class="amount"><strong>${formatCurrency(selectedBill.vat)}</strong></td>
                 </tr>
                 <tr class="total-row">
                   <td colspan="3" class="amount"><strong>TOTAL</strong></td>
@@ -3206,10 +3199,6 @@ export default function BillingManagement() {
                         <TableRow>
                           <TableCell colSpan={3} align="right"><strong>Subtotal:</strong></TableCell>
                           <TableCell align="right"><strong>{formatPHP(selectedBill.subtotal)}</strong></TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell colSpan={3} align="right"><strong>VAT (12%):</strong></TableCell>
-                          <TableCell align="right"><strong>{formatPHP(selectedBill.vat)}</strong></TableCell>
                         </TableRow>
                         <TableRow>
                           <TableCell colSpan={3} align="right"><strong>Total:</strong></TableCell>

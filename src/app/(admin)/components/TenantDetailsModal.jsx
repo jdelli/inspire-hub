@@ -163,8 +163,7 @@ export default function TenantDetailsModal({
     const cusaAmount = cusaFee * months;
     const parkingAmount = parkingFee * months;
     const subtotal = baseAmount + cusaAmount + parkingAmount;
-    const vat = subtotal * 0.12;
-    const total = subtotal + vat;
+    const total = subtotal;
 
     return {
       items: [
@@ -188,7 +187,6 @@ export default function TenantDetailsModal({
         }] : [])
       ],
       subtotal,
-      vat,
       total
     };
   };
@@ -352,14 +350,6 @@ export default function TenantDetailsModal({
                       </TableCell>
                       <TableCell align="right" sx={{ borderTop: '1px solid #e0e0e0', pt: 2 }}>
                         <Typography variant="body1" fontWeight={600}>{formatCurrency(billingBreakdown.subtotal)}</Typography>
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell colSpan={3} align="right">
-                        <Typography variant="body1" fontWeight={600}>VAT (12%)</Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Typography variant="body1" fontWeight={600}>{formatCurrency(billingBreakdown.vat)}</Typography>
                       </TableCell>
                     </TableRow>
                     <TableRow>

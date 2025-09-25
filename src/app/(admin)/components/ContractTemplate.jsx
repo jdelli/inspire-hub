@@ -914,7 +914,7 @@ const ContractTemplate = ({
 
             <div style={{ marginBottom: '24px' }}>
               <p style={{ marginBottom: '16px' }}>
-                <strong>2. RENTAL RATE AND PAYMENTS.</strong> The parties herein agree that the monthly rent for the Leased Premise shall be Philippine Peso: <strong>TWENTY THOUSAND PESOS (PHP20,000.00)</strong> excluding 12% VAT per month, Common Use Service Area (CUSA) and parking. Below is the breakdown:
+                <strong>2. RENTAL RATE AND PAYMENTS.</strong> The parties herein agree that the monthly rent for the Leased Premise shall be Philippine Peso: <strong>TWENTY THOUSAND PESOS (PHP20,000.00)</strong> per month, Common Use Service Area (CUSA) and parking. Below is the breakdown:
               </p>
               
               <div style={{ margin: '20px 0' }}>
@@ -957,7 +957,7 @@ const ContractTemplate = ({
                         padding: '10px 8px',
                         color: '#000000',
                         fontSize: '13px'
-                      }}>Php 20,000 (excluding VAT)</td>
+                      }}>Php 20,000</td>
                     </tr>
                     <tr>
                       <td style={{
@@ -1019,7 +1019,7 @@ const ContractTemplate = ({
           }}>
             <div style={{ marginBottom: '24px' }}>
               <p style={{ marginBottom: '16px' }}>
-                <strong>3. TAXES.</strong> Other than the LESSOR's income taxes or taxes required to be withheld from the rentals due to the LESSOR but which shall be credited against the LESSOR's income taxes, all taxes to be due by reason of the receipt of rentals by the LESSOR, including the VAT, and all other amounts which the LESSEE is required to pay the LESSOR as provided thereunder, as well as the documentary stamp taxes or other taxes accruing by reason of the execution of this Contract shall be for the account of the LESSEE.
+                <strong>3. TAXES.</strong> Other than the LESSOR's income taxes or taxes required to be withheld from the rentals due to the LESSOR but which shall be credited against the LESSOR's income taxes, all taxes to be due by reason of the receipt of rentals by the LESSOR, and all other amounts which the LESSEE is required to pay the LESSOR as provided thereunder, as well as the documentary stamp taxes or other taxes accruing by reason of the execution of this Contract shall be for the account of the LESSEE.
               </p>
             </div>
 
@@ -1480,35 +1480,38 @@ const ContractTemplate = ({
                 }}></div>
             </div>
             
-              <div style={{ marginTop: '16px' }}>
-                <p>
-                  Doc. No.<u style={{
+              <div style={{ marginTop: '16px', textAlign: 'left' }}>
+                <div style={{ marginBottom: '8px' }}>
+                  Doc. No. <u style={{
                     display: 'inline-block',
-                    minWidth: '40px',
+                    minWidth: '60px',
                     borderBottom: '1px solid #000000',
                     marginLeft: '8px',
-                    marginRight: '4px',
                     textAlign: 'center'
-                  }}></u>;
+                  }}></u>
+                </div>
+                <div style={{ marginBottom: '8px' }}>
                   Page No. <u style={{
                     display: 'inline-block',
-                    minWidth: '40px',
+                    minWidth: '60px',
                     borderBottom: '1px solid #000000',
-                    marginLeft: '4px',
-                    marginRight: '4px',
+                    marginLeft: '8px',
                     textAlign: 'center'
-                  }}></u>;
+                  }}></u>
+                </div>
+                <div style={{ marginBottom: '8px' }}>
                   Book No. <u style={{
                     display: 'inline-block',
-                    minWidth: '40px',
+                    minWidth: '60px',
                     borderBottom: '1px solid #000000',
-                    marginLeft: '4px',
-                    marginRight: '4px',
+                    marginLeft: '8px',
                     textAlign: 'center'
-                  }}></u>;
+                  }}></u>
+                </div>
+                <div>
                   Series of 2025.
-              </p>
-            </div>
+                </div>
+              </div>
           </div>
         </div>
       </div>

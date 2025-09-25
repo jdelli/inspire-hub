@@ -206,10 +206,10 @@ const ContractGenerator = ({ open, onClose, tenant, templateType = 'dedicated' }
     }
 
     try {
-      // Calculate amounts
+      // Calculate amounts - only include fees if they are set and greater than 0
       const monthlyRate = parseFloat(tenantData.billing?.rate) || 20000;
-      const cusaFee = parseFloat(tenantData.billing?.cusaFee) || 1500;
-      const parkingFee = parseFloat(tenantData.billing?.parkingFee) || 10000;
+      const cusaFee = (tenantData.billing?.cusaFee && parseFloat(tenantData.billing.cusaFee) > 0) ? parseFloat(tenantData.billing.cusaFee) : 0;
+      const parkingFee = (tenantData.billing?.parkingFee && parseFloat(tenantData.billing.parkingFee) > 0) ? parseFloat(tenantData.billing.parkingFee) : 0;
 
       // Generate invoice number
       const now = new Date();

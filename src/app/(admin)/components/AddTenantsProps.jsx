@@ -3,7 +3,6 @@ import React, { useState, useEffect } from "react";
 import { Monitor } from "lucide-react";
 import { db } from "../../../../script/firebaseConfig";
 import { collection, getDocs, addDoc } from "firebase/firestore";
-import { generateLeaseContract, generateLeaseContractFromTemplate, generateContractHTML, saveContractToFirebase, exportContractAsPDF, exportContractAsExcel } from "../utils/contractGenerator";
 
 // MUI imports
 import {
@@ -158,9 +157,6 @@ export default function AddTenantModal({
   const [occupiedSeats, setOccupiedSeats] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showContractModal, setShowContractModal] = useState(false);
-  const [generatedContract, setGeneratedContract] = useState(null);
-  const [contractHTML, setContractHTML] = useState("");
   const [errors, setErrors] = useState({
     name: false,
     company: false,
@@ -263,8 +259,7 @@ export default function AddTenantModal({
     const parkingFee = parseFloat(newTenant.billing.parkingFee) || 0;
     
     const subtotal = (rate * seatCount * months) + (cusaFee * months) + (parkingFee * months);
-    const vat = subtotal * 0.12; // 12% VAT
-    return subtotal + vat;
+    return subtotal;
   };
 
   const calculateSubtotal = () => {
@@ -314,22 +309,11 @@ export default function AddTenantModal({
       const docRef = await addDoc(collection(db, "seatMap"), tenantWithSeats);
       const tenantId = docRef.id;
       
-      // Generate contract (try template first, fallback to default)
-      const contract = await generateLeaseContractFromTemplate(tenantWithSeats, 'dedicated');
-      const contractHTMLContent = contract.templateBased ? contract.content : generateContractHTML(contract);
-      
-      // Save contract to Firebase
-      await saveContractToFirebase(contract, tenantId, db);
-      
-      // Set contract data for display
-      setGeneratedContract(contract);
-      setContractHTML(contractHTMLContent);
-
       // Refresh the clients list in parent component
       refreshClients();
 
-      // Show contract modal
-      setShowContractModal(true);
+      // Close modal and show success message
+      handleClose();
     } catch (error) {
       console.error("Error adding tenant: ", error);
     } finally {
@@ -339,9 +323,6 @@ export default function AddTenantModal({
 
   const handleClose = () => {
     setShowAddModal(false);
-    setShowContractModal(false);
-    setGeneratedContract(null);
-    setContractHTML("");
     setNewTenant({
       name: "",
       company: "",
@@ -378,41 +359,6 @@ export default function AddTenantModal({
     });
   };
 
-  const handlePrintContract = () => {
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(contractHTML);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-  };
-
-  const handleDownloadContract = () => {
-    const blob = new Blob([contractHTML], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Contract_${newTenant.company || newTenant.name}_${new Date().toISOString().split('T')[0]}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleDownloadAsPDF = async () => {
-    try {
-      await exportContractAsPDF(generatedContract, newTenant.name, newTenant.company);
-    } catch (error) {
-      console.error('Error downloading PDF:', error);
-    }
-  };
-
-  const handleDownloadAsExcel = () => {
-    try {
-      exportContractAsExcel(generatedContract, newTenant.name, newTenant.company);
-    } catch (error) {
-      console.error('Error downloading Excel:', error);
-    }
-  };
 
   const toggleSeatSelection = (seatKey) => {
     if (occupiedSeats.includes(seatKey)) {
@@ -1187,18 +1133,6 @@ export default function AddTenantModal({
                         </TableRow>
                         <TableRow>
                           <TableCell colSpan={3} align="right">
-                            <Typography variant="subtitle1">
-                              VAT (12%)
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="subtitle1">
-                              {formatPHP(calculateSubtotal() * 0.12)}
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell colSpan={3} align="right">
                             <Typography variant="h6" fontWeight="bold">
                               Total ({newTenant.billing.monthsToAvail} {newTenant.billing.monthsToAvail > 1 ? 'months' : 'month'})
                             </Typography>
@@ -1298,193 +1232,6 @@ export default function AddTenantModal({
         </Button>
       </DialogActions>
 
-      {/* Contract Generation Modal */}
-      <Dialog
-        open={showContractModal}
-        onClose={() => setShowContractModal(false)}
-        maxWidth="lg"
-        fullWidth
-        PaperProps={{
-          sx: { 
-            maxHeight: "95vh", 
-            borderRadius: 4,
-            boxShadow: 24
-          },
-        }}
-      >
-        <DialogTitle
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            background: 'primary.main',
-            color: 'black',
-            borderBottom: `1px solid ${grey[200]}`,
-            py: 3,
-            px: 4,
-          }}
-        >
-          <Box display="flex" alignItems="center">
-            <Avatar 
-              sx={{ 
-                bgcolor: 'rgba(0,0,0,0.2)', 
-                mr: 2, 
-                width: 40, 
-                height: 40,
-              }}
-            >
-              <ReceiptIcon fontSize="medium" />
-            </Avatar>
-            <Box>
-              <Typography variant="h5" fontWeight={700} sx={{ mb: 0.5 }}>
-                Lease Contract Generated
-              </Typography>
-              <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                Contract for {newTenant.company || newTenant.name}
-              </Typography>
-            </Box>
-          </Box>
-          <IconButton
-            onClick={() => setShowContractModal(false)}
-            aria-label="close"
-            size="large"
-            sx={{
-              color: 'black',
-              "&:hover": { 
-                bgcolor: 'rgba(0,0,0,0.1)',
-              },
-            }}
-          >
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
-        
-        <DialogContent sx={{ p: 0, overflow: 'hidden' }}>
-          <Box sx={{ height: '70vh', overflow: 'auto' }}>
-            <iframe
-              srcDoc={contractHTML}
-              style={{
-                width: '100%',
-                height: '100%',
-                border: 'none',
-                borderRadius: '8px'
-              }}
-              title="Generated Contract"
-            />
-          </Box>
-        </DialogContent>
-        
-        <DialogActions sx={{ 
-          p: 4, 
-          borderTop: `1px solid ${theme.palette.divider}`,
-          bgcolor: 'background.paper',
-          gap: 2
-        }}>
-          <Button
-            onClick={() => setShowContractModal(false)}
-            variant="outlined"
-            startIcon={<CloseIcon />}
-            sx={{
-              px: 3,
-              py: 1.5,
-              borderRadius: 1,
-              textTransform: 'none',
-              fontWeight: 500,
-              fontSize: '0.875rem',
-              borderColor: grey[300],
-              color: grey[700],
-              "&:hover": { 
-                borderColor: grey[400],
-                bgcolor: grey[50],
-              },
-            }}
-          >
-            Close
-          </Button>
-          <Button
-            onClick={handleDownloadContract}
-            variant="outlined"
-            startIcon={<ReceiptIcon />}
-            sx={{
-              px: 3,
-              py: 1.5,
-              borderRadius: 1,
-              textTransform: 'none',
-              fontWeight: 500,
-              fontSize: '0.875rem',
-              borderColor: blue[300],
-              color: blue[700],
-              "&:hover": { 
-                borderColor: blue[400],
-                bgcolor: blue[50],
-              },
-            }}
-          >
-            Download HTML
-          </Button>
-          <Button
-            onClick={handleDownloadAsPDF}
-            variant="outlined"
-            startIcon={<PictureAsPdfIcon />}
-            sx={{
-              px: 3,
-              py: 1.5,
-              borderRadius: 1,
-              textTransform: 'none',
-              fontWeight: 500,
-              fontSize: '0.875rem',
-              borderColor: red[300],
-              color: red[700],
-              "&:hover": { 
-                borderColor: red[400],
-                bgcolor: red[50],
-              },
-            }}
-          >
-            Download PDF
-          </Button>
-          <Button
-            onClick={handleDownloadAsExcel}
-            variant="outlined"
-            startIcon={<TableChartIcon />}
-            sx={{
-              px: 3,
-              py: 1.5,
-              borderRadius: 1,
-              textTransform: 'none',
-              fontWeight: 500,
-              fontSize: '0.875rem',
-              borderColor: green[300],
-              color: green[700],
-              "&:hover": { 
-                borderColor: green[400],
-                bgcolor: green[50],
-              },
-            }}
-          >
-            Download Excel
-          </Button>
-          <Button
-            onClick={handlePrintContract}
-            variant="contained"
-            startIcon={<ReceiptIcon />}
-            sx={{
-              px: 3,
-              py: 1.5,
-              borderRadius: 1,
-              bgcolor: 'primary.main',
-              textTransform: 'none',
-              fontWeight: 500,
-              fontSize: '0.875rem',
-              "&:hover": { 
-                bgcolor: 'primary.dark',
-              },
-            }}
-          >
-            Print Contract
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Dialog>
   );
 }
