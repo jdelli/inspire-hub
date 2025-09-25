@@ -1564,14 +1564,15 @@ export default function BillingManagement() {
 
 
 
-  // Generate month options for the last 12 months
+  // Generate month options for the current year (all 12 months)
   const generateMonthOptions = () => {
     const options = [];
     const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
     
-    for (let i = 0; i < 12; i++) {
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
-      const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    for (let month = 0; month < 12; month++) {
+      const date = new Date(currentYear, month, 1);
+      const value = `${currentYear}-${String(month + 1).padStart(2, '0')}`;
       const label = date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
       options.push({ value, label });
     }
