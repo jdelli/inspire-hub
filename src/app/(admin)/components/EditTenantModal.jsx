@@ -79,21 +79,22 @@ export default function EditTenantModal({ open, onClose, client, onSave }) {
   // Derived UI state
   const currencySymbol = useMemo(() => (formData.billing.currency === "USD" ? "$" : "₱"), [formData.billing.currency]);
   const isFormInvalid = useMemo(() => {
-    return (
+    const invalid = (
       !formData.company?.trim() ||
       !formData.name?.trim() ||
-      !formData.email?.trim() ||
-      !formData.billing?.startDate ||
-      !formData.billing?.billingStartDate ||
-      !formData.billing?.billingEndDate
+      !formData.email?.trim()
     );
+    console.log('Form validation:', {
+      company: formData.company,
+      name: formData.name,
+      email: formData.email,
+      isInvalid: invalid
+    });
+    return invalid;
   }, [
     formData.company,
     formData.name,
     formData.email,
-    formData.billing.startDate,
-    formData.billing.billingStartDate,
-    formData.billing.billingEndDate,
   ]);
 
   // Effect to update form data when the 'client' prop changes
@@ -605,7 +606,6 @@ export default function EditTenantModal({ open, onClose, client, onSave }) {
                                 value={formData.billing.startDate}
                                 onChange={handleChange}
                                 fullWidth
-                                required
                                 variant="outlined"
                                 size="small"
                                 InputLabelProps={{ shrink: true }}
@@ -621,7 +621,6 @@ export default function EditTenantModal({ open, onClose, client, onSave }) {
                                 value={formData.billing.billingStartDate}
                                 onChange={handleChange}
                                 fullWidth
-                                required
                                 variant="outlined"
                                 size="small"
                                 InputLabelProps={{ shrink: true }}
@@ -637,7 +636,6 @@ export default function EditTenantModal({ open, onClose, client, onSave }) {
                                 value={formData.billing.billingEndDate}
                                 onChange={handleChange}
                                 fullWidth
-                                required
                                 variant="outlined"
                                 size="small"
                                 InputLabelProps={{ shrink: true }}
@@ -830,10 +828,6 @@ export default function EditTenantModal({ open, onClose, client, onSave }) {
                             <TableRow hover>
                               <TableCell>Subtotal</TableCell>
                               <TableCell align="right" sx={{ color: blue[600], fontWeight: 700 }}>{formatPHP(billingPreview.subtotal)}</TableCell>
-                            </TableRow>
-                            <TableRow hover>
-                              <TableCell>VAT (12%)</TableCell>
-                              <TableCell align="right" sx={{ color: red[600], fontWeight: 700 }}>{formatPHP(billingPreview.vat)}</TableCell>
                             </TableRow>
                             <TableRow hover>
                               <TableCell sx={{ fontWeight: 800 }}>Total</TableCell>

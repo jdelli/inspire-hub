@@ -126,6 +126,7 @@ import {
   updateTenantBillingDefaults,
   formatPHP,
   testExports,
+  fixBillingVATCalculations,
 } from "../utils/billingService";
 import EditTenantModal from './EditTenantModal';
 
@@ -1562,6 +1563,40 @@ export default function BillingManagement() {
     }
   };
 
+  // Fix billing records with incorrect VAT calculations
+  const handleFixVATCalculations = async () => {
+    try {
+      setLoadingStates(prev => ({ ...prev, fixVAT: true }));
+      const result = await fixBillingVATCalculations(selectedMonth);
+
+      if (result.success && result.totalFixed > 0) {
+        setAlert({
+          type: 'success',
+          message: `Fixed ${result.totalFixed} billing records (removed VAT from ${result.totalRecordsChecked} records checked)`
+        });
+        loadBillingData(); // Refresh data
+      } else if (result.success && result.totalFixed === 0) {
+        setAlert({
+          type: 'info',
+          message: `No billing records needed fixing (checked ${result.totalRecordsChecked} records)`
+        });
+      } else {
+        setAlert({
+          type: 'error',
+          message: 'Failed to fix VAT calculations'
+        });
+      }
+    } catch (error) {
+      console.error('Error fixing VAT calculations:', error);
+      setAlert({
+        type: 'error',
+        message: 'Failed to fix VAT calculations'
+      });
+    } finally {
+      setLoadingStates(prev => ({ ...prev, fixVAT: false }));
+    }
+  };
+
 
 
   // Generate month options for the current year (all 12 months)
@@ -2776,7 +2811,17 @@ export default function BillingManagement() {
               >
                 Check Overdue
               </Button>
-              
+
+              <Button
+                variant="outlined"
+                color="info"
+                startIcon={<BuildIcon />}
+                onClick={handleFixVATCalculations}
+                disabled={loadingStates.fixVAT || filteredBills.length === 0}
+              >
+                {loadingStates.fixVAT ? 'Fixing...' : 'Fix VAT'}
+              </Button>
+
               <Button
                 variant="outlined"
                 startIcon={<SendIcon />}
@@ -2785,7 +2830,7 @@ export default function BillingManagement() {
               >
                 Send Reminders
               </Button>
-              
+
               <Button
                 variant="outlined"
                 startIcon={<FileDownloadIcon />}
