@@ -864,6 +864,71 @@ export async function updateTenantBillingInfo(tenantId, tenantType, updatedBilli
   }
 }
 
+// Fix billing records with incorrect VAT calculations (removes VAT from total)
+export async function fixBillingVATCalculations(billingMonth = null) {
+  try {
+    console.log('Fixing billing records with incorrect VAT calculations...');
+
+    let billingQuery;
+    if (billingMonth) {
+      billingQuery = query(
+        collection(db, 'billing'),
+        where('billingMonth', '==', billingMonth)
+      );
+    } else {
+      billingQuery = collection(db, 'billing');
+    }
+
+    const billingSnapshot = await getDocs(billingQuery);
+    const fixedRecords = [];
+    let totalFixed = 0;
+
+    for (const billingDoc of billingSnapshot.docs) {
+      const billingData = billingDoc.data();
+      const currentTotal = parseFloat(billingData.total) || 0;
+      const currentSubtotal = parseFloat(billingData.subtotal) || 0;
+
+      // Check if total has VAT applied (total ≈ subtotal * 1.12)
+      // We check if the difference is approximately 12% of subtotal
+      const expectedTotalWithVAT = currentSubtotal * 1.12;
+      const difference = Math.abs(currentTotal - expectedTotalWithVAT);
+
+      // If difference is less than 1 peso and total is greater than subtotal, it likely has VAT
+      if (difference < 1 && currentTotal > currentSubtotal) {
+        // Update total to equal subtotal (remove VAT)
+        await updateDoc(doc(db, 'billing', billingDoc.id), {
+          total: currentSubtotal,
+          updatedAt: serverTimestamp()
+        });
+
+        fixedRecords.push({
+          id: billingDoc.id,
+          tenantName: billingData.tenantName,
+          oldTotal: currentTotal,
+          newTotal: currentSubtotal,
+          difference: currentTotal - currentSubtotal
+        });
+
+        totalFixed++;
+        console.log(`Fixed billing record ${billingDoc.id}: ${formatPHP(currentTotal)} → ${formatPHP(currentSubtotal)}`);
+      }
+    }
+
+    console.log(`Fixed ${totalFixed} billing records`);
+
+    return {
+      success: true,
+      totalRecordsChecked: billingSnapshot.size,
+      totalFixed,
+      fixedRecords
+    };
+
+  } catch (error) {
+    console.error('Error fixing billing VAT calculations:', error);
+    throw error;
+  }
+}
+
 // Test function to verify exports are working
 export function testExports() {
   console.log('Billing service exports are working correctly');
@@ -880,7 +945,8 @@ export function testExports() {
     checkTenantBillingConfiguration: typeof checkTenantBillingConfiguration === 'function',
     updateTenantBillingDefaults: typeof updateTenantBillingDefaults === 'function',
     updateTenantBillingInfo: typeof updateTenantBillingInfo === 'function',
-    sendOverdueReminders: typeof sendOverdueReminders === 'function'
+    sendOverdueReminders: typeof sendOverdueReminders === 'function',
+    fixBillingVATCalculations: typeof fixBillingVATCalculations === 'function'
   };
 }
 
