@@ -53,8 +53,8 @@ export function calculateBillingAmount(tenant) {
   }
   
   const subtotal = baseAmount + cusaFee + parkingFee + penaltyFee + damageFee;
-  // Remove VAT calculation
-  const total = subtotal;
+  const vat = subtotal * 0.12; // 12% VAT
+  const total = subtotal + vat;
   
   return {
     baseAmount,
@@ -63,6 +63,7 @@ export function calculateBillingAmount(tenant) {
     penaltyFee,
     damageFee,
     subtotal,
+    vat,
     total
   };
 }
@@ -109,6 +110,7 @@ export async function generateBillingRecord(tenant, billingMonth, tenantType, bi
     
     // Calculated amounts
     subtotal: billingAmounts.subtotal,
+    vat: billingAmounts.vat,
     total: billingAmounts.total,
     
     // Status
@@ -867,7 +869,7 @@ export async function updateTenantBillingInfo(tenantId, tenantType, updatedBilli
 // Fix billing records with incorrect VAT calculations (removes VAT from total)
 export async function fixBillingVATCalculations(billingMonth = null) {
   try {
-    console.log('Fixing billing records with incorrect VAT calculations...');
+    console.log('Fixing billing records to add 12% VAT...');
 
     let billingQuery;
     if (billingMonth) {
@@ -887,17 +889,22 @@ export async function fixBillingVATCalculations(billingMonth = null) {
       const billingData = billingDoc.data();
       const currentTotal = parseFloat(billingData.total) || 0;
       const currentSubtotal = parseFloat(billingData.subtotal) || 0;
+      const currentVAT = parseFloat(billingData.vat) || 0;
 
-      // Check if total has VAT applied (total ≈ subtotal * 1.12)
-      // We check if the difference is approximately 12% of subtotal
-      const expectedTotalWithVAT = currentSubtotal * 1.12;
+      // Check if VAT is missing or incorrect (total should equal subtotal + VAT)
+      const expectedVAT = currentSubtotal * 0.12;
+      const expectedTotalWithVAT = currentSubtotal + expectedVAT;
       const difference = Math.abs(currentTotal - expectedTotalWithVAT);
 
-      // If difference is less than 1 peso and total is greater than subtotal, it likely has VAT
-      if (difference < 1 && currentTotal > currentSubtotal) {
-        // Update total to equal subtotal (remove VAT)
+      // If difference is more than 1 peso OR VAT field is missing, fix it
+      if (difference > 1 || currentVAT === 0 || !billingData.hasOwnProperty('vat')) {
+        // Calculate correct VAT and total
+        const correctVAT = currentSubtotal * 0.12;
+        const correctTotal = currentSubtotal + correctVAT;
+
         await updateDoc(doc(db, 'billing', billingDoc.id), {
-          total: currentSubtotal,
+          vat: correctVAT,
+          total: correctTotal,
           updatedAt: serverTimestamp()
         });
 
@@ -905,16 +912,18 @@ export async function fixBillingVATCalculations(billingMonth = null) {
           id: billingDoc.id,
           tenantName: billingData.tenantName,
           oldTotal: currentTotal,
-          newTotal: currentSubtotal,
-          difference: currentTotal - currentSubtotal
+          newTotal: correctTotal,
+          oldVAT: currentVAT,
+          newVAT: correctVAT,
+          difference: correctTotal - currentTotal
         });
 
         totalFixed++;
-        console.log(`Fixed billing record ${billingDoc.id}: ${formatPHP(currentTotal)} → ${formatPHP(currentSubtotal)}`);
+        console.log(`Fixed billing record ${billingDoc.id}: ${formatPHP(currentTotal)} → ${formatPHP(correctTotal)} (VAT: ${formatPHP(correctVAT)})`);
       }
     }
 
-    console.log(`Fixed ${totalFixed} billing records`);
+    console.log(`Fixed ${totalFixed} billing records with 12% VAT`);
 
     return {
       success: true,

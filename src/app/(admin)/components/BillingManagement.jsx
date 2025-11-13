@@ -111,8 +111,9 @@ import {
   Build as BuildIcon,
   Info as InfoIcon,
   TableChart as TableChartIcon,
+  Percent as PercentIcon,
 } from "@mui/icons-material";
-import { getFirestore, doc, deleteDoc, getDoc } from "firebase/firestore";
+import { getFirestore, doc, deleteDoc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../../../../script/firebaseConfig";
 import {
   generateMonthlyBilling,
@@ -192,6 +193,9 @@ export default function BillingManagement() {
   const [showExportDialog, setShowExportDialog] = useState(false);
 
   const [showAdditionalFeesDialog, setShowAdditionalFeesDialog] = useState(false);
+  const [showOverduePenaltyDialog, setShowOverduePenaltyDialog] = useState(false);
+  const [showRevokePenaltyDialog, setShowRevokePenaltyDialog] = useState(false);
+  const [overduePenaltyPercentage, setOverduePenaltyPercentage] = useState(0);
   const [billingTargetMonth, setBillingTargetMonth] = useState(
     `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
   );
@@ -579,7 +583,9 @@ export default function BillingManagement() {
       'Email',
       'Type',
       'Status',
-      'Amount',
+      'Subtotal',
+      'VAT (12%)',
+      'Total Amount',
       'Due Date',
       'Billing Month'
     ];
@@ -592,6 +598,8 @@ export default function BillingManagement() {
         `"${bill.tenantEmail || ''}"`,
         `"${bill.tenantType || ''}"`,
         `"${bill.status || ''}"`,
+        bill.subtotal || 0,
+        bill.vat || 0,
         bill.total || 0,
         `"${new Date(bill.dueDate).toLocaleDateString()}"`,
         `"${bill.billingMonth || ''}"`
@@ -618,7 +626,9 @@ export default function BillingManagement() {
       'Email',
       'Type',
       'Status',
-      'Amount (₱)',
+      'Subtotal (₱)',
+      'VAT 12% (₱)',
+      'Total Amount (₱)',
       'Due Date',
       'Billing Month',
       'Created Date',
@@ -648,6 +658,8 @@ export default function BillingManagement() {
         bill.tenantEmail || '',
         bill.tenantType || '',
         bill.status || '',
+        bill.subtotal || 0,
+        bill.vat || 0,
         bill.total || 0,
         bill.dueDate ? new Date(bill.dueDate) : null,
         bill.billingMonth || '',
@@ -666,7 +678,9 @@ export default function BillingManagement() {
         { wch: 35 }, // Email
         { wch: 18 }, // Type
         { wch: 12 }, // Status
-        { wch: 15 }, // Amount
+        { wch: 15 }, // Subtotal
+        { wch: 15 }, // VAT
+        { wch: 15 }, // Total Amount
         { wch: 12 }, // Due Date
         { wch: 15 }, // Billing Month
         { wch: 12 }, // Created Date
@@ -1446,6 +1460,123 @@ export default function BillingManagement() {
     }
   };
 
+  // Handle revoke penalty
+  const handleRevokePenalty = async () => {
+    if (!selectedBill) return;
+
+    setLoadingStates(prev => ({ ...prev, bulkAction: true }));
+    try {
+      const currentPenalty = parseFloat(selectedBill.penaltyFee) || 0;
+      
+      if (currentPenalty === 0) {
+        setSnackbar({
+          open: true,
+          message: 'No penalty to revoke',
+          severity: 'info'
+        });
+        setShowRevokePenaltyDialog(false);
+        return;
+      }
+
+      // Recalculate without penalty: subtotal - penalty + other fees + VAT
+      const subtotal = parseFloat(selectedBill.subtotal) || 0;
+      const cusaFee = parseFloat(selectedBill.cusaFee) || 0;
+      const parkingFee = parseFloat(selectedBill.parkingFee) || 0;
+      const damageFee = parseFloat(selectedBill.damageFee) || 0;
+      
+      // Calculate base subtotal without penalty
+      const baseSubtotal = subtotal - currentPenalty;
+      const newSubtotal = baseSubtotal + cusaFee + parkingFee + damageFee;
+      const vat = newSubtotal * 0.12;
+      const newTotal = newSubtotal + vat;
+
+      await updateDoc(doc(db, 'billing', selectedBill.id), {
+        penaltyFee: 0,
+        subtotal: newSubtotal,
+        vat: vat,
+        total: newTotal,
+        penaltyPercentage: null,
+        penaltyAppliedAt: null,
+        penaltyRevokedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      setSnackbar({
+        open: true,
+        message: `Penalty of ${formatPHP(currentPenalty)} revoked successfully. New total: ${formatPHP(newTotal)}`,
+        severity: 'success'
+      });
+      setShowRevokePenaltyDialog(false);
+      loadBillingData();
+    } catch (error) {
+      console.error('Error revoking penalty:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to revoke penalty',
+        severity: 'error'
+      });
+    } finally {
+      setLoadingStates(prev => ({ ...prev, bulkAction: false }));
+    }
+  };
+
+  // Handle overdue penalty percentage
+  const handleApplyOverduePenalty = async () => {
+    if (!selectedBill || overduePenaltyPercentage <= 0) {
+      setSnackbar({
+        open: true,
+        message: 'Please enter a valid penalty percentage',
+        severity: 'warning'
+      });
+      return;
+    }
+
+    setLoadingStates(prev => ({ ...prev, bulkAction: true }));
+    try {
+      // Calculate penalty amount based on the original subtotal (before VAT)
+      const subtotal = selectedBill.subtotal || selectedBill.total / 1.12 || 0;
+      const penaltyAmount = subtotal * (overduePenaltyPercentage / 100);
+      const currentPenalty = parseFloat(selectedBill.penaltyFee) || 0;
+      const newPenaltyTotal = currentPenalty + penaltyAmount;
+      
+      // Recalculate total: subtotal + existing fees + new penalty + VAT
+      const cusaFee = parseFloat(selectedBill.cusaFee) || 0;
+      const parkingFee = parseFloat(selectedBill.parkingFee) || 0;
+      const damageFee = parseFloat(selectedBill.damageFee) || 0;
+      const newSubtotal = subtotal + cusaFee + parkingFee + damageFee + newPenaltyTotal;
+      const vat = newSubtotal * 0.12;
+      const newTotal = newSubtotal + vat;
+
+      await updateDoc(doc(db, 'billing', selectedBill.id), {
+        penaltyFee: newPenaltyTotal,
+        subtotal: newSubtotal,
+        vat: vat,
+        total: newTotal,
+        penaltyPercentage: overduePenaltyPercentage,
+        penaltyAppliedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      setSnackbar({
+        open: true,
+        message: `${overduePenaltyPercentage}% penalty (${formatPHP(penaltyAmount)}) applied successfully. New total: ${formatPHP(newTotal)}`,
+        severity: 'success'
+      });
+      setShowOverduePenaltyDialog(false);
+      setOverduePenaltyPercentage(0);
+      loadBillingData();
+    } catch (error) {
+      console.error('Error applying overdue penalty:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to apply overdue penalty',
+        severity: 'error'
+      });
+    } finally {
+      setLoadingStates(prev => ({ ...prev, bulkAction: false }));
+    }
+  };
+
   // Handle additional fees update
   const handleUpdateAdditionalFees = async () => {
     if (!selectedBill) return;
@@ -1572,13 +1703,13 @@ export default function BillingManagement() {
       if (result.success && result.totalFixed > 0) {
         setAlert({
           type: 'success',
-          message: `Fixed ${result.totalFixed} billing records (removed VAT from ${result.totalRecordsChecked} records checked)`
+          message: `Fixed ${result.totalFixed} billing records (added 12% VAT to ${result.totalRecordsChecked} records checked)`
         });
         loadBillingData(); // Refresh data
       } else if (result.success && result.totalFixed === 0) {
         setAlert({
           type: 'info',
-          message: `No billing records needed fixing (checked ${result.totalRecordsChecked} records)`
+          message: `All billing records already have correct VAT (checked ${result.totalRecordsChecked} records)`
         });
       } else {
         setAlert({
@@ -1898,6 +2029,10 @@ export default function BillingManagement() {
                 <tr class="total-row">
                   <td colspan="3" class="amount"><strong>Subtotal</strong></td>
                   <td class="amount"><strong>${formatCurrency(bill.subtotal)}</strong></td>
+                </tr>
+                <tr class="total-row">
+                  <td colspan="3" class="amount"><strong>VAT (12%)</strong></td>
+                  <td class="amount"><strong>${formatCurrency(bill.vat || 0)}</strong></td>
                 </tr>
                 <tr class="total-row">
                   <td colspan="3" class="amount"><strong>TOTAL</strong></td>
@@ -2242,6 +2377,10 @@ export default function BillingManagement() {
                 <tr class="total-row">
                   <td colspan="3" class="amount"><strong>Subtotal</strong></td>
                   <td class="amount"><strong>${formatCurrency(selectedBill.subtotal)}</strong></td>
+                </tr>
+                <tr class="total-row">
+                  <td colspan="3" class="amount"><strong>VAT (12%)</strong></td>
+                  <td class="amount"><strong>${formatCurrency(selectedBill.vat || 0)}</strong></td>
                 </tr>
                 <tr class="total-row">
                   <td colspan="3" class="amount"><strong>TOTAL</strong></td>
@@ -3061,6 +3200,39 @@ export default function BillingManagement() {
                             Fees
                           </Button>
                           
+                          {(bill.status === 'overdue' || bill.status === 'pending') && (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              color="error"
+                              startIcon={<PercentIcon />}
+                              onClick={() => {
+                                setSelectedBill(bill);
+                                setOverduePenaltyPercentage(0);
+                                setShowOverduePenaltyDialog(true);
+                              }}
+                              sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
+                            >
+                              Penalty %
+                            </Button>
+                          )}
+                          
+                          {bill.penaltyFee > 0 && (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              color="warning"
+                              startIcon={<RestoreIcon />}
+                              onClick={() => {
+                                setSelectedBill(bill);
+                                setShowRevokePenaltyDialog(true);
+                              }}
+                              sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
+                            >
+                              Revoke Penalty
+                            </Button>
+                          )}
+                          
                           <Button
                             size="small"
                             variant="outlined"
@@ -3244,6 +3416,10 @@ export default function BillingManagement() {
                         <TableRow>
                           <TableCell colSpan={3} align="right"><strong>Subtotal:</strong></TableCell>
                           <TableCell align="right"><strong>{formatPHP(selectedBill.subtotal)}</strong></TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell colSpan={3} align="right"><strong>VAT (12%):</strong></TableCell>
+                          <TableCell align="right"><strong>{formatPHP(selectedBill.vat || 0)}</strong></TableCell>
                         </TableRow>
                         <TableRow>
                           <TableCell colSpan={3} align="right"><strong>Total:</strong></TableCell>
@@ -3819,6 +3995,177 @@ export default function BillingManagement() {
             startIcon={<CloseIcon />}
           >
             Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Revoke Penalty Dialog */}
+      <Dialog
+        open={showRevokePenaltyDialog}
+        onClose={() => setShowRevokePenaltyDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{
+          background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
+          color: 'white'
+        }}>
+          <Box display="flex" alignItems="center" gap={1}>
+            <RestoreIcon />
+            Revoke Penalty
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={3} sx={{ mt: 1 }}>
+            {selectedBill && (
+              <>
+                <Alert severity="warning">
+                  <Typography variant="body1" fontWeight={600}>
+                    Are you sure you want to revoke the penalty?
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    This action will remove the penalty fee from the billing record.
+                  </Typography>
+                </Alert>
+
+                <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    <strong>Tenant:</strong> {selectedBill.tenantName}
+                  </Typography>
+                  <Typography variant="subtitle2" gutterBottom>
+                    <strong>Company:</strong> {selectedBill.tenantCompany}
+                  </Typography>
+                  <Divider sx={{ my: 1 }} />
+                  <Typography variant="subtitle2" gutterBottom>
+                    <strong>Current Penalty Fee:</strong> {formatPHP(selectedBill.penaltyFee || 0)}
+                  </Typography>
+                  {selectedBill.penaltyPercentage && (
+                    <Typography variant="subtitle2" gutterBottom>
+                      <strong>Applied Percentage:</strong> {selectedBill.penaltyPercentage}%
+                    </Typography>
+                  )}
+                  <Typography variant="subtitle2" gutterBottom>
+                    <strong>Current Total:</strong> {formatPHP(selectedBill.total)}
+                  </Typography>
+                  <Divider sx={{ my: 1 }} />
+                  <Typography variant="subtitle2" gutterBottom color="success.main">
+                    <strong>New Total (after revoke):</strong> {formatPHP(
+                      (() => {
+                        const subtotal = parseFloat(selectedBill.subtotal) || 0;
+                        const currentPenalty = parseFloat(selectedBill.penaltyFee) || 0;
+                        const cusaFee = parseFloat(selectedBill.cusaFee) || 0;
+                        const parkingFee = parseFloat(selectedBill.parkingFee) || 0;
+                        const damageFee = parseFloat(selectedBill.damageFee) || 0;
+                        const baseSubtotal = subtotal - currentPenalty;
+                        const newSubtotal = baseSubtotal + cusaFee + parkingFee + damageFee;
+                        const vat = newSubtotal * 0.12;
+                        return newSubtotal + vat;
+                      })()
+                    )}
+                  </Typography>
+                </Box>
+              </>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowRevokePenaltyDialog(false)}>Cancel</Button>
+          <Button 
+            onClick={handleRevokePenalty} 
+            variant="contained" 
+            color="warning"
+            disabled={loadingStates.bulkAction}
+            startIcon={loadingStates.bulkAction ? <CircularProgress size={16} /> : <RestoreIcon />}
+          >
+            {loadingStates.bulkAction ? 'Revoking...' : 'Revoke Penalty'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Overdue Penalty Percentage Dialog */}
+      <Dialog
+        open={showOverduePenaltyDialog}
+        onClose={() => setShowOverduePenaltyDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{
+          background: 'linear-gradient(135deg, #d32f2f 0%, #c62828 100%)',
+          color: 'white'
+        }}>
+          <Box display="flex" alignItems="center" gap={1}>
+            <PercentIcon />
+            Apply Overdue Penalty (%)
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={3} sx={{ mt: 1 }}>
+            {selectedBill && (
+              <>
+                <Alert severity="info">
+                  Applying penalty for <strong>{selectedBill.tenantName}</strong>
+                  <br />
+                  Current Subtotal: {formatPHP(selectedBill.subtotal || selectedBill.total / 1.12 || 0)}
+                  <br />
+                  Current Total: {formatPHP(selectedBill.total)}
+                  {selectedBill.penaltyFee > 0 && (
+                    <><br />Existing Penalty: {formatPHP(selectedBill.penaltyFee)}</>
+                  )}
+                </Alert>
+
+                <TextField
+                  label="Penalty Percentage (%)"
+                  type="number"
+                  value={overduePenaltyPercentage}
+                  onChange={(e) => setOverduePenaltyPercentage(parseFloat(e.target.value) || 0)}
+                  fullWidth
+                  autoFocus
+                  placeholder="Enter penalty percentage (e.g., 5 for 5%)"
+                  InputProps={{
+                    endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                  }}
+                  helperText="This percentage will be calculated based on the monthly billing amount (subtotal)"
+                />
+
+                {overduePenaltyPercentage > 0 && (
+                  <Alert severity="warning">
+                    <Typography variant="body2">
+                      <strong>Penalty Calculation:</strong>
+                      <br />
+                      Subtotal: {formatPHP(selectedBill.subtotal || selectedBill.total / 1.12 || 0)}
+                      <br />
+                      {overduePenaltyPercentage}% Penalty: {formatPHP((selectedBill.subtotal || selectedBill.total / 1.12 || 0) * (overduePenaltyPercentage / 100))}
+                      <br />
+                      <strong>New Total (with VAT):</strong> {formatPHP(
+                        (() => {
+                          const subtotal = selectedBill.subtotal || selectedBill.total / 1.12 || 0;
+                          const penaltyAmount = subtotal * (overduePenaltyPercentage / 100);
+                          const currentPenalty = parseFloat(selectedBill.penaltyFee) || 0;
+                          const cusaFee = parseFloat(selectedBill.cusaFee) || 0;
+                          const parkingFee = parseFloat(selectedBill.parkingFee) || 0;
+                          const damageFee = parseFloat(selectedBill.damageFee) || 0;
+                          const newSubtotal = subtotal + cusaFee + parkingFee + damageFee + currentPenalty + penaltyAmount;
+                          const vat = newSubtotal * 0.12;
+                          return newSubtotal + vat;
+                        })()
+                      )}
+                    </Typography>
+                  </Alert>
+                )}
+              </>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowOverduePenaltyDialog(false)}>Cancel</Button>
+          <Button 
+            onClick={handleApplyOverduePenalty} 
+            variant="contained" 
+            color="error"
+            disabled={loadingStates.bulkAction || overduePenaltyPercentage <= 0}
+            startIcon={loadingStates.bulkAction ? <CircularProgress size={16} /> : <PercentIcon />}
+          >
+            {loadingStates.bulkAction ? 'Applying...' : 'Apply Penalty'}
           </Button>
         </DialogActions>
       </Dialog>
