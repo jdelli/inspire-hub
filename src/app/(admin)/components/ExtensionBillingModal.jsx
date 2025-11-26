@@ -41,14 +41,19 @@ const ExtensionBillingModal = ({
       const newEndDate = new Date(currentEndDate);
       newEndDate.setMonth(newEndDate.getMonth() + extensionMonths);
 
-      const newTotal = client.billing?.rate 
+      const subtotal = client.billing?.rate 
         ? client.billing.rate * extensionMonths
         : 0;
+      
+      const vat = subtotal * 0.12; // 12% VAT
+      const newTotal = subtotal + vat;
 
       const extensionRecord = {
         from: currentEndDate.toISOString(),
         to: newEndDate.toISOString(),
         extendedAt: new Date().toISOString(),
+        subtotal: subtotal,
+        vat: vat,
         amount: newTotal,
         months: extensionMonths,
       };
@@ -147,11 +152,31 @@ const ExtensionBillingModal = ({
               </Grid>
               <Grid item xs={6}>
                 <Typography variant="caption" color="text.secondary">
-                  Extension Total
+                  Subtotal
                 </Typography>
                 <Typography variant="body2" fontWeight={500}>
                   {client?.billing?.rate 
-                    ? `${client.billing.rate * extensionMonths} ${client.billing.currency || ""}`
+                    ? `${(client.billing.rate * extensionMonths).toFixed(2)} ${client.billing.currency || ""}`
+                    : "N/A"}
+                </Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="caption" color="text.secondary">
+                  VAT (12%)
+                </Typography>
+                <Typography variant="body2" fontWeight={500}>
+                  {client?.billing?.rate 
+                    ? `${(client.billing.rate * extensionMonths * 0.12).toFixed(2)} ${client.billing.currency || ""}`
+                    : "N/A"}
+                </Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="caption" color="text.secondary">
+                  Extension Total
+                </Typography>
+                <Typography variant="body2" fontWeight={600} color="primary">
+                  {client?.billing?.rate 
+                    ? `${(client.billing.rate * extensionMonths * 1.12).toFixed(2)} ${client.billing.currency || ""}`
                     : "N/A"}
                 </Typography>
               </Grid>

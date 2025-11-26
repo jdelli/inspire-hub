@@ -1,6 +1,7 @@
 "use client";
 import { db } from "../../../../script/firebaseConfig";
 import { collection, getDocs, doc, updateDoc, deleteField, serverTimestamp, query, where, getDoc, deleteDoc } from "firebase/firestore";
+import { fixBillingVATCalculations } from "../utils/billingService";
 import React, { useState, useEffect } from "react";
 import { Monitor } from "lucide-react";
 import seatMap1 from "../../(admin)/seatMap1.json";
@@ -53,9 +54,12 @@ import {
   Zoom,
   useTheme,
   useMediaQuery,
+  Snackbar,
+  CircularProgress,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import AddIcon from "@mui/icons-material/Add";
+import BuildIcon from "@mui/icons-material/Build";
 import PeopleIcon from "@mui/icons-material/People";
 import BusinessIcon from "@mui/icons-material/Business";
 import HomeWorkIcon from "@mui/icons-material/HomeWork";
@@ -138,6 +142,8 @@ export default function SeatMapTable() {
   const [showPublicDocsContractGenerator, setShowPublicDocsContractGenerator] = useState(false);
   const [showContractGenerator, setShowContractGenerator] = useState(false);
   const [selectedTenantForContract, setSelectedTenantForContract] = useState(null);
+  const [isFixingVAT, setIsFixingVAT] = useState(false);
+  const [vatAlert, setVatAlert] = useState({ open: false, message: '', severity: 'info' });
 
 
 
@@ -384,6 +390,42 @@ export default function SeatMapTable() {
     setShowContractGenerator(true);
   };
 
+  const handleFixVAT = async () => {
+    setIsFixingVAT(true);
+    try {
+      const result = await fixBillingVATCalculations();
+      
+      if (result.success && result.totalFixed > 0) {
+        setVatAlert({
+          open: true,
+          message: `Successfully added 12% VAT to ${result.totalFixed} billing records (checked ${result.totalRecordsChecked} records)`,
+          severity: 'success'
+        });
+      } else if (result.success && result.totalFixed === 0) {
+        setVatAlert({
+          open: true,
+          message: `All billing records already have correct VAT (checked ${result.totalRecordsChecked} records)`,
+          severity: 'info'
+        });
+      } else {
+        setVatAlert({
+          open: true,
+          message: 'Failed to fix VAT calculations',
+          severity: 'error'
+        });
+      }
+    } catch (error) {
+      console.error('Error fixing VAT:', error);
+      setVatAlert({
+        open: true,
+        message: 'Error fixing VAT calculations: ' + error.message,
+        severity: 'error'
+      });
+    } finally {
+      setIsFixingVAT(false);
+    }
+  };
+
   const dedicatedDeskClients = clients.filter(
     (client) =>
       (client.type === "dedicated" ||
@@ -556,18 +598,35 @@ export default function SeatMapTable() {
     <Box sx={{ py: 4, px: { xs: 2, sm: 3, md: 4 }, width: "100%" }}>
       {/* Header Section */}
       <Box sx={{ mb: 4 }}>
-        <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3 }}>
-          <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56 }}>
-            <PeopleIcon sx={{ fontSize: 28 }} />
-          </Avatar>
-          <Box>
-            <Typography variant="h5" fontWeight={700} color="text.primary">
-              Tenant Management
-            </Typography>
-            <Typography variant="body1" color="text.secondary">
-              Manage your workspace tenants and their subscriptions
-            </Typography>
-          </Box>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
+          <Stack direction="row" alignItems="center" spacing={2}>
+            <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56 }}>
+              <PeopleIcon sx={{ fontSize: 28 }} />
+            </Avatar>
+            <Box>
+              <Typography variant="h5" fontWeight={700} color="text.primary">
+                Tenant Management
+              </Typography>
+              <Typography variant="body1" color="text.secondary">
+                Manage your workspace tenants and their subscriptions
+              </Typography>
+            </Box>
+          </Stack>
+          <Button
+            variant="outlined"
+            color="primary"
+            startIcon={isFixingVAT ? <CircularProgress size={16} /> : <BuildIcon />}
+            onClick={handleFixVAT}
+            disabled={isFixingVAT}
+            sx={{
+              borderRadius: 1,
+              fontWeight: 600,
+              textTransform: 'none',
+              px: 3,
+            }}
+          >
+            {isFixingVAT ? 'Fixing VAT...' : 'Fix VAT (12%)'}
+          </Button>
         </Stack>
 
         {/* Statistics Cards */}
@@ -1271,6 +1330,23 @@ export default function SeatMapTable() {
         tenant={selectedTenantForContract}
         templateType={selectedTenantForContract?.contractType}
       />
+
+      {/* VAT Fix Alert Snackbar */}
+      <Snackbar
+        open={vatAlert.open}
+        autoHideDuration={6000}
+        onClose={() => setVatAlert({ ...vatAlert, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={() => setVatAlert({ ...vatAlert, open: false })}
+          severity={vatAlert.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {vatAlert.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

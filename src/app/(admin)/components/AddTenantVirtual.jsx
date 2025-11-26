@@ -174,7 +174,7 @@ export default function AddVirtualOfficeTenantModal({
     }
   }, [showAddModal]);
 
-  // compute form validity without setting errors (used to disable submit)
+  // compute form validity without setting errors (used to disable submits)
   const formValid = useMemo(() => {
     const emailRegex = /^\S+@\S+\.\S+$/;
     return (
@@ -188,16 +188,6 @@ export default function AddVirtualOfficeTenantModal({
     );
   }, [newTenant]);
 
-  const calculateTotal = () => {
-    const rate = parseFloat(`${newTenant.billing.rate}`) || 0;
-    const months = parseInt(`${newTenant.billing.monthsToAvail}`) || 1;
-    const cusaFee = parseFloat(newTenant.billing.cusaFee) || 0;
-    const parkingFee = parseFloat(newTenant.billing.parkingFee) || 0;
-    
-    const subtotal = (rate * months) + (cusaFee * months) + (parkingFee * months);
-    return subtotal;
-  };
-
   const calculateSubtotal = () => {
     const rate = parseFloat(`${newTenant.billing.rate}`) || 0;
     const months = parseInt(`${newTenant.billing.monthsToAvail}`) || 1;
@@ -205,6 +195,17 @@ export default function AddVirtualOfficeTenantModal({
     const parkingFee = parseFloat(newTenant.billing.parkingFee) || 0;
     
     return (rate * months) + (cusaFee * months) + (parkingFee * months);
+  };
+
+  const calculateVAT = () => {
+    const subtotal = calculateSubtotal();
+    return subtotal * 0.12; // 12% VAT
+  };
+
+  const calculateTotal = () => {
+    const subtotal = calculateSubtotal();
+    const vat = calculateVAT();
+    return subtotal + vat;
   };
 
   const validateForm = () => {
@@ -729,6 +730,18 @@ export default function AddVirtualOfficeTenantModal({
                         <TableCell align="right">
                           <Typography variant="subtitle1">
                             {formatPHP(calculateSubtotal())}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell colSpan={3} align="right">
+                          <Typography variant="subtitle1">
+                            VAT (12%)
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="subtitle1">
+                            {formatPHP(calculateVAT())}
                           </Typography>
                         </TableCell>
                       </TableRow>
