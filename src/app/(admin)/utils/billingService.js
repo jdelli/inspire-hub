@@ -1,15 +1,15 @@
 import { db } from "../../../../script/firebaseConfig";
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
-  query, 
-  where, 
-  updateDoc, 
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  where,
+  updateDoc,
   doc,
   getDoc,
   serverTimestamp,
-  Timestamp 
+  Timestamp
 } from "firebase/firestore";
 import { sendBillingNotification } from "./email";
 
@@ -17,6 +17,49 @@ import { sendBillingNotification } from "./email";
 // Helper to format number as PHP currency with thousands separator
 export function formatPHP(amount) {
   return `₱${Number(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// Fetch unpaid invoices with penalties for a tenant
+export async function getUnpaidPenaltiesForTenant(tenantId) {
+  try {
+    const unpaidQuery = query(
+      collection(db, 'billing'),
+      where('tenantId', '==', tenantId),
+      where('status', 'in', ['unpaid', 'overdue', 'pending'])
+    );
+
+    const unpaidSnapshot = await getDocs(unpaidQuery);
+    let totalUnpaidPenalties = 0;
+    const unpaidInvoices = [];
+
+    unpaidSnapshot.forEach((doc) => {
+      const invoice = doc.data();
+      const penaltyFee = parseFloat(invoice.penaltyFee) || 0;
+
+      if (penaltyFee > 0) {
+        totalUnpaidPenalties += penaltyFee;
+        unpaidInvoices.push({
+          id: doc.id,
+          billingMonth: invoice.billingMonth,
+          penaltyFee: penaltyFee,
+          total: parseFloat(invoice.total) || 0
+        });
+      }
+    });
+
+    return {
+      totalUnpaidPenalties,
+      unpaidInvoices,
+      count: unpaidInvoices.length
+    };
+  } catch (error) {
+    console.error('Error fetching unpaid penalties:', error);
+    return {
+      totalUnpaidPenalties: 0,
+      unpaidInvoices: [],
+      count: 0
+    };
+  }
 }
 
 // Calculate billing amount based on tenant type and configuration
@@ -30,16 +73,17 @@ export function calculateBillingAmount(tenant) {
   } else {
     defaultRate = 3000; // Default rate for virtual office
   }
-  
+
   const rate = parseFloat(tenant.billing?.rate) || defaultRate;
   // Only include fees if they are explicitly set and greater than 0
   const cusaFee = (tenant.billing?.cusaFee && parseFloat(tenant.billing.cusaFee) > 0) ? parseFloat(tenant.billing.cusaFee) : 0;
   const parkingFee = (tenant.billing?.parkingFee && parseFloat(tenant.billing.parkingFee) > 0) ? parseFloat(tenant.billing.parkingFee) : 0;
-  const penaltyFee = parseFloat(tenant.billing?.penaltyFee) || 0;
-  const damageFee = parseFloat(tenant.billing?.damageFee) || 0;
-  
+  // Penalty and damage fees are set to 0 by default - they should be added manually per invoice
+  const penaltyFee = 0;
+  const damageFee = 0;
+
   let baseAmount = 0;
-  
+
   // Calculate base amount based on tenant type
   if (tenant.selectedSeats && tenant.selectedSeats.length > 0) {
     // Dedicated Desk - multiply by number of seats
@@ -51,11 +95,11 @@ export function calculateBillingAmount(tenant) {
     // Virtual Office - single rate
     baseAmount = rate;
   }
-  
+
   const subtotal = baseAmount + cusaFee + parkingFee + penaltyFee + damageFee;
   const vat = subtotal * 0.12; // 12% VAT
   const total = subtotal + vat;
-  
+
   return {
     baseAmount,
     cusaFee,
@@ -70,12 +114,13 @@ export function calculateBillingAmount(tenant) {
 
 // Generate billing record for a tenant
 export async function generateBillingRecord(tenant, billingMonth, tenantType, billingDate = new Date()) {
+  // Calculate billing amount
   const billingAmounts = calculateBillingAmount(tenant);
-  
+
   // Use tenant's billing start date if available, otherwise use billingDate
   const startDate = tenant.billing?.startDate ? new Date(tenant.billing.startDate) : billingDate;
   const dueDate = new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days from start date
-  
+
   // Set default rate if not provided
   let defaultRate = 0;
   if (tenant.selectedSeats && tenant.selectedSeats.length > 0) {
@@ -85,7 +130,7 @@ export async function generateBillingRecord(tenant, billingMonth, tenantType, bi
   } else {
     defaultRate = 3000; // Default rate for virtual office
   }
-  
+
   const billingRecord = {
     tenantId: tenant.id,
     tenantName: tenant.name || 'Unknown',
@@ -94,12 +139,12 @@ export async function generateBillingRecord(tenant, billingMonth, tenantType, bi
     tenantPhone: tenant.phone || 'No phone provided',
     tenantAddress: tenant.address || 'No address provided',
     tenantType: tenantType, // 'dedicated-desk', 'private-office', 'virtual-office'
-    
+
     // Billing period
     billingMonth: billingMonth, // Format: '2024-01'
     billingDate: billingDate.toISOString(),
     dueDate: dueDate.toISOString(), // 30 days from tenant's billing start date
-    
+
     // Billing details
     baseRate: tenant.billing?.rate || defaultRate,
     quantity: tenant.selectedSeats?.length || tenant.selectedPO?.length || 1,
@@ -107,29 +152,35 @@ export async function generateBillingRecord(tenant, billingMonth, tenantType, bi
     parkingFee: billingAmounts.parkingFee,
     penaltyFee: billingAmounts.penaltyFee,
     damageFee: billingAmounts.damageFee,
-    
+
     // Calculated amounts
     subtotal: billingAmounts.subtotal,
     vat: billingAmounts.vat,
     total: billingAmounts.total,
-    
+
     // Status
     status: 'pending', // 'pending', 'paid', 'overdue', 'cancelled'
     paymentMethod: tenant.billing?.paymentMethod || 'credit',
-    
+
     // Metadata
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-    
+
     // Additional info
     billingAddress: tenant.billing?.billingAddress || tenant.address || 'No billing address provided',
     currency: 'PHP',
-    
+
+    // Unpaid penalties tracking - REMOVED as per request to not make penalties global
+    unpaidPenaltiesIncluded: false,
+    unpaidPenaltiesAmount: 0,
+    unpaidInvoicesCount: 0,
+    unpaidInvoicesDetails: [],
+
     // Items breakdown for invoice
     items: [
       {
         description: tenantType === 'dedicated-desk' ? 'Dedicated Desk Rental' :
-                    tenantType === 'private-office' ? 'Private Office Rental' : 'Virtual Office Services',
+          tenantType === 'private-office' ? 'Private Office Rental' : 'Virtual Office Services',
         quantity: tenant.selectedSeats?.length || tenant.selectedPO?.length || 1,
         unitPrice: tenant.billing?.rate || defaultRate,
         amount: billingAmounts.baseAmount
@@ -160,7 +211,7 @@ export async function generateBillingRecord(tenant, billingMonth, tenantType, bi
       }] : [])
     ]
   };
-  
+
   return billingRecord;
 }
 
@@ -169,7 +220,7 @@ export async function generateMonthlyBilling(targetMonth = null) {
   try {
     let billingMonth;
     let billingDate;
-    
+
     if (targetMonth) {
       billingMonth = targetMonth;
       // Parse the target month to get the billing date (1st of that month)
@@ -180,42 +231,42 @@ export async function generateMonthlyBilling(targetMonth = null) {
       billingMonth = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
       billingDate = new Date();
     }
-    
+
     console.log(`Generating monthly billing for ${billingMonth}...`);
-    
+
     const billingRecords = [];
     const errors = [];
     const skippedTenants = [];
-    
+
     // Process each tenant type
     const tenantTypes = [
       { collection: 'seatMap', type: 'dedicated-desk' },
       { collection: 'privateOffice', type: 'private-office' },
       { collection: 'virtualOffice', type: 'virtual-office' }
     ];
-    
+
     for (const { collection: collectionName, type } of tenantTypes) {
       try {
         console.log(`Processing ${collectionName} collection for ${type}...`);
-        
+
         // Get all active tenants
         const tenantsQuery = query(
           collection(db, collectionName),
           where('status', '==', 'active')
         );
-        
+
         const querySnapshot = await getDocs(tenantsQuery);
         console.log(`Found ${querySnapshot.docs.length} active tenants in ${collectionName}`);
-        
+
         // Debug: Log tenant details
         querySnapshot.docs.forEach((doc, index) => {
           const tenant = doc.data();
           console.log(`Tenant ${index + 1}: ${tenant.name || 'Unknown'} (${tenant.id}) - Status: ${tenant.status}, Rate: ${tenant.billing?.rate || 'Not set'}`);
         });
-        
+
         for (const doc of querySnapshot.docs) {
           const tenant = { id: doc.id, ...doc.data() };
-          
+
           try {
             // Check if billing already exists for this month
             const existingBillingQuery = query(
@@ -223,19 +274,21 @@ export async function generateMonthlyBilling(targetMonth = null) {
               where('tenantId', '==', tenant.id),
               where('billingMonth', '==', billingMonth)
             );
-            
+
             const existingBilling = await getDocs(existingBillingQuery);
-            
+
             if (existingBilling.empty) {
               // Generate new billing record
               const billingRecord = await generateBillingRecord(tenant, billingMonth, type, billingDate);
-              
+
               // Add to billing collection
               const billingDocRef = await addDoc(collection(db, 'billing'), billingRecord);
               billingRecord.id = billingDocRef.id;
-              
+
               billingRecords.push(billingRecord);
-              console.log(`Generated billing for tenant: ${tenant.name || tenant.id} (${type}) - Amount: ₱${billingRecord.total}`);
+
+              const penaltyInfo = '';
+              console.log(`Generated billing for tenant: ${tenant.name || tenant.id} (${type}) - Amount: ₱${billingRecord.total.toFixed(2)}${penaltyInfo}`);
             } else {
               console.log(`Billing already exists for tenant ${tenant.name || tenant.id} for ${billingMonth}`);
               skippedTenants.push({
@@ -264,11 +317,11 @@ export async function generateMonthlyBilling(targetMonth = null) {
         });
       }
     }
-    
+
     console.log(`Monthly billing generation completed. Generated ${billingRecords.length} billing records.`);
     console.log(`Skipped ${skippedTenants.length} tenants (billing already exists).`);
     console.log(`Errors: ${errors.length}`);
-    
+
     return {
       success: true,
       billingRecords,
@@ -279,7 +332,7 @@ export async function generateMonthlyBilling(targetMonth = null) {
       totalSkipped: skippedTenants.length,
       totalErrors: errors.length
     };
-    
+
   } catch (error) {
     console.error('Error generating monthly billing:', error);
     return {
@@ -301,16 +354,16 @@ export async function getTenantBillingHistory(tenantId, limit = 12) {
       // orderBy('billingMonth', 'desc'),
       // limit(limit)
     );
-    
+
     const querySnapshot = await getDocs(billingQuery);
     const billingHistory = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
-    
+
     // Sort by billing month descending
     billingHistory.sort((a, b) => b.billingMonth.localeCompare(a.billingMonth));
-    
+
     return billingHistory.slice(0, limit);
   } catch (error) {
     console.error('Error fetching tenant billing history:', error);
@@ -325,13 +378,13 @@ export async function getMonthlyBillingRecords(billingMonth) {
       collection(db, 'billing'),
       where('billingMonth', '==', billingMonth)
     );
-    
+
     const querySnapshot = await getDocs(billingQuery);
     const billingRecords = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
-    
+
     return billingRecords;
   } catch (error) {
     console.error('Error fetching monthly billing records:', error);
@@ -343,20 +396,20 @@ export async function getMonthlyBillingRecords(billingMonth) {
 export async function getAllBillingRecords() {
   try {
     const billingQuery = query(collection(db, 'billing'));
-    
+
     const querySnapshot = await getDocs(billingQuery);
     const billingRecords = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
-    
+
     // Sort by billing month and then by tenant name
     billingRecords.sort((a, b) => {
       const monthCompare = (b.billingMonth || '').localeCompare(a.billingMonth || '');
       if (monthCompare !== 0) return monthCompare;
       return (a.tenantName || '').localeCompare(b.tenantName || '');
     });
-    
+
     return billingRecords;
   } catch (error) {
     console.error('Error fetching all billing records:', error);
@@ -368,20 +421,20 @@ export async function getAllBillingRecords() {
 export async function updateBillingStatus(billingId, status, paymentDetails = {}) {
   try {
     const billingRef = doc(db, 'billing', billingId);
-    
+
     const updateData = {
       status,
       updatedAt: serverTimestamp(),
       ...paymentDetails
     };
-    
+
     if (status === 'paid') {
       updateData.paidAt = serverTimestamp();
       updateData.paymentDetails = paymentDetails;
     }
-    
+
     await updateDoc(billingRef, updateData);
-    
+
     return { success: true };
   } catch (error) {
     console.error('Error updating billing status:', error);
@@ -393,15 +446,15 @@ export async function updateBillingStatus(billingId, status, paymentDetails = {}
 export async function getBillingStatistics(month = null) {
   try {
     const currentMonth = month || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-    
+
     const billingQuery = query(
       collection(db, 'billing'),
       where('billingMonth', '==', currentMonth)
     );
-    
+
     const querySnapshot = await getDocs(billingQuery);
     const billingRecords = querySnapshot.docs.map(doc => doc.data());
-    
+
     const stats = {
       totalBills: billingRecords.length,
       totalAmount: 0,
@@ -417,12 +470,12 @@ export async function getBillingStatistics(month = null) {
         'virtual-office': { count: 0, amount: 0 }
       }
     };
-    
+
     billingRecords.forEach(record => {
       stats.totalAmount += record.total || 0;
       stats.byTenantType[record.tenantType].count++;
       stats.byTenantType[record.tenantType].amount += record.total || 0;
-      
+
       switch (record.status) {
         case 'paid':
           stats.paidAmount += record.total || 0;
@@ -438,7 +491,7 @@ export async function getBillingStatistics(month = null) {
           break;
       }
     });
-    
+
     return stats;
   } catch (error) {
     console.error('Error fetching billing statistics:', error);
@@ -453,15 +506,15 @@ export async function sendOverdueReminders() {
       collection(db, 'billing'),
       where('status', '==', 'overdue')
     );
-    
+
     const querySnapshot = await getDocs(overdueQuery);
     const overdueRecords = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
-    
+
     const results = [];
-    
+
     for (const record of overdueRecords) {
       try {
         await sendBillingNotification(record, 'overdue');
@@ -479,7 +532,7 @@ export async function sendOverdueReminders() {
         });
       }
     }
-    
+
     return results;
   } catch (error) {
     console.error('Error sending overdue reminders:', error);
@@ -494,19 +547,19 @@ export async function checkAndUpdateOverdueBills() {
       collection(db, 'billing'),
       where('status', '==', 'pending')
     );
-    
+
     const querySnapshot = await getDocs(pendingQuery);
     const pendingRecords = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
-    
+
     const currentDate = new Date();
     const updatedRecords = [];
-    
+
     for (const record of pendingRecords) {
       const dueDate = new Date(record.dueDate);
-      
+
       if (currentDate > dueDate) {
         // Mark as overdue
         await updateBillingStatus(record.id, 'overdue');
@@ -517,7 +570,7 @@ export async function checkAndUpdateOverdueBills() {
         });
       }
     }
-    
+
     return updatedRecords;
   } catch (error) {
     console.error('Error checking overdue bills:', error);
@@ -530,24 +583,25 @@ export async function updateBillingFees(billingId, additionalFees) {
   try {
     const billingRef = doc(db, 'billing', billingId);
     const billingDoc = await getDoc(billingRef);
-    
+
     if (!billingDoc.exists()) {
       throw new Error('Billing record not found');
     }
-    
+
     const billingData = billingDoc.data();
     const { penaltyFee = 0, damageFee = 0, notes = '' } = additionalFees;
-    
+
     // Calculate new totals
     const baseSubtotal = billingData.subtotal - (billingData.penaltyFee || 0) - (billingData.damageFee || 0);
     const newSubtotal = baseSubtotal + penaltyFee + damageFee;
-    const newTotal = newSubtotal;
-    
+    const vat = newSubtotal * 0.12; // 12% VAT
+    const newTotal = newSubtotal + vat;
+
     // Update items array to include new fees
-    const updatedItems = billingData.items.filter(item => 
+    const updatedItems = billingData.items.filter(item =>
       item.description !== 'Late Payment Penalty' && item.description !== 'Damage Fee'
     );
-    
+
     if (penaltyFee > 0) {
       updatedItems.push({
         description: 'Late Payment Penalty',
@@ -556,7 +610,7 @@ export async function updateBillingFees(billingId, additionalFees) {
         amount: penaltyFee
       });
     }
-    
+
     if (damageFee > 0) {
       updatedItems.push({
         description: 'Damage Fee',
@@ -565,18 +619,19 @@ export async function updateBillingFees(billingId, additionalFees) {
         amount: damageFee
       });
     }
-    
+
     // Update the billing record
     await updateDoc(billingRef, {
       penaltyFee,
       damageFee,
       subtotal: newSubtotal,
+      vat: vat,
       total: newTotal,
       items: updatedItems,
       additionalFeesNotes: notes,
       updatedAt: serverTimestamp()
     });
-    
+
     return {
       success: true,
       billingId,
@@ -598,7 +653,7 @@ export async function checkTenantBillingConfiguration() {
       { collection: 'privateOffice', type: 'private-office' },
       { collection: 'virtualOffice', type: 'virtual-office' }
     ];
-    
+
     const results = {
       totalTenants: 0,
       tenantsWithBilling: 0,
@@ -607,24 +662,24 @@ export async function checkTenantBillingConfiguration() {
       tenantsWithMissingInfo: 0,
       details: []
     };
-    
+
     for (const { collection: collectionName, type } of tenantTypes) {
       try {
         const tenantsQuery = query(
           collection(db, collectionName),
           where('status', '==', 'active')
         );
-        
+
         const querySnapshot = await getDocs(tenantsQuery);
-        
+
         for (const doc of querySnapshot.docs) {
           const tenant = { id: doc.id, ...doc.data() };
           results.totalTenants++;
-          
+
           const hasBilling = tenant.billing && Object.keys(tenant.billing).length > 0;
           const hasRate = tenant.billing?.rate && parseFloat(tenant.billing.rate) > 0;
           const hasRequiredInfo = tenant.name && tenant.email;
-          
+
           const detail = {
             tenantId: tenant.id,
             tenantName: tenant.name || 'Unknown',
@@ -636,31 +691,31 @@ export async function checkTenantBillingConfiguration() {
             rate: tenant.billing?.rate || 0,
             issues: []
           };
-          
+
           if (!hasBilling) {
             results.tenantsWithoutBilling++;
             detail.issues.push('No billing configuration');
           } else {
             results.tenantsWithBilling++;
           }
-          
+
           if (!hasRate) {
             results.tenantsWithZeroRate++;
             detail.issues.push('Zero or missing billing rate');
           }
-          
+
           if (!hasRequiredInfo) {
             results.tenantsWithMissingInfo++;
             detail.issues.push('Missing required tenant information');
           }
-          
+
           results.details.push(detail);
         }
       } catch (error) {
         console.error(`Error checking ${collectionName} collection:`, error);
       }
     }
-    
+
     return results;
   } catch (error) {
     console.error('Error checking tenant billing configuration:', error);
@@ -676,28 +731,28 @@ export async function updateTenantBillingDefaults() {
       { collection: 'privateOffice', type: 'private-office', defaultRate: 15000 },
       { collection: 'virtualOffice', type: 'virtual-office', defaultRate: 3000 }
     ];
-    
+
     const results = {
       totalUpdated: 0,
       totalSkipped: 0,
       errors: []
     };
-    
+
     for (const { collection: collectionName, type, defaultRate } of tenantTypes) {
       try {
         const tenantsQuery = query(
           collection(db, collectionName),
           where('status', '==', 'active')
         );
-        
+
         const querySnapshot = await getDocs(tenantsQuery);
-        
+
         for (const doc of querySnapshot.docs) {
           const tenant = { id: doc.id, ...doc.data() };
-          
+
           try {
             const needsUpdate = !tenant.billing || !tenant.billing.rate || parseFloat(tenant.billing.rate) === 0;
-            
+
             if (needsUpdate) {
               const updateData = {
                 billing: {
@@ -709,7 +764,7 @@ export async function updateTenantBillingDefaults() {
                   startDate: tenant.billing?.startDate || new Date().toISOString().split('T')[0]
                 }
               };
-              
+
               await updateDoc(doc(db, collectionName, tenant.id), updateData);
               results.totalUpdated++;
               console.log(`Updated billing for tenant: ${tenant.name || tenant.id} with rate: ₱${defaultRate}`);
@@ -733,7 +788,7 @@ export async function updateTenantBillingDefaults() {
         });
       }
     }
-    
+
     return results;
   } catch (error) {
     console.error('Error updating tenant billing defaults:', error);
@@ -790,28 +845,38 @@ export async function updateTenantBillingInfo(tenantId, tenantType, updatedBilli
 
     for (const billingDoc of billingSnapshot.docs) {
       const billingData = billingDoc.data();
-      
+
       // Recalculate billing amounts with updated tenant information
       const newBillingAmounts = calculateBillingAmount(updatedTenant);
-      
+
+      // Preserve existing penalty and damage fees (they are manually added per invoice)
+      const existingPenalty = parseFloat(billingData.penaltyFee) || 0;
+      const existingDamage = parseFloat(billingData.damageFee) || 0;
+
+      // Recalculate subtotal and total with preserved penalties
+      const newSubtotalWithPenalties = newBillingAmounts.subtotal - newBillingAmounts.penaltyFee - newBillingAmounts.damageFee + existingPenalty + existingDamage;
+      const newVat = newSubtotalWithPenalties * 0.12;
+      const newTotalWithPenalties = newSubtotalWithPenalties + newVat;
+
       // Update the billing record
       await updateDoc(doc(db, 'billing', billingDoc.id), {
         baseRate: updatedBillingInfo.rate || billingData.baseRate,
-        subtotal: newBillingAmounts.subtotal,
-        total: newBillingAmounts.total,
+        subtotal: newSubtotalWithPenalties,
+        vat: newVat,
+        total: newTotalWithPenalties,
         cusaFee: newBillingAmounts.cusaFee,
         parkingFee: newBillingAmounts.parkingFee,
-        penaltyFee: newBillingAmounts.penaltyFee,
-        damageFee: newBillingAmounts.damageFee,
+        penaltyFee: existingPenalty,
+        damageFee: existingDamage,
         updatedAt: serverTimestamp(),
-        // Update items array to reflect new amounts
+        // Update items array to reflect new amounts (preserve existing penalties)
         items: [
           {
-            description: updatedTenant.selectedSeats?.length > 0 
+            description: updatedTenant.selectedSeats?.length > 0
               ? `Dedicated Desk (${updatedTenant.selectedSeats.length} seat${updatedTenant.selectedSeats.length > 1 ? 's' : ''})`
               : updatedTenant.selectedPO?.length > 0
-              ? `Private Office (${updatedTenant.selectedPO.length} office${updatedTenant.selectedPO.length > 1 ? 's' : ''})`
-              : 'Virtual Office Services',
+                ? `Private Office (${updatedTenant.selectedPO.length} office${updatedTenant.selectedPO.length > 1 ? 's' : ''})`
+                : 'Virtual Office Services',
             quantity: updatedTenant.selectedSeats?.length || updatedTenant.selectedPO?.length || 1,
             unitPrice: updatedBillingInfo.rate || billingData.baseRate,
             amount: newBillingAmounts.baseAmount
@@ -828,17 +893,17 @@ export async function updateTenantBillingInfo(tenantId, tenantType, updatedBilli
             unitPrice: newBillingAmounts.parkingFee,
             amount: newBillingAmounts.parkingFee
           }] : []),
-          ...(newBillingAmounts.penaltyFee > 0 ? [{
+          ...(existingPenalty > 0 ? [{
             description: 'Late Payment Penalty',
             quantity: 1,
-            unitPrice: newBillingAmounts.penaltyFee,
-            amount: newBillingAmounts.penaltyFee
+            unitPrice: existingPenalty,
+            amount: existingPenalty
           }] : []),
-          ...(newBillingAmounts.damageFee > 0 ? [{
+          ...(existingDamage > 0 ? [{
             description: 'Damage Fee',
             quantity: 1,
-            unitPrice: newBillingAmounts.damageFee,
-            amount: newBillingAmounts.damageFee
+            unitPrice: existingDamage,
+            amount: existingDamage
           }] : [])
         ]
       });
@@ -846,7 +911,7 @@ export async function updateTenantBillingInfo(tenantId, tenantType, updatedBilli
       updatedBillingRecords.push({
         billingId: billingDoc.id,
         oldTotal: billingData.total,
-        newTotal: newBillingAmounts.total,
+        newTotal: newTotalWithPenalties,
         billingMonth: billingData.billingMonth
       });
     }

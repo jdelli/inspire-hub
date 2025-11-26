@@ -174,7 +174,7 @@ export default function BillingManagement() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const printRef = useRef();
-  
+
   // Enhanced state management
   const [billingStats, setBillingStats] = useState(null);
   const [currentMonthBills, setCurrentMonthBills] = useState([]);
@@ -199,22 +199,22 @@ export default function BillingManagement() {
   const [billingTargetMonth, setBillingTargetMonth] = useState(
     `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
   );
-  
+
   // Enhanced filters and search
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [sortBy, setSortBy] = useState('dueDate');
   const [sortOrder, setSortOrder] = useState('asc');
-  
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
-  
+
   // Bulk actions
   const [selectedBills, setSelectedBills] = useState([]);
   const [bulkAction, setBulkAction] = useState('');
-  
+
   // Enhanced payment details
   const [paymentDetails, setPaymentDetails] = useState({
     method: 'credit',
@@ -230,7 +230,7 @@ export default function BillingManagement() {
     damageFee: 0,
     notes: ''
   });
-  
+
   // Email and notifications
   const [emailDetails, setEmailDetails] = useState({
     subject: '',
@@ -238,9 +238,9 @@ export default function BillingManagement() {
     includeInvoice: true,
     recipients: []
   });
-  
 
-  
+
+
   // UI states
   const [alert, setAlert] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
@@ -261,7 +261,7 @@ export default function BillingManagement() {
   // Enhanced data processing and filtering
   const processAndFilterBills = useCallback((bills) => {
     let filtered = [...bills];
-    
+
     console.log(`Processing ${bills.length} bills with filters:`, {
       searchTerm,
       statusFilter,
@@ -269,32 +269,32 @@ export default function BillingManagement() {
       sortBy,
       sortOrder
     });
-    
+
     // Search filter
     if (searchTerm) {
       const beforeSearch = filtered.length;
-      filtered = filtered.filter(bill => 
+      filtered = filtered.filter(bill =>
         bill.tenantName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         bill.tenantCompany?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         bill.tenantEmail?.toLowerCase().includes(searchTerm.toLowerCase())
       );
       console.log(`Search filter: ${beforeSearch} -> ${filtered.length} (filtered out ${beforeSearch - filtered.length})`);
     }
-    
+
     // Status filter
     if (statusFilter !== 'all') {
       const beforeStatus = filtered.length;
       filtered = filtered.filter(bill => bill.status === statusFilter);
       console.log(`Status filter (${statusFilter}): ${beforeStatus} -> ${filtered.length} (filtered out ${beforeStatus - filtered.length})`);
     }
-    
+
     // Type filter
     if (typeFilter !== 'all') {
       const beforeType = filtered.length;
       filtered = filtered.filter(bill => bill.tenantType === typeFilter);
       console.log(`Type filter (${typeFilter}): ${beforeType} -> ${filtered.length} (filtered out ${beforeType - filtered.length})`);
     }
-    
+
     // Debug: Log which bills are being filtered out
     if (bills.length !== filtered.length) {
       const filteredOut = bills.filter(bill => !filtered.find(f => f.id === bill.id));
@@ -306,11 +306,11 @@ export default function BillingManagement() {
         total: bill.total
       })));
     }
-    
+
     // Sorting
     filtered.sort((a, b) => {
       let aValue, bValue;
-      
+
       switch (sortBy) {
         case 'tenantName':
           aValue = a.tenantName || '';
@@ -332,14 +332,14 @@ export default function BillingManagement() {
           aValue = a[sortBy] || '';
           bValue = b[sortBy] || '';
       }
-      
+
       if (sortOrder === 'asc') {
         return aValue > bValue ? 1 : -1;
       } else {
         return aValue < bValue ? 1 : -1;
       }
     });
-    
+
     console.log(`Final filtered result: ${filtered.length} bills`);
     setFilteredBills(filtered);
     // Reset to first page when filters change
@@ -355,14 +355,14 @@ export default function BillingManagement() {
         getBillingStatistics(selectedMonth),
         getMonthlyBillingRecords(selectedMonth)
       ]);
-      
+
       setBillingStats(stats);
       setCurrentMonthBills(bills);
-      
 
-      
+
+
       processAndFilterBills(bills);
-      
+
       setSnackbar({
         open: true,
         message: `Loaded ${bills.length} billing records for ${selectedMonth}`,
@@ -413,18 +413,18 @@ export default function BillingManagement() {
   // Enhanced bulk actions
   const handleBulkAction = async () => {
     if (selectedBills.length === 0 || !bulkAction) return;
-    
+
     setLoadingStates(prev => ({ ...prev, bulkAction: true }));
     try {
       console.log('Starting bulk action:', bulkAction, 'for bills:', selectedBills);
-      
+
       switch (bulkAction) {
         case 'mark_paid':
           // Validate that updateBillingStatus function exists
           if (typeof updateBillingStatus !== 'function') {
             throw new Error('updateBillingStatus function is not available');
           }
-          
+
           console.log('Updating billing status for bills:', selectedBills);
           await Promise.all(selectedBills.map(async (billId) => {
             try {
@@ -435,7 +435,7 @@ export default function BillingManagement() {
               throw billError;
             }
           }));
-          
+
           setSnackbar({
             open: true,
             message: `Marked ${selectedBills.length} bills as paid`,
@@ -462,7 +462,7 @@ export default function BillingManagement() {
           console.warn('Unknown bulk action:', bulkAction);
           break;
       }
-      
+
       setSelectedBills([]);
       setBulkAction('');
       setShowBulkActionsDialog(false);
@@ -485,7 +485,7 @@ export default function BillingManagement() {
     try {
       // Implement email sending functionality
       await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
-      
+
       setSnackbar({
         open: true,
         message: `Email sent to ${emailDetails.recipients.length} recipients`,
@@ -522,18 +522,18 @@ export default function BillingManagement() {
     setLoadingStates(prev => ({ ...prev, export: true }));
     try {
       let dataToExport;
-      
+
       if (format === 'excel') {
         // For Excel export, fetch all billing data from all months
         const allBills = await fetchAllBillingData();
         dataToExport = allBills;
       } else {
         // For CSV and PDF, use the current filtered data
-        dataToExport = selectedBills.length > 0 
-        ? filteredBills.filter(bill => selectedBills.includes(bill.id))
-        : filteredBills;
+        dataToExport = selectedBills.length > 0
+          ? filteredBills.filter(bill => selectedBills.includes(bill.id))
+          : filteredBills;
       }
-      
+
       if (dataToExport.length === 0) {
         setSnackbar({
           open: true,
@@ -556,7 +556,7 @@ export default function BillingManagement() {
         default:
           throw new Error(`Unsupported format: ${format}`);
       }
-      
+
       setSnackbar({
         open: true,
         message: `Successfully exported ${dataToExport.length} records in ${format.toUpperCase()} format`,
@@ -690,12 +690,12 @@ export default function BillingManagement() {
 
       // Add professional styling
       const range = XLSX.utils.decode_range(worksheet['!ref']);
-      
+
       // Style header row
       for (let col = range.s.c; col <= range.e.c; col++) {
         const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
         if (!worksheet[cellAddress]) continue;
-        
+
         worksheet[cellAddress].s = {
           font: { bold: true, color: { rgb: "FFFFFF" } },
           fill: { fgColor: { rgb: "2E7D32" } }, // Dark green background
@@ -714,10 +714,10 @@ export default function BillingManagement() {
         for (let col = range.s.c; col <= range.e.c; col++) {
           const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
           if (!worksheet[cellAddress]) continue;
-          
+
           const isEvenRow = row % 2 === 0;
           const cell = worksheet[cellAddress];
-          
+
           // Base styling
           cell.s = {
             ...cell.s,
@@ -762,13 +762,13 @@ export default function BillingManagement() {
       // Add summary statistics at the bottom if it's a summary sheet
       if (isSummary && data.length > 0) {
         const summaryStartRow = range.e.r + 3;
-        
+
         // Calculate statistics
         const totalAmount = data.reduce((sum, bill) => sum + (bill.total || 0), 0);
         const paidAmount = data.filter(bill => bill.status === 'paid').reduce((sum, bill) => sum + (bill.total || 0), 0);
         const pendingAmount = data.filter(bill => bill.status === 'pending').reduce((sum, bill) => sum + (bill.total || 0), 0);
         const overdueAmount = data.filter(bill => bill.status === 'overdue').reduce((sum, bill) => sum + (bill.total || 0), 0);
-        
+
         const summaryData = [
           ['SUMMARY STATISTICS', '', '', '', '', '', '', '', '', '', ''],
           ['Total Records:', data.length, '', '', '', '', '', '', '', '', ''],
@@ -789,7 +789,7 @@ export default function BillingManagement() {
           for (let col = 0; col < headers.length; col++) {
             const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
             if (!worksheet[cellAddress]) continue;
-            
+
             const cell = worksheet[cellAddress];
             if (i === 0) { // Header row
               cell.s = {
@@ -830,22 +830,22 @@ export default function BillingManagement() {
     Object.keys(groupedData).sort().forEach(month => {
       const monthData = groupedData[month];
       const monthSheet = createProfessionalSheet(month, monthData, false);
-      
+
       // Clean sheet name (Excel sheet names have restrictions)
       const cleanMonthName = month.replace(/[\\\/\?\*\[\]]/g, '_').substring(0, 31);
       XLSX.utils.book_append_sheet(workbook, monthSheet, cleanMonthName);
     });
 
     // Generate Excel file and download
-    const excelBuffer = XLSX.write(workbook, { 
-      bookType: 'xlsx', 
+    const excelBuffer = XLSX.write(workbook, {
+      bookType: 'xlsx',
       type: 'array',
       cellStyles: true,
       cellNF: true,
       cellHTML: false
     });
     const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    
+
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
@@ -923,7 +923,7 @@ export default function BillingManagement() {
     const printWindow = window.open('', '_blank');
     printWindow.document.write(htmlContent);
     printWindow.document.close();
-    
+
     // Wait for content to load, then print
     setTimeout(() => {
       printWindow.focus();
@@ -946,7 +946,7 @@ export default function BillingManagement() {
         // For overall export, fetch all billing data
         dataToExport = await fetchAllBillingData();
       }
-      
+
       if (dataToExport.length === 0) {
         setSnackbar({
           open: true,
@@ -967,7 +967,7 @@ export default function BillingManagement() {
       const overdueAmount = dataToExport
         .filter(bill => bill.status === 'overdue')
         .reduce((sum, bill) => sum + (bill.total || 0), 0);
-      
+
       const paidPercentage = totalAmount > 0 ? (paidAmount / totalAmount * 100).toFixed(1) : 0;
       const pendingPercentage = totalAmount > 0 ? (pendingAmount / totalAmount * 100).toFixed(1) : 0;
       const overduePercentage = totalAmount > 0 ? (overdueAmount / totalAmount * 100).toFixed(1) : 0;
@@ -1323,11 +1323,11 @@ export default function BillingManagement() {
               <div class="chart-title">📊 Status Breakdown</div>
               <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
                 ${Object.entries(groupedByStatus).map(([status, bills]) => {
-                  const statusAmount = bills.reduce((sum, bill) => sum + (bill.total || 0), 0);
-                  const statusCount = bills.length;
-                  const statusPercentage = totalAmount > 0 ? (statusAmount / totalAmount * 100).toFixed(1) : 0;
-                  
-                  return `
+        const statusAmount = bills.reduce((sum, bill) => sum + (bill.total || 0), 0);
+        const statusCount = bills.length;
+        const statusPercentage = totalAmount > 0 ? (statusAmount / totalAmount * 100).toFixed(1) : 0;
+
+        return `
                     <div style="text-align: center; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
                       <div style="font-size: 24px; font-weight: 700; color: #1976d2; margin-bottom: 5px;">
                         ${statusCount}
@@ -1343,7 +1343,7 @@ export default function BillingManagement() {
                       </div>
                     </div>
                   `;
-                }).join('')}
+      }).join('')}
               </div>
             </div>
             
@@ -1362,11 +1362,11 @@ export default function BillingManagement() {
       const printWindow = window.open('', '_blank');
       printWindow.document.write(enhancedHTMLContent);
       printWindow.document.close();
-      
+
       // Wait for content to load, then print
       setTimeout(() => {
         printWindow.focus();
-        
+
         // Add print styles and trigger print
         const style = printWindow.document.createElement('style');
         style.textContent = `
@@ -1377,10 +1377,10 @@ export default function BillingManagement() {
           }
         `;
         printWindow.document.head.appendChild(style);
-        
+
         setTimeout(() => {
           printWindow.print();
-          
+
           // Close window after printing
           setTimeout(() => {
             printWindow.close();
@@ -1409,7 +1409,7 @@ export default function BillingManagement() {
   // Enhanced payment recording
   const handleMarkAsPaid = async () => {
     if (!selectedBill) return;
-    
+
     setLoadingStates(prev => ({ ...prev, bulkAction: true }));
     try {
       await updateBillingStatus(selectedBill.id, 'paid', paymentDetails);
@@ -1443,7 +1443,7 @@ export default function BillingManagement() {
     try {
       // Delete billing record from Firestore
       await deleteDoc(doc(db, 'billing', billId));
-      
+
       setSnackbar({
         open: true,
         message: 'Billing record deleted successfully',
@@ -1467,7 +1467,7 @@ export default function BillingManagement() {
     setLoadingStates(prev => ({ ...prev, bulkAction: true }));
     try {
       const currentPenalty = parseFloat(selectedBill.penaltyFee) || 0;
-      
+
       if (currentPenalty === 0) {
         setSnackbar({
           open: true,
@@ -1483,18 +1483,22 @@ export default function BillingManagement() {
       const cusaFee = parseFloat(selectedBill.cusaFee) || 0;
       const parkingFee = parseFloat(selectedBill.parkingFee) || 0;
       const damageFee = parseFloat(selectedBill.damageFee) || 0;
-      
+
       // Calculate base subtotal without penalty
       const baseSubtotal = subtotal - currentPenalty;
       const newSubtotal = baseSubtotal + cusaFee + parkingFee + damageFee;
       const vat = newSubtotal * 0.12;
       const newTotal = newSubtotal + vat;
 
+      // Update items array to remove penalty
+      const updatedItems = (selectedBill.items || []).filter(item => item.description !== 'Late Payment Penalty');
+
       await updateDoc(doc(db, 'billing', selectedBill.id), {
         penaltyFee: 0,
         subtotal: newSubtotal,
         vat: vat,
         total: newTotal,
+        items: updatedItems,
         penaltyPercentage: null,
         penaltyAppliedAt: null,
         penaltyRevokedAt: serverTimestamp(),
@@ -1538,7 +1542,7 @@ export default function BillingManagement() {
       const penaltyAmount = subtotal * (overduePenaltyPercentage / 100);
       const currentPenalty = parseFloat(selectedBill.penaltyFee) || 0;
       const newPenaltyTotal = currentPenalty + penaltyAmount;
-      
+
       // Recalculate total: subtotal + existing fees + new penalty + VAT
       const cusaFee = parseFloat(selectedBill.cusaFee) || 0;
       const parkingFee = parseFloat(selectedBill.parkingFee) || 0;
@@ -1547,11 +1551,26 @@ export default function BillingManagement() {
       const vat = newSubtotal * 0.12;
       const newTotal = newSubtotal + vat;
 
+      // Update items array to include new penalty
+      const currentItems = selectedBill.items || [];
+      const otherItems = currentItems.filter(item => item.description !== 'Late Payment Penalty');
+
+      const updatedItems = [
+        ...otherItems,
+        {
+          description: 'Late Payment Penalty',
+          quantity: 1,
+          unitPrice: newPenaltyTotal,
+          amount: newPenaltyTotal
+        }
+      ];
+
       await updateDoc(doc(db, 'billing', selectedBill.id), {
         penaltyFee: newPenaltyTotal,
         subtotal: newSubtotal,
         vat: vat,
         total: newTotal,
+        items: updatedItems,
         penaltyPercentage: overduePenaltyPercentage,
         penaltyAppliedAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -1580,7 +1599,7 @@ export default function BillingManagement() {
   // Handle additional fees update
   const handleUpdateAdditionalFees = async () => {
     if (!selectedBill) return;
-    
+
     setLoadingStates(prev => ({ ...prev, bulkAction: true }));
     try {
       const result = await updateBillingFees(selectedBill.id, additionalFeesDetails);
@@ -1611,27 +1630,27 @@ export default function BillingManagement() {
     try {
       // First check tenant billing configuration
       const configCheck = await checkTenantBillingConfiguration();
-      
+
       if (configCheck.tenantsWithoutBilling > 0 || configCheck.tenantsWithZeroRate > 0) {
         setAlert({
           type: 'warning',
           message: `Found ${configCheck.tenantsWithoutBilling} tenants without billing configuration and ${configCheck.tenantsWithZeroRate} tenants with zero rates. Billing will be generated with default rates.`
         });
       }
-      
+
       const result = await generateMonthlyBilling(billingTargetMonth);
-      
+
       if (result.success) {
         let message = `Successfully generated ${result.totalGenerated} billing records for ${result.billingMonth}`;
-        
+
         if (result.totalSkipped > 0) {
           message += `. Skipped ${result.totalSkipped} tenants (billing already exists).`;
         }
-        
+
         if (result.totalErrors > 0) {
           message += `. ${result.totalErrors} errors occurred.`;
         }
-        
+
         if (result.totalGenerated > 0) {
           setAlert({
             type: 'success',
@@ -1643,11 +1662,11 @@ export default function BillingManagement() {
             message: `No new billing records generated for ${result.billingMonth}. All tenants already have billing records for this month.`
           });
         }
-        
+
         if (result.errors.length > 0) {
           console.warn('Billing generation completed with some errors:', result.errors);
         }
-        
+
         setShowGenerateBillingDialog(false);
         loadBillingData(); // Refresh data
       } else {
@@ -1735,14 +1754,14 @@ export default function BillingManagement() {
     const options = [];
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
-    
+
     for (let month = 0; month < 12; month++) {
       const date = new Date(currentYear, month, 1);
       const value = `${currentYear}-${String(month + 1).padStart(2, '0')}`;
       const label = date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
       options.push({ value, label });
     }
-    
+
     return options;
   };
 
@@ -2026,6 +2045,14 @@ export default function BillingManagement() {
                     <td class="amount">${formatCurrency(item.amount)}</td>
                   </tr>
                 `).join('')}
+                ${bill.penaltyFee > 0 && !bill.items.some(item => item.description === 'Late Payment Penalty') ? `
+                  <tr style="color: #f57c00; font-weight: 600;">
+                    <td>Late Payment Penalty</td>
+                    <td class="amount">1</td>
+                    <td class="amount">${formatCurrency(bill.penaltyFee)}</td>
+                    <td class="amount" style="color: #f57c00; font-weight: 600;">${formatCurrency(bill.penaltyFee)}</td>
+                  </tr>
+                ` : ''}
                 <tr class="total-row">
                   <td colspan="3" class="amount"><strong>Subtotal</strong></td>
                   <td class="amount"><strong>${formatCurrency(bill.subtotal)}</strong></td>
@@ -2113,10 +2140,10 @@ export default function BillingManagement() {
   // Handle print functionality
   const handlePrint = () => {
     if (!selectedBill) return;
-    
+
     const printWindow = window.open('', '_blank');
     const printContent = printRef.current.innerHTML;
-    
+
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
@@ -2374,6 +2401,14 @@ export default function BillingManagement() {
                     <td class="amount">${formatCurrency(item.amount)}</td>
                   </tr>
                 `).join('')}
+                ${selectedBill.penaltyFee > 0 && !selectedBill.items.some(item => item.description === 'Late Payment Penalty') ? `
+                  <tr style="color: #f57c00; font-weight: 600;">
+                    <td>Late Payment Penalty</td>
+                    <td class="amount">1</td>
+                    <td class="amount">${formatCurrency(selectedBill.penaltyFee)}</td>
+                    <td class="amount" style="color: #f57c00; font-weight: 600;">${formatCurrency(selectedBill.penaltyFee)}</td>
+                  </tr>
+                ` : ''}
                 <tr class="total-row">
                   <td colspan="3" class="amount"><strong>Subtotal</strong></td>
                   <td class="amount"><strong>${formatCurrency(selectedBill.subtotal)}</strong></td>
@@ -2456,7 +2491,7 @@ export default function BillingManagement() {
         </body>
       </html>
     `);
-    
+
     printWindow.document.close();
     printWindow.focus();
     setTimeout(() => {
@@ -2468,26 +2503,26 @@ export default function BillingManagement() {
   // Handle PDF download functionality
   const handleDownloadPDF = (bill) => {
     if (!bill) return;
-    
+
     try {
       // Create a new window with the PDF content
       const pdfWindow = window.open('', '_blank');
       const pdfContent = generatePDFContent(bill);
-      
+
       pdfWindow.document.write(pdfContent);
       pdfWindow.document.close();
-      
+
       // Wait for content to load, then trigger print to PDF
       setTimeout(() => {
         pdfWindow.focus();
         pdfWindow.print();
-        
+
         // Close the window after a delay
         setTimeout(() => {
           pdfWindow.close();
         }, 1000);
       }, 500);
-      
+
       setSnackbar({
         open: true,
         message: `PDF download initiated for ${bill.tenantName}`,
@@ -2524,7 +2559,7 @@ export default function BillingManagement() {
 
       // Fetch the tenant data from the appropriate collection
       const tenantDoc = await getDoc(doc(db, collectionName, bill.tenantId));
-      
+
       if (tenantDoc.exists()) {
         const tenantData = { id: tenantDoc.id, ...tenantDoc.data() };
         setSelectedTenantForEdit(tenantData);
@@ -2552,13 +2587,13 @@ export default function BillingManagement() {
       // The EditTenantModal already handles the billing update
       // We just need to refresh the billing data
       await loadBillingData();
-      
+
       setSnackbar({
         open: true,
         message: 'Tenant and billing information updated successfully',
         severity: 'success'
       });
-      
+
       setShowEditTenantModal(false);
       setSelectedTenantForEdit(null);
     } catch (error) {
@@ -2591,7 +2626,7 @@ export default function BillingManagement() {
     <Box sx={{ p: 3 }}>
       {/* Hidden div for print content */}
       <div ref={printRef} style={{ display: 'none' }}></div>
-      
+
       {/* Enhanced Header with Breadcrumbs */}
       <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2 }}>
         <Link color="inherit" href="/admin">
@@ -2599,11 +2634,11 @@ export default function BillingManagement() {
         </Link>
         <Typography color="text.primary">Billing Management</Typography>
       </Breadcrumbs>
-      
+
       {/* Enhanced Header */}
       <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={3}>
         <Box>
-          <Typography variant="h3" fontWeight={700} gutterBottom sx={{ 
+          <Typography variant="h3" fontWeight={700} gutterBottom sx={{
             background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
             backgroundClip: 'text',
             WebkitBackgroundClip: 'text',
@@ -2618,7 +2653,7 @@ export default function BillingManagement() {
             Manage monthly billing, payments, overdue accounts, and financial analytics
           </Typography>
         </Box>
-        
+
         <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap', gap: 1 }}>
           <Button
             variant="outlined"
@@ -2635,7 +2670,7 @@ export default function BillingManagement() {
             startIcon={<AttachMoneyIcon />}
             onClick={() => setShowGenerateBillingDialog(true)}
             disabled={isGenerating}
-            sx={{ 
+            sx={{
               bgcolor: 'success.main',
               '&:hover': { bgcolor: 'success.dark' },
               minWidth: 180
@@ -2650,7 +2685,7 @@ export default function BillingManagement() {
             variant="contained"
             startIcon={<CloudDownloadIcon />}
             onClick={() => setShowExportDialog(true)}
-            sx={{ 
+            sx={{
               bgcolor: 'warning.main',
               '&:hover': { bgcolor: 'warning.dark' },
               minWidth: 120
@@ -2663,15 +2698,15 @@ export default function BillingManagement() {
 
       {/* Enhanced Alert System */}
       {alert && (
-        <Alert 
-          severity={alert.type} 
+        <Alert
+          severity={alert.type}
           onClose={() => setAlert(null)}
           sx={{ mb: 3 }}
         >
           {alert.message}
         </Alert>
       )}
-      
+
       {/* Enhanced Search and Filter Section */}
       <Card sx={{ mb: 3, p: 2 }}>
         <Grid container spacing={3} alignItems="center">
@@ -2691,7 +2726,7 @@ export default function BillingManagement() {
               size="small"
             />
           </Grid>
-          
+
           <Grid item xs={12} md={2}>
             <FormControl fullWidth size="small">
               <InputLabel>Status</InputLabel>
@@ -2707,7 +2742,7 @@ export default function BillingManagement() {
               </Select>
             </FormControl>
           </Grid>
-          
+
           <Grid item xs={12} md={2}>
             <FormControl fullWidth size="small">
               <InputLabel>Type</InputLabel>
@@ -2723,7 +2758,7 @@ export default function BillingManagement() {
               </Select>
             </FormControl>
           </Grid>
-          
+
           <Grid item xs={12} md={3}>
             <FormControl fullWidth size="small">
               <InputLabel>Sort By</InputLabel>
@@ -2739,7 +2774,7 @@ export default function BillingManagement() {
               </Select>
             </FormControl>
           </Grid>
-          
+
           <Grid item xs={12} md={2}>
             <Stack direction="row" spacing={1}>
               <Button
@@ -2750,7 +2785,7 @@ export default function BillingManagement() {
               >
                 {sortOrder === 'asc' ? '↑' : '↓'}
               </Button>
-              
+
               {(searchTerm || statusFilter !== 'all' || typeFilter !== 'all') && (
                 <Button
                   variant="outlined"
@@ -2769,7 +2804,7 @@ export default function BillingManagement() {
                   Clear Filters
                 </Button>
               )}
-              
+
               {selectedBills.length > 0 && (
                 <Button
                   variant="contained"
@@ -2781,7 +2816,7 @@ export default function BillingManagement() {
                   {selectedBills.length} Selected
                 </Button>
               )}
-              
+
               {filteredBills.length > itemsPerPage && (
                 <Button
                   variant="outlined"
@@ -2801,14 +2836,14 @@ export default function BillingManagement() {
             </Stack>
           </Grid>
         </Grid>
-        
+
 
       </Card>
 
       {/* Enhanced Statistics Cards */}
       <Grid container spacing={3} mb={4}>
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ 
+          <Card sx={{
             background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
             color: 'white',
             transition: 'transform 0.2s',
@@ -2834,9 +2869,9 @@ export default function BillingManagement() {
             </CardContent>
           </Card>
         </Grid>
-        
+
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ 
+          <Card sx={{
             background: 'linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%)',
             color: 'white',
             transition: 'transform 0.2s',
@@ -2862,9 +2897,9 @@ export default function BillingManagement() {
             </CardContent>
           </Card>
         </Grid>
-        
+
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ 
+          <Card sx={{
             background: 'linear-gradient(135deg, #388e3c 0%, #2e7d32 100%)',
             color: 'white',
             transition: 'transform 0.2s',
@@ -2890,9 +2925,9 @@ export default function BillingManagement() {
             </CardContent>
           </Card>
         </Grid>
-        
+
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ 
+          <Card sx={{
             background: 'linear-gradient(135deg, #d32f2f 0%, #c62828 100%)',
             color: 'white',
             transition: 'transform 0.2s',
@@ -2939,7 +2974,7 @@ export default function BillingManagement() {
               </Select>
             </FormControl>
           </Grid>
-          
+
           <Grid item xs={12} md={8}>
             <Stack direction="row" spacing={2} justifyContent="flex-end">
               <Button
@@ -3000,10 +3035,10 @@ export default function BillingManagement() {
                     {typeFilter !== 'all' && <Typography variant="body2">• Type: {typeFilter}</Typography>}
                   </Box>
                 }>
-                  <Chip 
-                    label="Filters Active" 
-                    size="small" 
-                    color="primary" 
+                  <Chip
+                    label="Filters Active"
+                    size="small"
+                    color="primary"
                     variant="outlined"
                     icon={<FilterListIcon />}
                   />
@@ -3011,7 +3046,7 @@ export default function BillingManagement() {
               )}
             </Box>
             <Typography variant="body2" color="text.secondary">
-              {filteredBills.length === currentMonthBills.length 
+              {filteredBills.length === currentMonthBills.length
                 ? `Showing all ${currentMonthBills.length} records`
                 : `Showing ${filteredBills.length} of ${currentMonthBills.length} records (${currentMonthBills.length - filteredBills.length} filtered out)`
               }
@@ -3020,7 +3055,7 @@ export default function BillingManagement() {
               )}
             </Typography>
           </Box>
-          
+
           <TableContainer sx={{ display: 'flex', justifyContent: 'center' }}>
             <Table>
               <TableHead>
@@ -3056,7 +3091,7 @@ export default function BillingManagement() {
                           No billing records found
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          {currentMonthBills.length === 0 
+                          {currentMonthBills.length === 0
                             ? `No billing records for ${selectedMonth}`
                             : 'Try adjusting your search or filter criteria'
                           }
@@ -3068,201 +3103,201 @@ export default function BillingManagement() {
                   filteredBills
                     .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                     .map((bill) => (
-                    <TableRow 
-                      key={bill.id}
-                      hover
-                      sx={{ 
-                        '&:hover': { backgroundColor: 'grey.50' },
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <TableCell padding="checkbox">
-                        <Checkbox
-                          checked={selectedBills.includes(bill.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedBills([...selectedBills, bill.id]);
-                            } else {
-                              setSelectedBills(selectedBills.filter(id => id !== bill.id));
-                            }
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Box>
+                      <TableRow
+                        key={bill.id}
+                        hover
+                        sx={{
+                          '&:hover': { backgroundColor: 'grey.50' },
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <TableCell padding="checkbox">
+                          <Checkbox
+                            checked={selectedBills.includes(bill.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedBills([...selectedBills, bill.id]);
+                              } else {
+                                setSelectedBills(selectedBills.filter(id => id !== bill.id));
+                              }
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Box>
+                            <Typography variant="subtitle2" fontWeight={600}>
+                              {bill.tenantName}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {bill.tenantCompany}
+                            </Typography>
+                            <Typography variant="caption" display="block" color="text.secondary">
+                              {bill.tenantEmail}
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Box display="flex" alignItems="center" gap={1}>
+                            {getTenantTypeIcon(bill.tenantType)}
+                            <Typography variant="body2">
+                              {bill.tenantType.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell>
                           <Typography variant="subtitle2" fontWeight={600}>
-                            {bill.tenantName}
+                            {formatPHP(bill.total)}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
-                            {bill.tenantCompany}
+                            Due: {new Date(bill.dueDate).toLocaleDateString()}
                           </Typography>
-                          <Typography variant="caption" display="block" color="text.secondary">
-                            {bill.tenantEmail}
-                          </Typography>
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Box display="flex" alignItems="center" gap={1}>
-                          {getTenantTypeIcon(bill.tenantType)}
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            icon={getStatusIcon(bill.status)}
+                            label={bill.status.toUpperCase()}
+                            color={getStatusColor(bill.status)}
+                            size="small"
+                            sx={{
+                              fontWeight: 600,
+                              '& .MuiChip-icon': { color: 'inherit' }
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>
                           <Typography variant="body2">
-                            {bill.tenantType.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                            {new Date(bill.dueDate).toLocaleDateString()}
                           </Typography>
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="subtitle2" fontWeight={600}>
-                          {formatPHP(bill.total)}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Due: {new Date(bill.dueDate).toLocaleDateString()}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          icon={getStatusIcon(bill.status)}
-                          label={bill.status.toUpperCase()}
-                          color={getStatusColor(bill.status)}
-                          size="small"
-                          sx={{ 
-                            fontWeight: 600,
-                            '& .MuiChip-icon': { color: 'inherit' }
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2">
-                          {new Date(bill.dueDate).toLocaleDateString()}
-                        </Typography>
-                        {bill.status === 'overdue' && (
-                          <Typography variant="caption" color="error.main" display="block">
-                            {Math.ceil((new Date() - new Date(bill.dueDate)) / (1000 * 60 * 60 * 24))} days overdue
-                          </Typography>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<VisibilityIcon />}
-                            onClick={() => {
-                              setSelectedBill(bill);
-                              setShowBillDetails(true);
-                            }}
-                            sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
-                          >
-                            View
-                          </Button>
-                          
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            color="primary"
-                            startIcon={<PictureAsPdfIcon />}
-                            onClick={() => handleDownloadPDF(bill)}
-                            sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
-                          >
-                            PDF
-                          </Button>
-                          
-                          {bill.status !== 'paid' && (
+                          {bill.status === 'overdue' && (
+                            <Typography variant="caption" color="error.main" display="block">
+                              {Math.ceil((new Date() - new Date(bill.dueDate)) / (1000 * 60 * 60 * 24))} days overdue
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
                             <Button
                               size="small"
                               variant="outlined"
-                              color="success"
-                              startIcon={<CheckCircleIcon />}
+                              startIcon={<VisibilityIcon />}
                               onClick={() => {
                                 setSelectedBill(bill);
-                                setShowPaymentDialog(true);
+                                setShowBillDetails(true);
                               }}
                               sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
                             >
-                              Pay
+                              View
                             </Button>
-                          )}
-                          
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            color="warning"
-                            startIcon={<BuildIcon />}
-                            onClick={() => {
-                              setSelectedBill(bill);
-                              setAdditionalFeesDetails({
-                                penaltyFee: bill.penaltyFee || 0,
-                                damageFee: bill.damageFee || 0,
-                                notes: bill.additionalFeesNotes || ''
-                              });
-                              setShowAdditionalFeesDialog(true);
-                            }}
-                            sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
-                          >
-                            Fees
-                          </Button>
-                          
-                          {(bill.status === 'overdue' || bill.status === 'pending') && (
+
                             <Button
                               size="small"
                               variant="outlined"
-                              color="error"
-                              startIcon={<PercentIcon />}
-                              onClick={() => {
-                                setSelectedBill(bill);
-                                setOverduePenaltyPercentage(0);
-                                setShowOverduePenaltyDialog(true);
-                              }}
+                              color="primary"
+                              startIcon={<PictureAsPdfIcon />}
+                              onClick={() => handleDownloadPDF(bill)}
                               sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
                             >
-                              Penalty %
+                              PDF
                             </Button>
-                          )}
-                          
-                          {bill.penaltyFee > 0 && (
+
+                            {bill.status !== 'paid' && (
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="success"
+                                startIcon={<CheckCircleIcon />}
+                                onClick={() => {
+                                  setSelectedBill(bill);
+                                  setShowPaymentDialog(true);
+                                }}
+                                sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
+                              >
+                                Pay
+                              </Button>
+                            )}
+
                             <Button
                               size="small"
                               variant="outlined"
                               color="warning"
-                              startIcon={<RestoreIcon />}
+                              startIcon={<BuildIcon />}
                               onClick={() => {
                                 setSelectedBill(bill);
-                                setShowRevokePenaltyDialog(true);
+                                setAdditionalFeesDetails({
+                                  penaltyFee: bill.penaltyFee || 0,
+                                  damageFee: bill.damageFee || 0,
+                                  notes: bill.additionalFeesNotes || ''
+                                });
+                                setShowAdditionalFeesDialog(true);
                               }}
                               sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
                             >
-                              Revoke Penalty
+                              Fees
                             </Button>
-                          )}
-                          
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            color="info"
-                            startIcon={<EditIcon />}
-                            onClick={() => handleEditTenant(bill)}
-                            sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
-                          >
-                            Edit Tenant
-                          </Button>
-                          
-                          <Tooltip title="More Actions">
-                            <IconButton
+
+                            {(bill.status === 'overdue' || bill.status === 'pending') && (
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="error"
+                                startIcon={<PercentIcon />}
+                                onClick={() => {
+                                  setSelectedBill(bill);
+                                  setOverduePenaltyPercentage(0);
+                                  setShowOverduePenaltyDialog(true);
+                                }}
+                                sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
+                              >
+                                Penalty %
+                              </Button>
+                            )}
+
+                            {bill.penaltyFee > 0 && (
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="warning"
+                                startIcon={<RestoreIcon />}
+                                onClick={() => {
+                                  setSelectedBill(bill);
+                                  setShowRevokePenaltyDialog(true);
+                                }}
+                                sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
+                              >
+                                Revoke Penalty
+                              </Button>
+                            )}
+
+                            <Button
                               size="small"
-                              color="error"
-                              onClick={(e) => handleDeleteBilling(bill.id)}
+                              variant="outlined"
+                              color="info"
+                              startIcon={<EditIcon />}
+                              onClick={() => handleEditTenant(bill)}
+                              sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
                             >
-                              <DeleteIcon />
-                            </IconButton>
-                          </Tooltip>
-                        </Stack>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                              Edit Tenant
+                            </Button>
+
+                            <Tooltip title="More Actions">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={(e) => handleDeleteBilling(bill.id)}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    ))
                 )}
               </TableBody>
             </Table>
           </TableContainer>
         </CardContent>
-        
+
         {/* Pagination */}
         {filteredBills.length > 0 && (
           <Box sx={{ p: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
@@ -3271,7 +3306,7 @@ export default function BillingManagement() {
                 <Typography variant="body2" color="text.secondary">
                   Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredBills.length)} of {filteredBills.length} records
                 </Typography>
-                
+
                 {filteredBills.length > 10 && (
                   <FormControl size="small" sx={{ minWidth: 80 }}>
                     <Select
@@ -3290,7 +3325,7 @@ export default function BillingManagement() {
                   </FormControl>
                 )}
               </Box>
-              
+
               {filteredBills.length > itemsPerPage && (
                 <Pagination
                   count={Math.ceil(filteredBills.length / itemsPerPage)}
@@ -3342,18 +3377,18 @@ export default function BillingManagement() {
           </Box>
           <Box>
             <Tooltip title="Print Invoice">
-              <IconButton 
-                onClick={handlePrint} 
-                aria-label="print" 
-                size="large" 
+              <IconButton
+                onClick={handlePrint}
+                aria-label="print"
+                size="large"
                 sx={{ mr: 1, color: 'white' }}
               >
                 <PrintIcon />
               </IconButton>
             </Tooltip>
-            <IconButton 
-              onClick={() => setShowBillDetails(false)} 
-              aria-label="close" 
+            <IconButton
+              onClick={() => setShowBillDetails(false)}
+              aria-label="close"
               size="large"
               sx={{ color: 'white' }}
             >
@@ -3372,7 +3407,7 @@ export default function BillingManagement() {
                   <Typography><strong>Email:</strong> {selectedBill.tenantEmail}</Typography>
                   <Typography><strong>Type:</strong> {selectedBill.tenantType}</Typography>
                 </Grid>
-                
+
                 <Grid item xs={12} md={6}>
                   <Typography variant="h6" gutterBottom>Billing Information</Typography>
                   <Typography><strong>Billing Month:</strong> {selectedBill.billingMonth}</Typography>
@@ -3391,7 +3426,7 @@ export default function BillingManagement() {
                     </Typography>
                   )}
                 </Grid>
-                
+
                 <Grid item xs={12}>
                   <Typography variant="h6" gutterBottom>Items Breakdown</Typography>
                   <TableContainer sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
@@ -3413,6 +3448,15 @@ export default function BillingManagement() {
                             <TableCell align="right">{formatPHP(item.amount)}</TableCell>
                           </TableRow>
                         ))}
+                        {/* Add penalty fee if it exists and is not already in items */}
+                        {selectedBill.penaltyFee > 0 && !selectedBill.items.some(item => item.description === 'Late Payment Penalty') && (
+                          <TableRow>
+                            <TableCell sx={{ color: 'warning.main', fontWeight: 600 }}>Late Payment Penalty</TableCell>
+                            <TableCell align="right">1</TableCell>
+                            <TableCell align="right">{formatPHP(selectedBill.penaltyFee)}</TableCell>
+                            <TableCell align="right" sx={{ color: 'warning.main', fontWeight: 600 }}>{formatPHP(selectedBill.penaltyFee)}</TableCell>
+                          </TableRow>
+                        )}
                         <TableRow>
                           <TableCell colSpan={3} align="right"><strong>Subtotal:</strong></TableCell>
                           <TableCell align="right"><strong>{formatPHP(selectedBill.subtotal)}</strong></TableCell>
@@ -3461,7 +3505,7 @@ export default function BillingManagement() {
                 <MenuItem value="check">Check</MenuItem>
               </Select>
             </FormControl>
-            
+
             <TextField
               label="Payment Reference"
               value={paymentDetails.reference}
@@ -3469,7 +3513,7 @@ export default function BillingManagement() {
               fullWidth
               placeholder="Transaction ID, check number, etc."
             />
-            
+
             <TextField
               label="Notes"
               value={paymentDetails.notes}
@@ -3508,10 +3552,10 @@ export default function BillingManagement() {
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 1 }}>
             <Alert severity="info" icon={<SpeedIcon />}>
-              This will generate billing records for all active tenants for the selected month. 
+              This will generate billing records for all active tenants for the selected month.
               Billing records that already exist will not be duplicated.
             </Alert>
-            
+
             <FormControl fullWidth>
               <InputLabel>Target Month</InputLabel>
               <Select
@@ -3526,16 +3570,16 @@ export default function BillingManagement() {
                 ))}
               </Select>
             </FormControl>
-            
+
             <Alert severity="warning" icon={<WarningIcon />}>
               <Typography variant="body2">
                 <strong>Default Rates:</strong> If tenants don't have billing rates configured, the system will use default rates:
                 <br />• Dedicated Desk: ₱5,000 per seat
-                <br />• Private Office: ₱15,000 per office  
+                <br />• Private Office: ₱15,000 per office
                 <br />• Virtual Office: ₱3,000 per service
               </Typography>
             </Alert>
-            
+
             <Typography variant="body2" color="text.secondary">
               <strong>Note:</strong> Only tenants who don't already have billing records for {billingTargetMonth} will have new records generated.
             </Typography>
@@ -3543,9 +3587,9 @@ export default function BillingManagement() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setShowGenerateBillingDialog(false)}>Cancel</Button>
-          <Button 
-            onClick={handleGenerateBilling} 
-            variant="contained" 
+          <Button
+            onClick={handleGenerateBilling}
+            variant="contained"
             color="success"
             disabled={isGenerating}
             startIcon={isGenerating ? <CircularProgress size={16} /> : <AutoAwesomeIcon />}
@@ -3578,7 +3622,7 @@ export default function BillingManagement() {
                 Recording payment for <strong>{selectedBill.tenantName}</strong> - {formatPHP(selectedBill.total)}
               </Alert>
             )}
-            
+
             <FormControl fullWidth>
               <InputLabel>Payment Method</InputLabel>
               <Select
@@ -3592,7 +3636,7 @@ export default function BillingManagement() {
                 <MenuItem value="check">Check</MenuItem>
               </Select>
             </FormControl>
-            
+
             <TextField
               label="Payment Amount"
               type="number"
@@ -3604,7 +3648,7 @@ export default function BillingManagement() {
                 startAdornment: <InputAdornment position="start">₱</InputAdornment>,
               }}
             />
-            
+
             <TextField
               label="Payment Date"
               type="date"
@@ -3613,7 +3657,7 @@ export default function BillingManagement() {
               fullWidth
               InputLabelProps={{ shrink: true }}
             />
-            
+
             <TextField
               label="Payment Reference"
               value={paymentDetails.reference}
@@ -3621,7 +3665,7 @@ export default function BillingManagement() {
               fullWidth
               placeholder="Transaction ID, check number, etc."
             />
-            
+
             <TextField
               label="Notes"
               value={paymentDetails.notes}
@@ -3635,9 +3679,9 @@ export default function BillingManagement() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setShowPaymentDialog(false)}>Cancel</Button>
-          <Button 
-            onClick={handleMarkAsPaid} 
-            variant="contained" 
+          <Button
+            onClick={handleMarkAsPaid}
+            variant="contained"
             color="success"
             disabled={loadingStates.bulkAction}
             startIcon={loadingStates.bulkAction ? <CircularProgress size={16} /> : <CheckCircleIcon />}
@@ -3671,7 +3715,7 @@ export default function BillingManagement() {
                 <MenuItem value="export">Export Selected</MenuItem>
               </Select>
             </FormControl>
-            
+
             <Alert severity="warning">
               This action will be applied to {selectedBills.length} selected billing records.
             </Alert>
@@ -3679,12 +3723,12 @@ export default function BillingManagement() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setShowBulkActionsDialog(false)}>Cancel</Button>
-          <Button 
+          <Button
             onClick={() => {
               console.log('Button clicked, bulkAction:', bulkAction, 'selectedBills:', selectedBills);
               handleBulkAction();
-            }} 
-            variant="contained" 
+            }}
+            variant="contained"
             color="primary"
             disabled={!bulkAction || loadingStates.bulkAction}
           >
@@ -3712,7 +3756,7 @@ export default function BillingManagement() {
               fullWidth
               placeholder="Payment Reminder - Inspire Hub"
             />
-            
+
             <TextField
               label="Message"
               value={emailDetails.message}
@@ -3722,7 +3766,7 @@ export default function BillingManagement() {
               rows={6}
               placeholder="Dear tenant, this is a friendly reminder..."
             />
-            
+
             <FormControlLabel
               control={
                 <Switch
@@ -3732,7 +3776,7 @@ export default function BillingManagement() {
               }
               label="Include invoice attachment"
             />
-            
+
             <Typography variant="body2" color="text.secondary">
               This will send emails to {filteredBills.length} tenants with pending or overdue bills.
             </Typography>
@@ -3740,9 +3784,9 @@ export default function BillingManagement() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setShowEmailDialog(false)}>Cancel</Button>
-          <Button 
-            onClick={handleSendEmail} 
-            variant="contained" 
+          <Button
+            onClick={handleSendEmail}
+            variant="contained"
             color="primary"
             disabled={loadingStates.email}
             startIcon={loadingStates.email ? <CircularProgress size={16} /> : <SendIcon />}
@@ -3774,7 +3818,7 @@ export default function BillingManagement() {
             <CloseIcon />
           </IconButton>
         </DialogTitle>
-        
+
         <DialogContent sx={{ p: 3 }}>
           {/* Overall Export Notice */}
           <Box mb={2} p={2} bgcolor="info.light" borderRadius={2} border={1} borderColor="info.main">
@@ -3783,7 +3827,7 @@ export default function BillingManagement() {
               <strong>Overall Export:</strong> This export will include ALL billing records from ALL months, providing a comprehensive view of your complete billing data.
             </Typography>
           </Box>
-          
+
           <Grid container spacing={3}>
             {/* Export Summary */}
             <Grid item xs={12}>
@@ -3795,7 +3839,7 @@ export default function BillingManagement() {
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={4}>
                     <Box textAlign="center" p={2} bgcolor="white" borderRadius={2} border={1} borderColor="divider">
-                                            <Typography variant="h4" color="primary" fontWeight="bold">
+                      <Typography variant="h4" color="primary" fontWeight="bold">
                         {allBillsForExportSummary.length}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
@@ -3854,19 +3898,19 @@ export default function BillingManagement() {
                 </Box>
               </Card>
             </Grid>
-            
+
             {/* Export Options */}
-           
-            
+
+
             {/* Excel Export */}
             <Grid item xs={12} md={6}>
-              <Card 
+              <Card
                 variant="outlined"
-                sx={{ 
-                  p: 2, 
+                sx={{
+                  p: 2,
                   cursor: 'pointer',
                   borderColor: '#4caf50',
-                  '&:hover': { 
+                  '&:hover': {
                     borderColor: '#2e7d32',
                     boxShadow: 2,
                     transform: 'translateY(-2px)'
@@ -3883,28 +3927,28 @@ export default function BillingManagement() {
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                     Export ALL billing data with multiple sheets, data validation, and formatting
                   </Typography>
-              <Button
+                  <Button
                     variant="contained"
                     color="success"
-                disabled={loadingStates.export}
-                startIcon={loadingStates.export ? <CircularProgress size={16} /> : <FileDownloadIcon />}
+                    disabled={loadingStates.export}
+                    startIcon={loadingStates.export ? <CircularProgress size={16} /> : <FileDownloadIcon />}
                     fullWidth
-              >
+                  >
                     {loadingStates.export ? 'Exporting...' : 'Export ALL Data to Excel'}
-              </Button>
+                  </Button>
                 </Box>
               </Card>
             </Grid>
-            
+
             {/* Enhanced PDF Export */}
             <Grid item xs={12} md={6}>
-              <Card 
+              <Card
                 variant="outlined"
-                sx={{ 
-                  p: 2, 
+                sx={{
+                  p: 2,
                   cursor: 'pointer',
                   borderColor: '#d32f2f',
-                  '&:hover': { 
+                  '&:hover': {
                     borderColor: '#b71c1c',
                     boxShadow: 2,
                     transform: 'translateY(-2px)'
@@ -3924,22 +3968,22 @@ export default function BillingManagement() {
                   <Button
                     variant="contained"
                     color="error"
-                disabled={loadingStates.export}
+                    disabled={loadingStates.export}
                     startIcon={loadingStates.export ? <CircularProgress size={16} /> : <PictureAsPdfIcon />}
                     fullWidth
-              >
+                  >
                     {loadingStates.export ? 'Exporting...' : 'Export ALL Data to PDF'}
-              </Button>
+                  </Button>
                 </Box>
               </Card>
             </Grid>
-            
+
             {/* Export Features */}
             <Grid item xs={12}>
               <Card variant="outlined" sx={{ p: 2, bgcolor: '#f8f9fa' }}>
                 <Typography variant="h6" color="primary" gutterBottom>
                   🚀 Enhanced Export Features
-            </Typography>
+                </Typography>
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={6}>
                     <Typography variant="subtitle2" color="success.main" gutterBottom>
@@ -3970,7 +4014,7 @@ export default function BillingManagement() {
                 </Grid>
               </Card>
             </Grid>
-            
+
             {/* Export Progress */}
             {loadingStates.export && (
               <Grid item xs={12}>
@@ -3987,10 +4031,10 @@ export default function BillingManagement() {
             )}
           </Grid>
         </DialogContent>
-        
+
         <DialogActions sx={{ p: 3, borderTop: 1, borderColor: 'divider' }}>
-          <Button 
-            onClick={() => setShowExportDialog(false)} 
+          <Button
+            onClick={() => setShowExportDialog(false)}
             variant="outlined"
             startIcon={<CloseIcon />}
           >
@@ -4070,9 +4114,9 @@ export default function BillingManagement() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setShowRevokePenaltyDialog(false)}>Cancel</Button>
-          <Button 
-            onClick={handleRevokePenalty} 
-            variant="contained" 
+          <Button
+            onClick={handleRevokePenalty}
+            variant="contained"
             color="warning"
             disabled={loadingStates.bulkAction}
             startIcon={loadingStates.bulkAction ? <CircularProgress size={16} /> : <RestoreIcon />}
@@ -4158,9 +4202,9 @@ export default function BillingManagement() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setShowOverduePenaltyDialog(false)}>Cancel</Button>
-          <Button 
-            onClick={handleApplyOverduePenalty} 
-            variant="contained" 
+          <Button
+            onClick={handleApplyOverduePenalty}
+            variant="contained"
             color="error"
             disabled={loadingStates.bulkAction || overduePenaltyPercentage <= 0}
             startIcon={loadingStates.bulkAction ? <CircularProgress size={16} /> : <PercentIcon />}
@@ -4193,7 +4237,7 @@ export default function BillingManagement() {
                 Adding fees for <strong>{selectedBill.tenantName}</strong> - Current total: {formatPHP(selectedBill.total)}
               </Alert>
             )}
-            
+
             <TextField
               label="Late Payment Penalty"
               type="number"
@@ -4206,7 +4250,7 @@ export default function BillingManagement() {
               }}
               helperText="Fee for late payment or overdue accounts"
             />
-            
+
             <TextField
               label="Damage Fee"
               type="number"
@@ -4219,7 +4263,7 @@ export default function BillingManagement() {
               }}
               helperText="Fee for damages to office equipment or facilities"
             />
-            
+
             <TextField
               label="Notes"
               value={additionalFeesDetails.notes}
@@ -4229,7 +4273,7 @@ export default function BillingManagement() {
               rows={3}
               placeholder="Reason for additional fees..."
             />
-            
+
             <Alert severity="warning">
               <Typography variant="body2">
                 <strong>Note:</strong> These fees will be added to the current billing total and will be included in the invoice breakdown.
@@ -4239,9 +4283,9 @@ export default function BillingManagement() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setShowAdditionalFeesDialog(false)}>Cancel</Button>
-          <Button 
-            onClick={handleUpdateAdditionalFees} 
-            variant="contained" 
+          <Button
+            onClick={handleUpdateAdditionalFees}
+            variant="contained"
             color="warning"
             disabled={loadingStates.bulkAction}
             startIcon={loadingStates.bulkAction ? <CircularProgress size={16} /> : <BuildIcon />}
@@ -4271,8 +4315,8 @@ export default function BillingManagement() {
         onClose={() => setSnackbar({ ...snackbar, open: false })}
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
       >
-        <Alert 
-          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
           sx={{ width: '100%' }}
         >
