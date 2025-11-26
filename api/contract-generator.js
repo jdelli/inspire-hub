@@ -19,8 +19,9 @@ app.post('/api/generate-contract', async (req, res) => {
   try {
     const { variables, templateName = 'contract_template.docx' } = req.body;
     
-    // Path to template file
-    const templatePath = path.join(__dirname, '../public/docs', templateName);
+    // Security: Prevent path traversal
+    const sanitizedTemplateName = path.basename(templateName);
+    const templatePath = path.join(__dirname, '../public/docs', sanitizedTemplateName);
     
     // Check if template exists
     if (!fs.existsSync(templatePath)) {
@@ -28,37 +29,31 @@ app.post('/api/generate-contract', async (req, res) => {
     }
     
     // Read template file
-    const templateBuffer = fs.readFileSync(templatePath);
+    const content = fs.readFileSync(templatePath);
     
-    // Extract text from Word document
-    const result = await mammoth.extractRawText({ buffer: templateBuffer });
-    let documentText = result.value;
+    // Load the docx file as a binary
+    const PizZip = require('pizzip');
+    const Docxtemplater = require('docxtemplater');
     
-    // Replace variables in the text
-    Object.keys(variables).forEach(variable => {
-      const value = variables[variable] || variable;
-      const regex = new RegExp(variable.replace(/[{}]/g, '\\$&'), 'g');
-      documentText = documentText.replace(regex, value);
+    const zip = new PizZip(content);
+    
+    const doc = new Docxtemplater(zip, {
+      paragraphLoop: true,
+      linebreaks: true,
     });
     
-    // Create new Word document
-    const doc = new Document({
-      sections: [{
-        properties: {},
-        children: [
-          new Paragraph({
-            children: [new TextRun(documentText)]
-          })
-        ]
-      }]
-    });
+    // Render the document (replace variables)
+    doc.render(variables);
     
     // Generate document buffer
-    const buffer = await Packer.toBuffer(doc);
+    const buffer = doc.getZip().generate({
+      type: "nodebuffer",
+      compression: "DEFLATE",
+    });
     
     // Set response headers
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-    res.setHeader('Content-Disposition', 'attachment; filename=generated_contract.docx');
+    res.setHeader('Content-Disposition', `attachment; filename=generated_${sanitizedTemplateName}`);
     
     // Send the document
     res.send(buffer);

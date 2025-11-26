@@ -657,23 +657,25 @@ export default function ClientsPage() {
                 <ListItemButton onClick={() => setSelectedClientId(client.id)}>
                   <ListItemText
                     primary={
-                      <Typography fontWeight="medium" noWrap>
+                      <Typography component="span" fontWeight="medium" noWrap sx={{ display: 'block' }}>
                         {client.name}
                       </Typography>
                     }
                     secondary={
                       <>
-                        <Typography variant="body2" color="text.secondary" noWrap>
+                        <Typography component="span" variant="body2" color="text.secondary" noWrap sx={{ display: 'block' }}>
                           {client.company}
                         </Typography>
                         {/* Display Request Date in the sidebar list */}
                         {client.requestDate && (
-                          <Typography variant="caption" color="text.secondary" noWrap>
+                          <Typography component="span" variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
                             Requested: {client.requestDate}
                           </Typography>
                         )}
                       </>
                     }
+                    primaryTypographyProps={{ component: 'span' }}
+                    secondaryTypographyProps={{ component: 'span' }}
                   />
                   {client.reservedSeats?.length > 0 && activeTab === 0 && (
                     <Chip
