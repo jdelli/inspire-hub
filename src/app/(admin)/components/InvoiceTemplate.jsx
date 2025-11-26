@@ -4,9 +4,9 @@ import React from 'react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const InvoiceTemplate = ({ 
+const InvoiceTemplate = ({
   invoiceData = {},
-  preview = false 
+  preview = false
 }) => {
   const defaultData = {
     companyName: "INSPIRE HOLDINGS INC.",
@@ -39,11 +39,13 @@ const InvoiceTemplate = ({
   // Calculate amounts - only include fees if they are set and greater than 0
   const cusaFee = (data.cusaFee && parseFloat(data.cusaFee) > 0) ? parseFloat(data.cusaFee) : 0;
   const parkingFee = (data.parkingFee && parseFloat(data.parkingFee) > 0) ? parseFloat(data.parkingFee) : 0;
+  const penaltyFee = (data.penaltyFee && parseFloat(data.penaltyFee) > 0) ? parseFloat(data.penaltyFee) : 0;
+  const damageFee = (data.damageFee && parseFloat(data.damageFee) > 0) ? parseFloat(data.damageFee) : 0;
   const monthlyTotal = data.monthlyRate + cusaFee + parkingFee;
   const advanceRental = monthlyTotal * data.advanceMonths;
   const securityDeposit = monthlyTotal * data.securityMonths;
   const subtotal = advanceRental + securityDeposit;
-  const totalAmount = subtotal;
+  const totalAmount = subtotal + penaltyFee + damageFee;
 
   const formatCurrency = (amount) => {
     return `₱${parseFloat(amount).toLocaleString('en-PH', {
@@ -57,11 +59,11 @@ const InvoiceTemplate = ({
       // Simplified number to words for common amounts
       if (num === 80000) return 'Eighty Thousand';
       if (num === 89600) return 'Eighty Nine Thousand Six Hundred';
-      
+
       // For other amounts, provide a basic conversion
       const thousands = Math.floor(num / 1000);
       const remainder = num % 1000;
-      
+
       let result = '';
       if (thousands > 0) {
         result += `${thousands} Thousand `;
@@ -69,7 +71,7 @@ const InvoiceTemplate = ({
       if (remainder > 0) {
         result += `${remainder}`;
       }
-      
+
       return result.trim() || 'Zero';
     } catch (error) {
       console.error('Error converting number to words:', error);
@@ -97,7 +99,7 @@ const InvoiceTemplate = ({
 
       const imgData = canvas.toDataURL('image/png', 1.0);
       const pdf = new jsPDF('p', 'mm', 'a4');
-      
+
       const imgWidth = 190;
       const pageHeight = 277;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
@@ -134,13 +136,13 @@ const InvoiceTemplate = ({
       }
 
       const printWindow = window.open('', '_blank', 'width=800,height=600');
-      
+
       if (!printWindow) {
         throw new Error('Unable to open print window. Please allow popups for this site.');
       }
 
       const htmlContent = element.outerHTML;
-      
+
       printWindow.document.write(`
         <!DOCTYPE html>
         <html>
@@ -225,15 +227,15 @@ const InvoiceTemplate = ({
         </body>
         </html>
       `);
-      
+
       printWindow.document.close();
-      
+
       printWindow.onload = () => {
         setTimeout(() => {
           printWindow.print();
         }, 500);
       };
-      
+
       return true;
     } catch (error) {
       console.error('Error printing invoice:', error);
@@ -250,7 +252,7 @@ const InvoiceTemplate = ({
     } catch (error) {
       console.error('Error setting up window functions:', error);
     }
-    
+
     return () => {
       try {
         delete window.exportInvoiceAsPDF;
@@ -294,10 +296,10 @@ const InvoiceTemplate = ({
         </div>
       )}
 
-      <div 
-        data-invoice-template 
+      <div
+        data-invoice-template
         className="invoice-container"
-        style={{ 
+        style={{
           backgroundColor: '#ffffff',
           color: '#000000',
           fontFamily: 'Arial, sans-serif',
@@ -324,9 +326,9 @@ const InvoiceTemplate = ({
               textAlign: 'center',
               marginBottom: '20px'
             }}>
-              <img 
-                src="/images/inspire_docs_icon.jpg" 
-                alt="Inspire Holdings Inc Logo" 
+              <img
+                src="/images/inspire_docs_icon.jpg"
+                alt="Inspire Holdings Inc Logo"
                 style={{
                   width: '120px',
                   height: 'auto',
@@ -523,6 +525,42 @@ const InvoiceTemplate = ({
                 </td>
               </tr>
 
+              {/* Penalty Fee */}
+              {penaltyFee > 0 && (
+                <tr>
+                  <td style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>
+                    <div style={{ fontWeight: 'bold' }}>Late Payment Penalty</div>
+                  </td>
+                  <td style={{ padding: '10px 8px', textAlign: 'center', borderBottom: '1px solid #eee' }}>
+                    1
+                  </td>
+                  <td style={{ padding: '10px 8px', textAlign: 'right', borderBottom: '1px solid #eee' }}>
+                    {formatCurrency(penaltyFee)}
+                  </td>
+                  <td style={{ padding: '10px 8px', textAlign: 'right', borderBottom: '1px solid #eee' }}>
+                    {formatCurrency(penaltyFee)}
+                  </td>
+                </tr>
+              )}
+
+              {/* Damage Fee */}
+              {damageFee > 0 && (
+                <tr>
+                  <td style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>
+                    <div style={{ fontWeight: 'bold' }}>Damage Fee</div>
+                  </td>
+                  <td style={{ padding: '10px 8px', textAlign: 'center', borderBottom: '1px solid #eee' }}>
+                    1
+                  </td>
+                  <td style={{ padding: '10px 8px', textAlign: 'right', borderBottom: '1px solid #eee' }}>
+                    {formatCurrency(damageFee)}
+                  </td>
+                  <td style={{ padding: '10px 8px', textAlign: 'right', borderBottom: '1px solid #eee' }}>
+                    {formatCurrency(damageFee)}
+                  </td>
+                </tr>
+              )}
+
             </tbody>
           </table>
         </div>
@@ -577,7 +615,7 @@ const InvoiceTemplate = ({
           }}>
             BANK ACCOUNT DETAILS
           </div>
-          
+
           {/* Philippine Peso Accounts */}
           <div style={{ marginBottom: '25px' }}>
             <div style={{
@@ -590,7 +628,7 @@ const InvoiceTemplate = ({
             }}>
               Philippine Peso Accounts
             </div>
-            
+
             {/* First PHP Account */}
             <div style={{
               marginBottom: '15px',
@@ -603,7 +641,7 @@ const InvoiceTemplate = ({
                 <div><strong>Account Number:</strong> 11868006353</div>
               </div>
             </div>
-            
+
             {/* Second PHP Account */}
             <div style={{
               borderLeft: '4px solid #007bff',
@@ -616,7 +654,7 @@ const InvoiceTemplate = ({
               </div>
             </div>
           </div>
-          
+
           {/* Japanese Yen Accounts */}
           <div>
             <div style={{
@@ -629,7 +667,7 @@ const InvoiceTemplate = ({
             }}>
               Japanese Yen Accounts
             </div>
-            
+
             {/* First JPY Account */}
             <div style={{
               marginBottom: '15px',
@@ -643,7 +681,7 @@ const InvoiceTemplate = ({
                 <div><strong>Branch Number:</strong> 101</div>
               </div>
             </div>
-            
+
             {/* Second JPY Account */}
             <div style={{
               borderLeft: '4px solid #007bff',
