@@ -174,7 +174,7 @@ export default function AddVirtualOfficeTenantModal({
     }
   }, [showAddModal]);
 
-  // compute form validity without setting errors (used to disable submit)
+  // compute form validity without setting errors (used to disable submits)
   const formValid = useMemo(() => {
     const emailRegex = /^\S+@\S+\.\S+$/;
     return (
