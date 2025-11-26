@@ -13,6 +13,8 @@ import {
 } from "firebase/firestore";
 import { sendBillingNotification } from "./email";
 
+const ENABLE_PENALTY_ROLLOVER = true;
+
 
 // Helper to format number as PHP currency with thousands separator
 export function formatPHP(amount) {
@@ -60,6 +62,111 @@ export async function getUnpaidPenaltiesForTenant(tenantId) {
       count: 0
     };
   }
+}
+
+function normalizeBillingMonth(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  // Expecting YYYY-MM format; we keep it as-is for lexicographic comparison.
+  return trimmed.slice(0, 7);
+}
+
+export async function getRolledPenaltiesForTenant(tenantId, billingMonth) {
+  const penalties = await getUnpaidPenaltiesForTenant(tenantId);
+  const targetMonth = normalizeBillingMonth(billingMonth);
+
+  const qualifyingInvoices = (penalties?.unpaidInvoices || []).filter((invoice) => {
+    const invoiceMonth = normalizeBillingMonth(invoice.billingMonth);
+    if (!invoiceMonth) return false;
+    if (targetMonth && invoiceMonth >= targetMonth) return false; // ignore current/future months
+    const penaltyFee = parseFloat(invoice.penaltyFee) || 0;
+    return penaltyFee > 0;
+  });
+
+  const total = qualifyingInvoices.reduce(
+    (sum, invoice) => sum + (parseFloat(invoice.penaltyFee) || 0),
+    0
+  );
+
+  const months = Array.from(
+    new Set(qualifyingInvoices.map((invoice) => normalizeBillingMonth(invoice.billingMonth)).filter(Boolean))
+  ).sort();
+
+  return { total, months };
+}
+
+export async function applyPenaltyRolloverToBillRecords(billingRecords, billingMonth) {
+  if (!Array.isArray(billingRecords)) return billingRecords;
+
+  return Promise.all(billingRecords.map(async (bill) => {
+    const items = bill.items || [];
+    const lowerIncludes = (text, needle) => text && text.toLowerCase().includes(needle);
+    const isPreviousPenaltyLine = (desc = '') => {
+      const lower = desc.toLowerCase();
+      return lower.includes('prev') && lower.includes('penalt'); // catches "previous"/"prev" + "penalty"/"penalties"
+    };
+
+    const previousPenaltyItems = items.filter((item) => isPreviousPenaltyLine(item.description));
+    const previousPenaltyFromItems = previousPenaltyItems.reduce(
+      (sum, item) => sum + (parseFloat(item.amount) || parseFloat(item.unitPrice) || 0),
+      0
+    );
+    const baseItems = items.filter((item) => !isPreviousPenaltyLine(item.description));
+
+    const { total: rolledPenaltyTotal, months: rolledPenaltyMonths } = await getRolledPenaltiesForTenant(bill.tenantId, billingMonth);
+
+    const finalPrevPenaltyTotal = rolledPenaltyTotal || previousPenaltyFromItems;
+    const finalMonths = rolledPenaltyMonths.length ? rolledPenaltyMonths : previousPenaltyItems
+      .map((item) => {
+        const match = /(\d{4}-\d{2})/.exec(item.description || '');
+        return match ? match[1] : null;
+      })
+      .filter(Boolean);
+
+    if (!finalPrevPenaltyTotal) {
+      return {
+        ...bill,
+        items: items
+      };
+    }
+
+    const label = finalMonths.length === 1
+      ? `Previous Month Penalty (${finalMonths[0]})`
+      : finalMonths.length > 1
+        ? `Previous Penalties (${finalMonths[0]}..${finalMonths[finalMonths.length - 1]})`
+        : 'Previous Penalties';
+
+    const existingPenaltyFee = parseFloat(bill.penaltyFee) || 0;
+    const penaltyFeeMinusPrev = Math.max(0, existingPenaltyFee - previousPenaltyFromItems);
+    const updatedPenaltyFee = penaltyFeeMinusPrev + finalPrevPenaltyTotal;
+
+    const currentSubtotal = parseFloat(bill.subtotal) || 0;
+    const subtotalMinusPrev = Math.max(0, currentSubtotal - previousPenaltyFromItems);
+    const newSubtotal = subtotalMinusPrev + finalPrevPenaltyTotal;
+    const updatedVat = newSubtotal * 0.12;
+    const updatedTotal = newSubtotal + updatedVat;
+
+    return {
+      ...bill,
+      penaltyFee: updatedPenaltyFee,
+      subtotal: newSubtotal,
+      vat: updatedVat,
+      total: updatedTotal,
+      previousPenaltyIncluded: true,
+      previousPenaltyAmount: finalPrevPenaltyTotal,
+      previousPenaltySourceMonths: finalMonths,
+      items: [
+        ...baseItems,
+        {
+          description: label,
+          quantity: 1,
+          unitPrice: finalPrevPenaltyTotal,
+          amount: finalPrevPenaltyTotal
+        }
+      ]
+    };
+  }));
 }
 
 // Calculate billing amount based on tenant type and configuration
@@ -116,6 +223,10 @@ export function calculateBillingAmount(tenant) {
 export async function generateBillingRecord(tenant, billingMonth, tenantType, billingDate = new Date()) {
   // Calculate billing amount
   const billingAmounts = calculateBillingAmount(tenant);
+  const shouldApplyPenaltyRollover = tenant.billing?.enablePenaltyRollover ?? ENABLE_PENALTY_ROLLOVER;
+  const { total: rolledPenaltyTotal, months: rolledPenaltyMonths } = shouldApplyPenaltyRollover
+    ? await getRolledPenaltiesForTenant(tenant.id, billingMonth)
+    : { total: 0, months: [] };
 
   // Use tenant's billing start date if available, otherwise use billingDate
   const startDate = tenant.billing?.startDate ? new Date(tenant.billing.startDate) : billingDate;
@@ -130,6 +241,60 @@ export async function generateBillingRecord(tenant, billingMonth, tenantType, bi
   } else {
     defaultRate = 3000; // Default rate for virtual office
   }
+
+  const penaltyFee = billingAmounts.penaltyFee + rolledPenaltyTotal;
+  const baseItems = [
+    {
+      description: tenantType === 'dedicated-desk' ? 'Dedicated Desk Rental' :
+        tenantType === 'private-office' ? 'Private Office Rental' : 'Virtual Office Services',
+      quantity: tenant.selectedSeats?.length || tenant.selectedPO?.length || 1,
+      unitPrice: tenant.billing?.rate || defaultRate,
+      amount: billingAmounts.baseAmount
+    },
+    ...(billingAmounts.cusaFee > 0 ? [{
+      description: 'CUSA Fee',
+      quantity: 1,
+      unitPrice: billingAmounts.cusaFee,
+      amount: billingAmounts.cusaFee
+    }] : []),
+    ...(billingAmounts.parkingFee > 0 ? [{
+      description: 'Parking Fee',
+      quantity: 1,
+      unitPrice: billingAmounts.parkingFee,
+      amount: billingAmounts.parkingFee
+    }] : []),
+    ...(billingAmounts.penaltyFee > 0 ? [{
+      description: 'Late Payment Penalty',
+      quantity: 1,
+      unitPrice: billingAmounts.penaltyFee,
+      amount: billingAmounts.penaltyFee
+    }] : []),
+    ...(billingAmounts.damageFee > 0 ? [{
+      description: 'Damage Fee',
+      quantity: 1,
+      unitPrice: billingAmounts.damageFee,
+      amount: billingAmounts.damageFee
+    }] : [])
+  ];
+
+  if (rolledPenaltyTotal > 0) {
+    const label = rolledPenaltyMonths.length === 1
+      ? `Previous Month Penalty (${rolledPenaltyMonths[0]})`
+      : rolledPenaltyMonths.length > 1
+        ? `Previous Penalties (${rolledPenaltyMonths[0]}..${rolledPenaltyMonths[rolledPenaltyMonths.length - 1]})`
+        : 'Previous Penalties';
+
+    baseItems.push({
+      description: label,
+      quantity: 1,
+      unitPrice: rolledPenaltyTotal,
+      amount: rolledPenaltyTotal
+    });
+  }
+
+  const subtotal = billingAmounts.baseAmount + billingAmounts.cusaFee + billingAmounts.parkingFee + billingAmounts.damageFee + penaltyFee;
+  const vat = subtotal * 0.12; // 12% VAT
+  const total = subtotal + vat;
 
   const billingRecord = {
     tenantId: tenant.id,
@@ -150,13 +315,13 @@ export async function generateBillingRecord(tenant, billingMonth, tenantType, bi
     quantity: tenant.selectedSeats?.length || tenant.selectedPO?.length || 1,
     cusaFee: billingAmounts.cusaFee,
     parkingFee: billingAmounts.parkingFee,
-    penaltyFee: billingAmounts.penaltyFee,
+    penaltyFee: penaltyFee,
     damageFee: billingAmounts.damageFee,
 
     // Calculated amounts
-    subtotal: billingAmounts.subtotal,
-    vat: billingAmounts.vat,
-    total: billingAmounts.total,
+    subtotal: subtotal,
+    vat: vat,
+    total: total,
 
     // Status
     status: 'pending', // 'pending', 'paid', 'overdue', 'cancelled'
@@ -170,46 +335,19 @@ export async function generateBillingRecord(tenant, billingMonth, tenantType, bi
     billingAddress: tenant.billing?.billingAddress || tenant.address || 'No billing address provided',
     currency: 'PHP',
 
-    // Unpaid penalties tracking - REMOVED as per request to not make penalties global
-    unpaidPenaltiesIncluded: false,
-    unpaidPenaltiesAmount: 0,
-    unpaidInvoicesCount: 0,
-    unpaidInvoicesDetails: [],
+    // Rolled penalty tracking
+    previousPenaltyIncluded: rolledPenaltyTotal > 0,
+    previousPenaltyAmount: rolledPenaltyTotal,
+    previousPenaltySourceMonths: rolledPenaltyMonths,
+
+    // Legacy unpaid penalties fields kept in sync for clarity
+    unpaidPenaltiesIncluded: rolledPenaltyTotal > 0,
+    unpaidPenaltiesAmount: rolledPenaltyTotal,
+    unpaidInvoicesCount: rolledPenaltyMonths.length,
+    unpaidInvoicesDetails: rolledPenaltyMonths.map((month) => ({ billingMonth: month })),
 
     // Items breakdown for invoice
-    items: [
-      {
-        description: tenantType === 'dedicated-desk' ? 'Dedicated Desk Rental' :
-          tenantType === 'private-office' ? 'Private Office Rental' : 'Virtual Office Services',
-        quantity: tenant.selectedSeats?.length || tenant.selectedPO?.length || 1,
-        unitPrice: tenant.billing?.rate || defaultRate,
-        amount: billingAmounts.baseAmount
-      },
-      ...(billingAmounts.cusaFee > 0 ? [{
-        description: 'CUSA Fee',
-        quantity: 1,
-        unitPrice: billingAmounts.cusaFee,
-        amount: billingAmounts.cusaFee
-      }] : []),
-      ...(billingAmounts.parkingFee > 0 ? [{
-        description: 'Parking Fee',
-        quantity: 1,
-        unitPrice: billingAmounts.parkingFee,
-        amount: billingAmounts.parkingFee
-      }] : []),
-      ...(billingAmounts.penaltyFee > 0 ? [{
-        description: 'Late Payment Penalty',
-        quantity: 1,
-        unitPrice: billingAmounts.penaltyFee,
-        amount: billingAmounts.penaltyFee
-      }] : []),
-      ...(billingAmounts.damageFee > 0 ? [{
-        description: 'Damage Fee',
-        quantity: 1,
-        unitPrice: billingAmounts.damageFee,
-        amount: billingAmounts.damageFee
-      }] : [])
-    ]
+    items: baseItems
   };
 
   return billingRecord;
@@ -1023,5 +1161,3 @@ export function testExports() {
     fixBillingVATCalculations: typeof fixBillingVATCalculations === 'function'
   };
 }
-
-

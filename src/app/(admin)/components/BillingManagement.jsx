@@ -120,6 +120,7 @@ import {
   getBillingStatistics,
   getMonthlyBillingRecords,
   getAllBillingRecords,
+  applyPenaltyRolloverToBillRecords,
   updateBillingStatus,
   checkAndUpdateOverdueBills,
   updateBillingFees,
@@ -357,11 +358,12 @@ export default function BillingManagement() {
       ]);
 
       setBillingStats(stats);
-      setCurrentMonthBills(bills);
+      const billsWithRolledPenalties = await applyPenaltyRolloverToBillRecords(bills, selectedMonth);
+      setCurrentMonthBills(billsWithRolledPenalties);
 
 
 
-      processAndFilterBills(bills);
+      processAndFilterBills(billsWithRolledPenalties);
 
       setSnackbar({
         open: true,
@@ -988,11 +990,9 @@ export default function BillingManagement() {
             <title>INSPIRE HUB - Professional Billing Report</title>
             <meta charset="UTF-8">
             <style>
-              @page { 
-                size: A4; 
-                margin: 20mm 15mm; 
-                @top-center { content: "INSPIRE HUB - Billing Report"; font-size: 10px; color: #666; }
-                @bottom-center { content: "Page " counter(page) " of " counter(pages); font-size: 10px; color: #666; }
+              @page {
+                size: A4;
+                margin: 0;
               }
               
               * { box-sizing: border-box; }
@@ -1201,9 +1201,10 @@ export default function BillingManagement() {
               .text-danger { color: #dc3545; }
               .font-bold { font-weight: 700; }
               
-              @media print { 
-                body { margin: 0; font-size: 10px; } 
-                .page-break { page-break-before: always; } 
+              @media print {
+                @page { margin: 0; }
+                body { margin: 1.2cm; font-size: 10px; }
+                .page-break { page-break-before: always; }
                 .no-break { page-break-inside: avoid; }
               }
             </style>
@@ -1371,7 +1372,8 @@ export default function BillingManagement() {
         const style = printWindow.document.createElement('style');
         style.textContent = `
           @media print {
-            body { margin: 0; }
+            @page { margin: 0; }
+            body { margin: 1.2cm; }
             .page-break { page-break-before: always; }
             .no-break { page-break-inside: avoid; }
           }
@@ -1537,33 +1539,43 @@ export default function BillingManagement() {
 
     setLoadingStates(prev => ({ ...prev, bulkAction: true }));
     try {
-      // Calculate penalty amount based on the original subtotal (before VAT)
-      const subtotal = selectedBill.subtotal || selectedBill.total / 1.12 || 0;
-      const penaltyAmount = subtotal * (overduePenaltyPercentage / 100);
-      const currentPenalty = parseFloat(selectedBill.penaltyFee) || 0;
-      const newPenaltyTotal = currentPenalty + penaltyAmount;
+      // Identify penalty lines to avoid compounding on previous penalties
+      const items = selectedBill.items || [];
+      const isPenaltyLine = (desc = '') => desc.toLowerCase().includes('penalt');
+      const isPreviousPenaltyLine = (desc = '') => desc.toLowerCase().includes('prev') && desc.toLowerCase().includes('penalt');
 
-      // Recalculate total: subtotal + existing fees + new penalty + VAT
-      const cusaFee = parseFloat(selectedBill.cusaFee) || 0;
-      const parkingFee = parseFloat(selectedBill.parkingFee) || 0;
-      const damageFee = parseFloat(selectedBill.damageFee) || 0;
-      const newSubtotal = subtotal + cusaFee + parkingFee + damageFee + newPenaltyTotal;
-      const vat = newSubtotal * 0.12;
-      const newTotal = newSubtotal + vat;
+      const baseChargeItems = items.filter(item => !isPenaltyLine(item.description));
+      const previousPenaltyItems = items.filter(item => isPreviousPenaltyLine(item.description));
 
-      // Update items array to include new penalty
-      const currentItems = selectedBill.items || [];
-      const otherItems = currentItems.filter(item => item.description !== 'Late Payment Penalty');
+      const baseCharges = baseChargeItems.reduce((sum, item) => sum + (parseFloat(item.amount) || parseFloat(item.unitPrice) || 0), 0);
+      const previousPenaltyTotal = previousPenaltyItems.reduce((sum, item) => sum + (parseFloat(item.amount) || parseFloat(item.unitPrice) || 0), 0);
 
+      const existingPenaltyFee = parseFloat(selectedBill.penaltyFee) || 0;
+      const currentPenaltyAlready = Math.max(0, existingPenaltyFee - previousPenaltyTotal);
+
+      // Default penalty base to contract rate * quantity; fallback to base charges
+      const contractBase = (parseFloat(selectedBill.baseRate) || 0) * (selectedBill.quantity || 1);
+      const penaltyBase = contractBase > 0 ? contractBase : baseCharges;
+
+      const penaltyAmount = penaltyBase * (overduePenaltyPercentage / 100);
+      const newCurrentPenalty = penaltyAmount; // Replace current penalty, don't add to it
+      const newPenaltyTotal = previousPenaltyTotal + newCurrentPenalty;
+
+      // Rebuild items: base charges + previous penalties + current penalty line
       const updatedItems = [
-        ...otherItems,
+        ...baseChargeItems,
+        ...previousPenaltyItems,
         {
           description: 'Late Payment Penalty',
           quantity: 1,
-          unitPrice: newPenaltyTotal,
-          amount: newPenaltyTotal
+          unitPrice: newCurrentPenalty,
+          amount: newCurrentPenalty
         }
       ];
+
+      const newSubtotal = baseCharges + previousPenaltyTotal + newCurrentPenalty;
+      const vat = newSubtotal * 0.12;
+      const newTotal = newSubtotal + vat;
 
       await updateDoc(doc(db, 'billing', selectedBill.id), {
         penaltyFee: newPenaltyTotal,
@@ -1884,28 +1896,6 @@ export default function BillingManagement() {
             .billing-table .total-row td {
               border-top: 2px solid #ddd;
             }
-            .summary-section {
-              display: flex;
-              justify-content: space-between;
-              margin-bottom: 25px;
-              page-break-inside: avoid;
-            }
-            .summary-box {
-              flex: 1;
-              margin: 0 8px;
-              padding: 12px;
-              border: 1px solid #ddd;
-              border-radius: 5px;
-            }
-            .summary-box h4 {
-              margin: 0 0 10px 0;
-              color: #1976d2;
-              font-size: 14px;
-            }
-            .summary-box p {
-              margin: 6px 0;
-              font-size: 13px;
-            }
             .status-badge {
               display: inline-block;
               padding: 4px 8px;
@@ -1980,8 +1970,11 @@ export default function BillingManagement() {
               page-break-inside: avoid;
             }
             @media print {
-              body { 
-                margin: 0; 
+              @page {
+                margin: 0;
+              }
+              body {
+                margin: 1.2cm;
                 font-size: 13px;
               }
               .no-print { display: none; }
@@ -2037,22 +2030,88 @@ export default function BillingManagement() {
                 </tr>
               </thead>
               <tbody>
-                ${bill.items.map(item => `
-                  <tr>
-                    <td>${item.description}</td>
-                    <td class="amount">${item.quantity}</td>
-                    <td class="amount">${formatCurrency(item.unitPrice)}</td>
-                    <td class="amount">${formatCurrency(item.amount)}</td>
-                  </tr>
-                `).join('')}
-                ${bill.penaltyFee > 0 && !bill.items.some(item => item.description === 'Late Payment Penalty') ? `
-                  <tr style="color: #f57c00; font-weight: 600;">
-                    <td>Late Payment Penalty</td>
-                    <td class="amount">1</td>
-                    <td class="amount">${formatCurrency(bill.penaltyFee)}</td>
-                    <td class="amount" style="color: #f57c00; font-weight: 600;">${formatCurrency(bill.penaltyFee)}</td>
-                  </tr>
-                ` : ''}
+                ${(() => {
+                  // Separate items into charges and penalties
+                  const isPenaltyItem = (desc = '') => desc.toLowerCase().includes('penalt');
+                  const regularItems = bill.items.filter(item => !isPenaltyItem(item.description));
+                  const penaltyItems = bill.items.filter(item => isPenaltyItem(item.description));
+
+                  // Expand "Previous Penalties" into individual months
+                  const expandedPenaltyItems = [];
+                  penaltyItems.forEach(item => {
+                    const desc = item.description || '';
+
+                    // Check if this is a "Previous Penalties" item with date range
+                    if (desc.includes('Previous') && desc.includes('..')) {
+                      const rangeMatch = desc.match(/(\d{4}-\d{2})\.\.(\d{4}-\d{2})/);
+                      if (rangeMatch) {
+                        const startDate = rangeMatch[1];
+                        const endDate = rangeMatch[2];
+                        const [startYear, startMonth] = startDate.split('-').map(Number);
+                        const [endYear, endMonth] = endDate.split('-').map(Number);
+                        const monthsDiff = (endYear - startYear) * 12 + (endMonth - startMonth) + 1;
+                        const penaltyPerMonth = item.amount / monthsDiff;
+
+                        for (let i = 0; i < monthsDiff; i++) {
+                          const currentMonth = startMonth + i;
+                          const adjustedMonth = ((currentMonth - 1) % 12) + 1;
+                          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                          const monthLabel = monthNames[adjustedMonth - 1];
+
+                          expandedPenaltyItems.push({
+                            description: 'Previous Month Penalty (' + monthLabel + ')',
+                            quantity: 1,
+                            unitPrice: penaltyPerMonth,
+                            amount: penaltyPerMonth
+                          });
+                        }
+                      } else {
+                        expandedPenaltyItems.push(item);
+                      }
+                    } else if (desc.includes('Late Payment Penalty')) {
+                      const currentMonth = new Date(bill.billingMonth || new Date()).toLocaleString('en-US', { month: 'short' });
+                      expandedPenaltyItems.push({
+                        ...item,
+                        description: 'Late Payment Penalty (' + currentMonth + ')'
+                      });
+                    } else {
+                      expandedPenaltyItems.push(item);
+                    }
+                  });
+
+                  let html = '';
+
+                  // Regular charges
+                  regularItems.forEach(item => {
+                    html += '<tr>' +
+                      '<td>' + item.description + '</td>' +
+                      '<td class="amount">' + item.quantity + '</td>' +
+                      '<td class="amount">' + formatCurrency(item.unitPrice) + '</td>' +
+                      '<td class="amount">' + formatCurrency(item.amount) + '</td>' +
+                      '</tr>';
+                  });
+
+                  // Penalties section header
+                  if (expandedPenaltyItems.length > 0) {
+                    html += '<tr>' +
+                      '<td colspan="4" style="background-color: #fff3e0; font-weight: 700; color: #e65100; border-top: 2px solid #ff9800; border-bottom: 2px solid #ff9800; padding: 8px; text-align: center;">' +
+                      'PENALTIES & FEES:' +
+                      '</td>' +
+                      '</tr>';
+                  }
+
+                  // Penalty items
+                  expandedPenaltyItems.forEach(item => {
+                    html += '<tr style="color: #f57c00;">' +
+                      '<td style="padding-left: 20px; font-weight: 500;">' + item.description + '</td>' +
+                      '<td class="amount">' + item.quantity + '</td>' +
+                      '<td class="amount">' + formatCurrency(item.unitPrice) + '</td>' +
+                      '<td class="amount" style="font-weight: 600;">' + formatCurrency(item.amount) + '</td>' +
+                      '</tr>';
+                  });
+
+                  return html;
+                })()}
                 <tr class="total-row">
                   <td colspan="3" class="amount"><strong>Subtotal</strong></td>
                   <td class="amount"><strong>${formatCurrency(bill.subtotal)}</strong></td>
@@ -2067,26 +2126,7 @@ export default function BillingManagement() {
                 </tr>
               </tbody>
             </table>
-            
-            <div class="summary-section">
-              <div class="summary-box">
-                <h4>BILLING INFORMATION</h4>
-                <p><strong>Billing Month:</strong> ${bill.billingMonth}</p>
-                <p><strong>Due Date:</strong> ${new Date(bill.dueDate).toLocaleDateString()}</p>
-                <p><strong>Payment Method:</strong> ${bill.paymentMethod || 'N/A'}</p>
-                <p><strong>Status:</strong> ${bill.status.toUpperCase()}</p>
-                ${bill.penaltyFee > 0 ? `<p><strong>Penalty Fee:</strong> ${formatCurrency(bill.penaltyFee)}</p>` : ''}
-                ${bill.damageFee > 0 ? `<p><strong>Damage Fee:</strong> ${formatCurrency(bill.damageFee)}</p>` : ''}
-              </div>
-              <div class="summary-box">
-                <h4>TENANT INFORMATION</h4>
-                <p><strong>Name:</strong> ${bill.tenantName}</p>
-                <p><strong>Company:</strong> ${bill.tenantCompany || 'N/A'}</p>
-                <p><strong>Type:</strong> ${bill.tenantType.replace('-', ' ').replace(/\\b\\w/g, l => l.toUpperCase())}</p>
-                <p><strong>Email:</strong> ${bill.tenantEmail}</p>
-              </div>
-            </div>
-            
+
             <!-- PAGE 2: Bank Details and Footer -->
             <div class="page-break"></div>
             <div class="bank-details">
@@ -2153,6 +2193,7 @@ export default function BillingManagement() {
             @page { 
               size: A4; 
               margin: 15mm; 
+              margin-top: 2;
             }
             body { 
               font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
@@ -2240,28 +2281,6 @@ export default function BillingManagement() {
             .billing-table .total-row td {
               border-top: 2px solid #ddd;
             }
-            .summary-section {
-              display: flex;
-              justify-content: space-between;
-              margin-bottom: 25px;
-              page-break-inside: avoid;
-            }
-            .summary-box {
-              flex: 1;
-              margin: 0 8px;
-              padding: 12px;
-              border: 1px solid #ddd;
-              border-radius: 5px;
-            }
-            .summary-box h4 {
-              margin: 0 0 10px 0;
-              color: #1976d2;
-              font-size: 14px;
-            }
-            .summary-box p {
-              margin: 6px 0;
-              font-size: 13px;
-            }
             .status-badge {
               display: inline-block;
               padding: 4px 8px;
@@ -2336,8 +2355,11 @@ export default function BillingManagement() {
               font-size: 14px;
             }
             @media print {
-              body { 
-                margin: 0; 
+              @page {
+                margin: 0;
+              }
+              body {
+                margin: 1.2cm;
                 font-size: 13px;
               }
               .no-print { display: none; }
@@ -2393,22 +2415,88 @@ export default function BillingManagement() {
                 </tr>
               </thead>
               <tbody>
-                ${selectedBill.items.map(item => `
-                  <tr>
-                    <td>${item.description}</td>
-                    <td class="amount">${item.quantity}</td>
-                    <td class="amount">${formatCurrency(item.unitPrice)}</td>
-                    <td class="amount">${formatCurrency(item.amount)}</td>
-                  </tr>
-                `).join('')}
-                ${selectedBill.penaltyFee > 0 && !selectedBill.items.some(item => item.description === 'Late Payment Penalty') ? `
-                  <tr style="color: #f57c00; font-weight: 600;">
-                    <td>Late Payment Penalty</td>
-                    <td class="amount">1</td>
-                    <td class="amount">${formatCurrency(selectedBill.penaltyFee)}</td>
-                    <td class="amount" style="color: #f57c00; font-weight: 600;">${formatCurrency(selectedBill.penaltyFee)}</td>
-                  </tr>
-                ` : ''}
+                ${(() => {
+                  // Separate items into charges and penalties
+                  const isPenaltyItem = (desc = '') => desc.toLowerCase().includes('penalt');
+                  const regularItems = selectedBill.items.filter(item => !isPenaltyItem(item.description));
+                  const penaltyItems = selectedBill.items.filter(item => isPenaltyItem(item.description));
+
+                  // Expand "Previous Penalties" into individual months
+                  const expandedPenaltyItems = [];
+                  penaltyItems.forEach(item => {
+                    const desc = item.description || '';
+
+                    // Check if this is a "Previous Penalties" item with date range
+                    if (desc.includes('Previous') && desc.includes('..')) {
+                      const rangeMatch = desc.match(/(\d{4}-\d{2})\.\.(\d{4}-\d{2})/);
+                      if (rangeMatch) {
+                        const startDate = rangeMatch[1];
+                        const endDate = rangeMatch[2];
+                        const [startYear, startMonth] = startDate.split('-').map(Number);
+                        const [endYear, endMonth] = endDate.split('-').map(Number);
+                        const monthsDiff = (endYear - startYear) * 12 + (endMonth - startMonth) + 1;
+                        const penaltyPerMonth = item.amount / monthsDiff;
+
+                        for (let i = 0; i < monthsDiff; i++) {
+                          const currentMonth = startMonth + i;
+                          const adjustedMonth = ((currentMonth - 1) % 12) + 1;
+                          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                          const monthLabel = monthNames[adjustedMonth - 1];
+
+                          expandedPenaltyItems.push({
+                            description: 'Previous Month Penalty (' + monthLabel + ')',
+                            quantity: 1,
+                            unitPrice: penaltyPerMonth,
+                            amount: penaltyPerMonth
+                          });
+                        }
+                      } else {
+                        expandedPenaltyItems.push(item);
+                      }
+                    } else if (desc.includes('Late Payment Penalty')) {
+                      const currentMonth = new Date(selectedBill.billingMonth || new Date()).toLocaleString('en-US', { month: 'short' });
+                      expandedPenaltyItems.push({
+                        ...item,
+                        description: 'Late Payment Penalty (' + currentMonth + ')'
+                      });
+                    } else {
+                      expandedPenaltyItems.push(item);
+                    }
+                  });
+
+                  let html = '';
+
+                  // Regular charges
+                  regularItems.forEach(item => {
+                    html += '<tr>' +
+                      '<td>' + item.description + '</td>' +
+                      '<td class="amount">' + item.quantity + '</td>' +
+                      '<td class="amount">' + formatCurrency(item.unitPrice) + '</td>' +
+                      '<td class="amount">' + formatCurrency(item.amount) + '</td>' +
+                      '</tr>';
+                  });
+
+                  // Penalties section header
+                  if (expandedPenaltyItems.length > 0) {
+                    html += '<tr>' +
+                      '<td colspan="4" style="background-color: #fff3e0; font-weight: 700; color: #e65100; border-top: 2px solid #ff9800; border-bottom: 2px solid #ff9800; padding: 8px; text-align: center;">' +
+                      'PENALTIES & FEES:' +
+                      '</td>' +
+                      '</tr>';
+                  }
+
+                  // Penalty items
+                  expandedPenaltyItems.forEach(item => {
+                    html += '<tr style="color: #f57c00;">' +
+                      '<td style="padding-left: 20px; font-weight: 500;">' + item.description + '</td>' +
+                      '<td class="amount">' + item.quantity + '</td>' +
+                      '<td class="amount">' + formatCurrency(item.unitPrice) + '</td>' +
+                      '<td class="amount" style="font-weight: 600;">' + formatCurrency(item.amount) + '</td>' +
+                      '</tr>';
+                  });
+
+                  return html;
+                })()}
                 <tr class="total-row">
                   <td colspan="3" class="amount"><strong>Subtotal</strong></td>
                   <td class="amount"><strong>${formatCurrency(selectedBill.subtotal)}</strong></td>
@@ -2423,26 +2511,7 @@ export default function BillingManagement() {
                 </tr>
               </tbody>
             </table>
-            
-            <div class="summary-section">
-              <div class="summary-box">
-                <h4>BILLING INFORMATION</h4>
-                <p><strong>Billing Month:</strong> ${selectedBill.billingMonth}</p>
-                <p><strong>Due Date:</strong> ${new Date(selectedBill.dueDate).toLocaleDateString()}</p>
-                <p><strong>Payment Method:</strong> ${selectedBill.paymentMethod || 'N/A'}</p>
-                <p><strong>Status:</strong> ${selectedBill.status.toUpperCase()}</p>
-                ${selectedBill.penaltyFee > 0 ? `<p><strong>Penalty Fee:</strong> ${formatCurrency(selectedBill.penaltyFee)}</p>` : ''}
-                ${selectedBill.damageFee > 0 ? `<p><strong>Damage Fee:</strong> ${formatCurrency(selectedBill.damageFee)}</p>` : ''}
-              </div>
-              <div class="summary-box">
-                <h4>TENANT INFORMATION</h4>
-                <p><strong>Name:</strong> ${selectedBill.tenantName}</p>
-                <p><strong>Company:</strong> ${selectedBill.tenantCompany || 'N/A'}</p>
-                <p><strong>Type:</strong> ${selectedBill.tenantType.replace('-', ' ').replace(/\\b\\w/g, l => l.toUpperCase())}</p>
-                <p><strong>Email:</strong> ${selectedBill.tenantEmail}</p>
-              </div>
-            </div>
-            
+
             <!-- PAGE 2: Bank Details and Footer -->
             <div class="page-break"></div>
             <div class="bank-details">
@@ -3236,36 +3305,57 @@ export default function BillingManagement() {
                             </Button>
 
                             {(bill.status === 'overdue' || bill.status === 'pending') && (
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                color="error"
-                                startIcon={<PercentIcon />}
-                                onClick={() => {
-                                  setSelectedBill(bill);
-                                  setOverduePenaltyPercentage(0);
-                                  setShowOverduePenaltyDialog(true);
-                                }}
-                                sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
-                              >
-                                Penalty %
-                              </Button>
+                              <>
+                                {(() => {
+                                  // Check if there's already a current month penalty (not previous penalties)
+                                  const items = bill.items || [];
+                                  const hasCurrentPenalty = items.some(item => {
+                                    const desc = (item.description || '').toLowerCase();
+                                    return desc.includes('late payment penalty') && !desc.includes('previous');
+                                  });
+
+                                  // Only show Penalty % button if NO current penalty exists
+                                  if (!hasCurrentPenalty) {
+                                    return (
+                                      <Tooltip title="Apply overdue penalty percentage">
+                                        <Button
+                                          size="small"
+                                          variant="outlined"
+                                          color="error"
+                                          startIcon={<PercentIcon />}
+                                          onClick={() => {
+                                            setSelectedBill(bill);
+                                            setOverduePenaltyPercentage(0);
+                                            setShowOverduePenaltyDialog(true);
+                                          }}
+                                          sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
+                                        >
+                                          Penalty %
+                                        </Button>
+                                      </Tooltip>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                              </>
                             )}
 
                             {bill.penaltyFee > 0 && (
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                color="warning"
-                                startIcon={<RestoreIcon />}
-                                onClick={() => {
-                                  setSelectedBill(bill);
-                                  setShowRevokePenaltyDialog(true);
-                                }}
-                                sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
-                              >
-                                Revoke Penalty
-                              </Button>
+                              <Tooltip title="Remove penalty from this billing">
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  color="warning"
+                                  startIcon={<RestoreIcon />}
+                                  onClick={() => {
+                                    setSelectedBill(bill);
+                                    setShowRevokePenaltyDialog(true);
+                                  }}
+                                  sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
+                                >
+                                  Revoke Penalty
+                                </Button>
+                              </Tooltip>
                             )}
 
                             <Button
@@ -3440,23 +3530,123 @@ export default function BillingManagement() {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {selectedBill.items.map((item, index) => (
-                          <TableRow key={index}>
-                            <TableCell>{item.description}</TableCell>
-                            <TableCell align="right">{item.quantity}</TableCell>
-                            <TableCell align="right">{formatPHP(item.unitPrice)}</TableCell>
-                            <TableCell align="right">{formatPHP(item.amount)}</TableCell>
-                          </TableRow>
-                        ))}
-                        {/* Add penalty fee if it exists and is not already in items */}
-                        {selectedBill.penaltyFee > 0 && !selectedBill.items.some(item => item.description === 'Late Payment Penalty') && (
-                          <TableRow>
-                            <TableCell sx={{ color: 'warning.main', fontWeight: 600 }}>Late Payment Penalty</TableCell>
-                            <TableCell align="right">1</TableCell>
-                            <TableCell align="right">{formatPHP(selectedBill.penaltyFee)}</TableCell>
-                            <TableCell align="right" sx={{ color: 'warning.main', fontWeight: 600 }}>{formatPHP(selectedBill.penaltyFee)}</TableCell>
-                          </TableRow>
-                        )}
+                        {(() => {
+                          // Separate items into charges and penalties
+                          const isPenaltyItem = (desc = '') => desc.toLowerCase().includes('penalt');
+                          const regularItems = selectedBill.items.filter(item => !isPenaltyItem(item.description));
+                          const penaltyItems = selectedBill.items.filter(item => isPenaltyItem(item.description));
+
+                          // Helper to parse month from penalty description
+                          const parseMonthFromPenalty = (desc) => {
+                            // Try to extract YYYY-MM format
+                            const match = desc.match(/(\d{4})-(\d{2})/);
+                            if (match) {
+                              const year = match[1];
+                              const month = parseInt(match[2]);
+                              const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                              return monthNames[month - 1];
+                            }
+                            return null;
+                          };
+
+                          // Expand "Previous Penalties" into individual months
+                          const expandedPenaltyItems = [];
+                          penaltyItems.forEach(item => {
+                            const desc = item.description || '';
+
+                            // Check if this is a "Previous Penalties" item with date range
+                            if (desc.includes('Previous') && desc.includes('..')) {
+                              // Extract date range: "Previous Penalties (2025-08..2025-10)"
+                              const rangeMatch = desc.match(/(\d{4}-\d{2})\.\.(\d{4}-\d{2})/);
+                              if (rangeMatch) {
+                                const startDate = rangeMatch[1];
+                                const endDate = rangeMatch[2];
+
+                                // Parse start and end dates
+                                const [startYear, startMonth] = startDate.split('-').map(Number);
+                                const [endYear, endMonth] = endDate.split('-').map(Number);
+
+                                // Calculate number of months
+                                const monthsDiff = (endYear - startYear) * 12 + (endMonth - startMonth) + 1;
+                                const penaltyPerMonth = item.amount / monthsDiff;
+
+                                // Create individual entries for each month
+                                for (let i = 0; i < monthsDiff; i++) {
+                                  const currentMonth = startMonth + i;
+                                  const currentYear = startYear + Math.floor((startMonth + i - 1) / 12);
+                                  const adjustedMonth = ((currentMonth - 1) % 12) + 1;
+
+                                  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                                  const monthLabel = monthNames[adjustedMonth - 1];
+
+                                  expandedPenaltyItems.push({
+                                    description: `Previous Month Penalty (${monthLabel})`,
+                                    quantity: 1,
+                                    unitPrice: penaltyPerMonth,
+                                    amount: penaltyPerMonth
+                                  });
+                                }
+                              } else {
+                                expandedPenaltyItems.push(item);
+                              }
+                            } else if (desc.includes('Late Payment Penalty')) {
+                              // Add current month label
+                              const currentMonth = new Date(selectedBill.billingMonth || new Date()).toLocaleString('en-US', { month: 'short' });
+                              expandedPenaltyItems.push({
+                                ...item,
+                                description: `Late Payment Penalty (${currentMonth})`
+                              });
+                            } else {
+                              // Keep other penalty items as-is
+                              expandedPenaltyItems.push(item);
+                            }
+                          });
+
+                          return (
+                            <>
+                              {/* Regular charges */}
+                              {regularItems.map((item, index) => (
+                                <TableRow key={`regular-${index}`}>
+                                  <TableCell>{item.description}</TableCell>
+                                  <TableCell align="right">{item.quantity}</TableCell>
+                                  <TableCell align="right">{formatPHP(item.unitPrice)}</TableCell>
+                                  <TableCell align="right">{formatPHP(item.amount)}</TableCell>
+                                </TableRow>
+                              ))}
+
+                              {/* Penalties section header */}
+                              {expandedPenaltyItems.length > 0 && (
+                                <TableRow>
+                                  <TableCell colSpan={4} sx={{
+                                    backgroundColor: '#fff3e0',
+                                    fontWeight: 700,
+                                    color: '#e65100',
+                                    borderTop: '2px solid #ff9800',
+                                    borderBottom: '2px solid #ff9800',
+                                    py: 1
+                                  }}>
+                                    PENALTIES & FEES:
+                                  </TableCell>
+                                </TableRow>
+                              )}
+
+                              {/* Penalty items */}
+                              {expandedPenaltyItems.map((item, index) => (
+                                <TableRow key={`penalty-${index}`}>
+                                  <TableCell sx={{ color: 'warning.main', fontWeight: 500, pl: 3 }}>
+                                    {item.description}
+                                  </TableCell>
+                                  <TableCell align="right" sx={{ color: 'warning.main' }}>{item.quantity}</TableCell>
+                                  <TableCell align="right" sx={{ color: 'warning.main' }}>{formatPHP(item.unitPrice)}</TableCell>
+                                  <TableCell align="right" sx={{ color: 'warning.main', fontWeight: 600 }}>
+                                    {formatPHP(item.amount)}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </>
+                          );
+                        })()}
+
                         <TableRow>
                           <TableCell colSpan={3} align="right"><strong>Subtotal:</strong></TableCell>
                           <TableCell align="right"><strong>{formatPHP(selectedBill.subtotal)}</strong></TableCell>
@@ -4168,7 +4358,7 @@ export default function BillingManagement() {
                   InputProps={{
                     endAdornment: <InputAdornment position="end">%</InputAdornment>,
                   }}
-                  helperText="This percentage will be calculated based on the monthly billing amount (subtotal)"
+                  helperText="This percentage will be calculated based on the base monthly rent (not including previous penalties)"
                 />
 
                 {overduePenaltyPercentage > 0 && (
@@ -4176,23 +4366,40 @@ export default function BillingManagement() {
                     <Typography variant="body2">
                       <strong>Penalty Calculation:</strong>
                       <br />
-                      Subtotal: {formatPHP(selectedBill.subtotal || selectedBill.total / 1.12 || 0)}
-                      <br />
-                      {overduePenaltyPercentage}% Penalty: {formatPHP((selectedBill.subtotal || selectedBill.total / 1.12 || 0) * (overduePenaltyPercentage / 100))}
-                      <br />
-                      <strong>New Total (with VAT):</strong> {formatPHP(
-                        (() => {
-                          const subtotal = selectedBill.subtotal || selectedBill.total / 1.12 || 0;
-                          const penaltyAmount = subtotal * (overduePenaltyPercentage / 100);
-                          const currentPenalty = parseFloat(selectedBill.penaltyFee) || 0;
-                          const cusaFee = parseFloat(selectedBill.cusaFee) || 0;
-                          const parkingFee = parseFloat(selectedBill.parkingFee) || 0;
-                          const damageFee = parseFloat(selectedBill.damageFee) || 0;
-                          const newSubtotal = subtotal + cusaFee + parkingFee + damageFee + currentPenalty + penaltyAmount;
-                          const vat = newSubtotal * 0.12;
-                          return newSubtotal + vat;
-                        })()
-                      )}
+                      {(() => {
+                        // Calculate penalty base (same logic as handleApplyOverduePenalty)
+                        const items = selectedBill.items || [];
+                        const isPenaltyLine = (desc = '') => desc.toLowerCase().includes('penalt');
+                        const baseChargeItems = items.filter(item => !isPenaltyLine(item.description));
+                        const baseCharges = baseChargeItems.reduce((sum, item) => sum + (parseFloat(item.amount) || parseFloat(item.unitPrice) || 0), 0);
+
+                        const contractBase = (parseFloat(selectedBill.baseRate) || 0) * (selectedBill.quantity || 1);
+                        const penaltyBase = contractBase > 0 ? contractBase : baseCharges;
+                        const penaltyAmount = penaltyBase * (overduePenaltyPercentage / 100);
+
+                        const previousPenaltyItems = items.filter(item => {
+                          const desc = (item.description || '').toLowerCase();
+                          return desc.includes('prev') && desc.includes('penalt');
+                        });
+                        const previousPenaltyTotal = previousPenaltyItems.reduce((sum, item) => sum + (parseFloat(item.amount) || parseFloat(item.unitPrice) || 0), 0);
+
+                        const newSubtotal = baseCharges + previousPenaltyTotal + penaltyAmount;
+                        const vat = newSubtotal * 0.12;
+                        const newTotal = newSubtotal + vat;
+
+                        return (
+                          <>
+                            Base Monthly Rent: {formatPHP(penaltyBase)}
+                            <br />
+                            {overduePenaltyPercentage}% Penalty: {formatPHP(penaltyAmount)}
+                            <br />
+                            {previousPenaltyTotal > 0 && (
+                              <>Previous Penalties: {formatPHP(previousPenaltyTotal)}<br /></>
+                            )}
+                            <strong>New Total (with VAT):</strong> {formatPHP(newTotal)}
+                          </>
+                        );
+                      })()}
                     </Typography>
                   </Alert>
                 )}
