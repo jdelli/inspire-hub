@@ -2115,7 +2115,7 @@ export default function BillingManagement() {
         '<td style="font-weight: 500;">' + (formatBillingMonthLabel(row.billingMonth) || row.billingMonth || '') + '</td>' +
         '<td class="amount">' + formatCurrency(row.adjustedCharges) + '</td>' +
         '<td class="amount" style="font-weight: 600;">' + formatCurrency(row.adjustedPenalty) + '</td>' +
-        '<td class="amount">' + formatCurrency(row.adjustedVat) + '</td>' +
+        (vatEnabled ? '<td class="amount">' + formatCurrency(row.adjustedVat) + '</td>' : '') +
         '<td class="amount" style="font-weight: 600;">' + formatCurrency(row.adjustedTotal) + '</td>' +
         '</tr>';
     }).join('');
@@ -2348,7 +2348,7 @@ export default function BillingManagement() {
                   <th>Month</th>
                   <th class="amount">Charges</th>
                   <th class="amount">Penalty</th>
-                  <th class="amount">VAT</th>
+                  ${vatEnabled ? '<th class="amount">VAT</th>' : ''}
                   <th class="amount">Total</th>
                 </tr>
               </thead>
@@ -2358,7 +2358,7 @@ export default function BillingManagement() {
                   <td style="font-weight: bold;">TOTAL DUE</td>
                   <td class="amount"><strong>${formatCurrency(totals.charges)}</strong></td>
                   <td class="amount"><strong>${formatCurrency(totals.penalty)}</strong></td>
-                  <td class="amount"><strong>${formatCurrency(totals.vat)}</strong></td>
+                  ${vatEnabled ? '<td class="amount"><strong>' + formatCurrency(totals.vat) + '</strong></td>' : ''}
                   <td class="amount"><strong>${formatCurrency(totals.total)}</strong></td>
                 </tr>
               </tbody>
@@ -2426,7 +2426,7 @@ export default function BillingManagement() {
         '<td style="font-weight: 500;">' + (formatBillingMonthLabel(row.billingMonth) || row.billingMonth || '') + '</td>' +
         '<td class="amount">' + formatCurrency(row.adjustedCharges) + '</td>' +
         '<td class="amount" style="font-weight: 600;">' + formatCurrency(row.adjustedPenalty) + '</td>' +
-        '<td class="amount">' + formatCurrency(row.adjustedVat) + '</td>' +
+        (vatEnabled ? '<td class="amount">' + formatCurrency(row.adjustedVat) + '</td>' : '') +
         '<td class="amount" style="font-weight: 600;">' + formatCurrency(row.adjustedTotal) + '</td>' +
         '</tr>';
     }).join('');
@@ -2662,7 +2662,7 @@ export default function BillingManagement() {
                   <th>Month</th>
                   <th class="amount">Charges</th>
                   <th class="amount">Penalty</th>
-                  <th class="amount">VAT</th>
+                  ${vatEnabled ? '<th class="amount">VAT</th>' : ''}
                   <th class="amount">Total</th>
                 </tr>
               </thead>
@@ -2672,7 +2672,7 @@ export default function BillingManagement() {
                   <td style="font-weight: bold;">TOTAL DUE</td>
                   <td class="amount"><strong>${formatCurrency(totals.charges)}</strong></td>
                   <td class="amount"><strong>${formatCurrency(totals.penalty)}</strong></td>
-                  <td class="amount"><strong>${formatCurrency(totals.vat)}</strong></td>
+                  ${vatEnabled ? '<td class="amount"><strong>' + formatCurrency(totals.vat) + '</strong></td>' : ''}
                   <td class="amount"><strong>${formatCurrency(totals.total)}</strong></td>
                 </tr>
               </tbody>
