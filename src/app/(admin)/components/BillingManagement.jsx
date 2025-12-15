@@ -3001,18 +3001,18 @@ export default function BillingManagement() {
           <Grid item xs={12} md={3}>
             <FormControl fullWidth size="small">
               <InputLabel>Sort By</InputLabel>
-                 <Select
-                   value={sortBy}
-                   onChange={(e) => setSortBy(e.target.value)}
-                   label="Sort By"
-                 >
-                   <MenuItem value="dueDate">Due Date</MenuItem>
-                   <MenuItem value="tenantName">Tenant Name</MenuItem>
-                  <MenuItem value="amount">Amount Due</MenuItem>
-                   <MenuItem value="status">Status</MenuItem>
-                 </Select>
-               </FormControl>
-             </Grid>
+              <Select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                label="Sort By"
+              >
+                <MenuItem value="dueDate">Due Date</MenuItem>
+                <MenuItem value="tenantName">Tenant Name</MenuItem>
+                <MenuItem value="amount">Amount Due</MenuItem>
+                <MenuItem value="status">Status</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
 
           <Grid item xs={12} md={2}>
             <Stack direction="row" spacing={1}>
@@ -3358,209 +3358,209 @@ export default function BillingManagement() {
                             cursor: 'pointer'
                           }}
                         >
-                        <TableCell padding="checkbox">
-                          <Checkbox
-                            checked={selectedBills.includes(bill.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedBills([...selectedBills, bill.id]);
-                              } else {
-                                setSelectedBills(selectedBills.filter(id => id !== bill.id));
-                              }
-                            }}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Box>
-                            <Typography variant="subtitle2" fontWeight={600}>
-                              {bill.tenantName}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {bill.tenantCompany}
-                            </Typography>
-                            <Typography variant="caption" display="block" color="text.secondary">
-                              {bill.tenantEmail}
-                            </Typography>
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <Box display="flex" alignItems="center" gap={1}>
-                            {getTenantTypeIcon(bill.tenantType)}
-                            <Typography variant="body2">
-                              {bill.tenantType.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                            </Typography>
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="subtitle2" fontWeight={600}>
-                            {formatPHP(amountDue)}
-                          </Typography>
-                          <Typography variant="caption" color={hasBalanceForward ? 'warning.main' : 'text.secondary'}>
-                            Current: {formatPHP(currentAdjustedTotal)}
-                            {hasBalanceForward && ` • Prev: ${formatPHP(balanceForwardTotal)}`}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            icon={getStatusIcon(bill.status)}
-                            label={bill.status.toUpperCase()}
-                            color={getStatusColor(bill.status)}
-                            size="small"
-                            sx={{
-                              fontWeight: 600,
-                              '& .MuiChip-icon': { color: 'inherit' }
-                            }}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2">
-                            {new Date(bill.dueDate).toLocaleDateString()}
-                          </Typography>
-                          {bill.status === 'overdue' && (
-                            <Typography variant="caption" color="error.main" display="block">
-                              {Math.ceil((new Date() - new Date(bill.dueDate)) / (1000 * 60 * 60 * 24))} days overdue
-                            </Typography>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              startIcon={<VisibilityIcon />}
-                              onClick={() => {
-                                setSelectedBill(bill);
-                                setShowBillDetails(true);
+                          <TableCell padding="checkbox">
+                            <Checkbox
+                              checked={selectedBills.includes(bill.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedBills([...selectedBills, bill.id]);
+                                } else {
+                                  setSelectedBills(selectedBills.filter(id => id !== bill.id));
+                                }
                               }}
-                              sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
-                            >
-                              View
-                            </Button>
-
-                            <Button
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Box>
+                              <Typography variant="subtitle2" fontWeight={600}>
+                                {bill.tenantName}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {bill.tenantCompany}
+                              </Typography>
+                              <Typography variant="caption" display="block" color="text.secondary">
+                                {bill.tenantEmail}
+                              </Typography>
+                            </Box>
+                          </TableCell>
+                          <TableCell>
+                            <Box display="flex" alignItems="center" gap={1}>
+                              {getTenantTypeIcon(bill.tenantType)}
+                              <Typography variant="body2">
+                                {bill.tenantType.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                              </Typography>
+                            </Box>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="subtitle2" fontWeight={600}>
+                              {formatPHP(amountDue)}
+                            </Typography>
+                            <Typography variant="caption" color={hasBalanceForward ? 'warning.main' : 'text.secondary'}>
+                              Current: {formatPHP(currentAdjustedTotal)}
+                              {hasBalanceForward && ` • Prev: ${formatPHP(balanceForwardTotal)}`}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              icon={getStatusIcon(bill.status)}
+                              label={bill.status.toUpperCase()}
+                              color={getStatusColor(bill.status)}
                               size="small"
-                              variant="outlined"
-                              color="primary"
-                              startIcon={<PictureAsPdfIcon />}
-                              onClick={() => handleDownloadPDF(bill)}
-                              sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
-                            >
-                              PDF
-                            </Button>
-
-                            {amountDue > 0 && (
+                              sx={{
+                                fontWeight: 600,
+                                '& .MuiChip-icon': { color: 'inherit' }
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2">
+                              {new Date(bill.dueDate).toLocaleDateString()}
+                            </Typography>
+                            {bill.status === 'overdue' && (
+                              <Typography variant="caption" color="error.main" display="block">
+                                {Math.ceil((new Date() - new Date(bill.dueDate)) / (1000 * 60 * 60 * 24))} days overdue
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
                               <Button
                                 size="small"
                                 variant="outlined"
-                                color="success"
-                                startIcon={<CheckCircleIcon />}
+                                startIcon={<VisibilityIcon />}
                                 onClick={() => {
                                   setSelectedBill(bill);
-                                  setPayOutstandingBalance(true);
-                                  setShowPaymentDialog(true);
+                                  setShowBillDetails(true);
                                 }}
                                 sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
                               >
-                                Pay
+                                View
                               </Button>
-                            )}
 
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              color="warning"
-                              startIcon={<BuildIcon />}
-                              onClick={() => {
-                                setSelectedBill(bill);
-                                setAdditionalFeesDetails({
-                                  penaltyFee: bill.penaltyFee || 0,
-                                  damageFee: bill.damageFee || 0,
-                                  notes: bill.additionalFeesNotes || ''
-                                });
-                                setShowAdditionalFeesDialog(true);
-                              }}
-                              sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
-                            >
-                              Fees
-                            </Button>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="primary"
+                                startIcon={<PictureAsPdfIcon />}
+                                onClick={() => handleDownloadPDF(bill)}
+                                sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
+                              >
+                                PDF
+                              </Button>
 
-                            {(bill.status === 'overdue' || bill.status === 'pending') && (
-                              <>
-                                {(() => {
-                                  // Check if there's already a current month penalty (not previous penalties)
-                                  const items = bill.items || [];
-                                  const hasCurrentPenalty = items.some(item => {
-                                    const desc = (item.description || '').toLowerCase();
-                                    return desc.includes('late payment penalty') && !desc.includes('previous');
-                                  });
-
-                                  // Only show Penalty % button if NO current penalty exists
-                                  if (!hasCurrentPenalty) {
-                                    return (
-                                      <Tooltip title="Apply overdue penalty percentage">
-                                        <Button
-                                          size="small"
-                                          variant="outlined"
-                                          color="error"
-                                          startIcon={<PercentIcon />}
-                                          onClick={() => {
-                                            setSelectedBill(bill);
-                                            setOverduePenaltyPercentage(0);
-                                            setShowOverduePenaltyDialog(true);
-                                          }}
-                                          sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
-                                        >
-                                          Penalty %
-                                        </Button>
-                                      </Tooltip>
-                                    );
-                                  }
-                                  return null;
-                                })()}
-                              </>
-                            )}
-
-                            {bill.penaltyFee > 0 && (
-                              <Tooltip title="Remove penalty from this billing">
+                              {amountDue > 0 && (
                                 <Button
                                   size="small"
                                   variant="outlined"
-                                  color="warning"
-                                  startIcon={<RestoreIcon />}
+                                  color="success"
+                                  startIcon={<CheckCircleIcon />}
                                   onClick={() => {
                                     setSelectedBill(bill);
-                                    setShowRevokePenaltyDialog(true);
+                                    setPayOutstandingBalance(true);
+                                    setShowPaymentDialog(true);
                                   }}
                                   sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
                                 >
-                                  Revoke Penalty
+                                  Pay
                                 </Button>
-                              </Tooltip>
-                            )}
+                              )}
 
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              color="info"
-                              startIcon={<EditIcon />}
-                              onClick={() => handleEditTenant(bill)}
-                              sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
-                            >
-                              Edit Tenant
-                            </Button>
-
-                            <Tooltip title="More Actions">
-                              <IconButton
+                              <Button
                                 size="small"
-                                color="error"
-                                onClick={(e) => handleDeleteBilling(bill.id)}
+                                variant="outlined"
+                                color="warning"
+                                startIcon={<BuildIcon />}
+                                onClick={() => {
+                                  setSelectedBill(bill);
+                                  setAdditionalFeesDetails({
+                                    penaltyFee: bill.penaltyFee || 0,
+                                    damageFee: bill.damageFee || 0,
+                                    notes: bill.additionalFeesNotes || ''
+                                  });
+                                  setShowAdditionalFeesDialog(true);
+                                }}
+                                sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
                               >
-                                <DeleteIcon />
-                              </IconButton>
-                            </Tooltip>
-                          </Stack>
-                        </TableCell>
-                      </TableRow>
+                                Fees
+                              </Button>
+
+                              {(bill.status === 'overdue' || bill.status === 'pending') && (
+                                <>
+                                  {(() => {
+                                    // Check if there's already a current month penalty (not previous penalties)
+                                    const items = bill.items || [];
+                                    const hasCurrentPenalty = items.some(item => {
+                                      const desc = (item.description || '').toLowerCase();
+                                      return desc.includes('late payment penalty') && !desc.includes('previous');
+                                    });
+
+                                    // Only show Penalty % button if NO current penalty exists
+                                    if (!hasCurrentPenalty) {
+                                      return (
+                                        <Tooltip title="Apply overdue penalty percentage">
+                                          <Button
+                                            size="small"
+                                            variant="outlined"
+                                            color="error"
+                                            startIcon={<PercentIcon />}
+                                            onClick={() => {
+                                              setSelectedBill(bill);
+                                              setOverduePenaltyPercentage(0);
+                                              setShowOverduePenaltyDialog(true);
+                                            }}
+                                            sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
+                                          >
+                                            Penalty %
+                                          </Button>
+                                        </Tooltip>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+                                </>
+                              )}
+
+                              {bill.penaltyFee > 0 && (
+                                <Tooltip title="Remove penalty from this billing">
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    color="warning"
+                                    startIcon={<RestoreIcon />}
+                                    onClick={() => {
+                                      setSelectedBill(bill);
+                                      setShowRevokePenaltyDialog(true);
+                                    }}
+                                    sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
+                                  >
+                                    Revoke Penalty
+                                  </Button>
+                                </Tooltip>
+                              )}
+
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="info"
+                                startIcon={<EditIcon />}
+                                onClick={() => handleEditTenant(bill)}
+                                sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
+                              >
+                                Edit Tenant
+                              </Button>
+
+                              <Tooltip title="More Actions">
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={(e) => handleDeleteBilling(bill.id)}
+                                >
+                                  <DeleteIcon />
+                                </IconButton>
+                              </Tooltip>
+                            </Stack>
+                          </TableCell>
+                        </TableRow>
                       );
                     })
                 )}
@@ -3707,7 +3707,7 @@ export default function BillingManagement() {
                           <TableCell>Month</TableCell>
                           <TableCell align="right">Charges</TableCell>
                           <TableCell align="right">Penalty</TableCell>
-                          <TableCell align="right">VAT</TableCell>
+                          {vatEnabled && <TableCell align="right">VAT</TableCell>}
                           <TableCell align="right">Total</TableCell>
                         </TableRow>
                       </TableHead>
@@ -3729,7 +3729,7 @@ export default function BillingManagement() {
                             <TableCell align="right" sx={{ color: row.adjustedPenalty > 0 ? 'warning.main' : 'text.primary', fontWeight: row.adjustedPenalty > 0 ? 600 : 400 }}>
                               {formatPHP(row.adjustedPenalty)}
                             </TableCell>
-                            <TableCell align="right">{formatPHP(row.adjustedVat)}</TableCell>
+                            {vatEnabled && <TableCell align="right">{formatPHP(row.adjustedVat)}</TableCell>}
                             <TableCell align="right" sx={{ fontWeight: row.type === 'current' ? 700 : 600 }}>
                               {formatPHP(row.adjustedTotal)}
                             </TableCell>
@@ -3740,82 +3740,15 @@ export default function BillingManagement() {
                           <TableCell align="right" sx={{ fontWeight: 700 }}>TOTAL DUE</TableCell>
                           <TableCell align="right" sx={{ fontWeight: 700 }}>{formatPHP(selectedMonthlyBreakdown?.totals?.charges ?? 0)}</TableCell>
                           <TableCell align="right" sx={{ fontWeight: 700 }}>{formatPHP(selectedMonthlyBreakdown?.totals?.penalty ?? 0)}</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 700 }}>{formatPHP(selectedMonthlyBreakdown?.totals?.vat ?? 0)}</TableCell>
+                          {vatEnabled && <TableCell align="right" sx={{ fontWeight: 700 }}>{formatPHP(selectedMonthlyBreakdown?.totals?.vat ?? 0)}</TableCell>}
                           <TableCell align="right" sx={{ fontWeight: 700 }}>{formatPHP(selectedMonthlyBreakdown?.totals?.total ?? 0)}</TableCell>
                         </TableRow>
                       </TableBody>
                     </Table>
                   </TableContainer>
 
-                  <Typography variant="h6" gutterBottom>Current Month Items</Typography>
-                  <TableContainer sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                    <Table>
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Description</TableCell>
-                          <TableCell align="right">Unit Price</TableCell>
-                          <TableCell align="right">Penalty</TableCell>
-                          <TableCell align="right">Amount</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {(() => {
-                          const regularItems = selectedInvoiceData?.regularItems || [];
-                          const expandedPenaltyItems = selectedInvoiceData?.expandedPenaltyItems || [];
-                          const baseMonthlyRate = selectedInvoiceData?.baseMonthlyRate || 0;
 
-                          return (
-                            <>
-                              {regularItems.map((item, index) => (
-                                <TableRow key={`regular-${index}`}>
-                                  <TableCell>{item.description}</TableCell>
-                                  <TableCell align="right">{formatPHP(item.unitPrice)}</TableCell>
-                                  <TableCell align="right">-</TableCell>
-                                  <TableCell align="right">{formatPHP(item.amount)}</TableCell>
-                                </TableRow>
-                              ))}
 
-                              {expandedPenaltyItems.filter(item => !item.isPreviousPenalty).map((item, index) => {
-                                const penaltyAmount = toNumber(item.amount);
-                                const basePortion = item.isPreviousPenalty ? baseMonthlyRate : 0;
-                                const totalAmount = basePortion + penaltyAmount;
-
-                                return (
-                                  <TableRow key={`penalty-${index}`}>
-                                    <TableCell sx={{ color: 'warning.main', fontWeight: 500 }}>
-                                      {item.description}
-                                    </TableCell>
-                                    <TableCell align="right" sx={{ color: 'warning.main' }}>
-                                      {formatPHP(basePortion)}
-                                    </TableCell>
-                                    <TableCell align="right" sx={{ color: 'warning.main', fontWeight: 600 }}>
-                                      {formatPHP(penaltyAmount)}
-                                    </TableCell>
-                                    <TableCell align="right" sx={{ color: 'warning.main', fontWeight: 600 }}>
-                                      {formatPHP(totalAmount)}
-                                    </TableCell>
-                                  </TableRow>
-                                );
-                              })}
-                            </>
-                          );
-                        })()}
-
-                        <TableRow>
-                          <TableCell colSpan={3} align="right"><strong>Subtotal:</strong></TableCell>
-                          <TableCell align="right"><strong>{formatPHP(selectedCurrentAdjusted?.adjustedSubtotal ?? selectedBill.subtotal)}</strong></TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell colSpan={3} align="right"><strong>VAT ({(((selectedCurrentAdjusted?.vatRate ?? selectedInvoiceData?.vatRate ?? 0) * 100).toFixed(2))}%):</strong></TableCell>
-                          <TableCell align="right"><strong>{formatPHP(selectedCurrentAdjusted?.adjustedVat ?? (selectedBill.vat ?? 0))}</strong></TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell colSpan={3} align="right"><strong>Total:</strong></TableCell>
-                          <TableCell align="right"><strong>{formatPHP(selectedCurrentAdjusted?.adjustedTotal ?? selectedBill.total)}</strong></TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
                 </Grid>
               </Grid>
             </Box>
