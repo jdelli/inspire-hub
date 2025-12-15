@@ -130,6 +130,7 @@ import {
   testExports,
   fixBillingVATCalculations,
 } from "../utils/billingService";
+import { getBillingSettings } from "../utils/billingSettingsService";
 import EditTenantModal from './EditTenantModal';
 
 const getStatusColor = (status) => {
@@ -200,6 +201,7 @@ export default function BillingManagement() {
   const [billingTargetMonth, setBillingTargetMonth] = useState(
     `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
   );
+  const [vatEnabled, setVatEnabled] = useState(false);
 
   // Enhanced filters and search
   const [searchTerm, setSearchTerm] = useState('');
@@ -360,6 +362,10 @@ export default function BillingManagement() {
       setBillingStats(stats);
       const billsWithRolledPenalties = await applyPenaltyRolloverToBillRecords(bills, selectedMonth);
       setCurrentMonthBills(billsWithRolledPenalties);
+
+      // Load billing settings
+      const settings = await getBillingSettings();
+      setVatEnabled(settings.vatEnabled);
 
 
 
@@ -586,7 +592,7 @@ export default function BillingManagement() {
       'Type',
       'Status',
       'Subtotal',
-      'VAT (12%)',
+      'VAT',
       'Total Amount',
       'Due Date',
       'Billing Month'
@@ -629,7 +635,7 @@ export default function BillingManagement() {
       'Type',
       'Status',
       'Subtotal (₱)',
-      'VAT 12% (₱)',
+      'VAT (₱)',
       'Total Amount (₱)',
       'Due Date',
       'Billing Month',
@@ -1808,8 +1814,11 @@ export default function BillingManagement() {
   const getVatRateForBill = (bill) => {
     const explicitRate = normalizeRate(bill?.vatRate ?? bill?.vatPercentage ?? bill?.taxRate);
     const envRate = normalizeRate(process.env.NEXT_PUBLIC_VAT_RATE);
-    const derivedRate = normalizeRate(bill?.vat && bill?.subtotal ? bill.vat / Math.max(bill.subtotal || 1, 1) : null);
-    return explicitRate ?? envRate ?? 0.12;
+    const derivedRate = normalizeRate(bill?.vat !== undefined && bill?.subtotal ? bill.vat / Math.max(bill.subtotal || 1, 1) : null);
+
+    // Use derived rate if it exists (even if 0), otherwise fallback to explicit, then env, then global setting
+    if (derivedRate !== null && derivedRate !== undefined) return derivedRate;
+    return explicitRate ?? envRate ?? (vatEnabled ? 0.12 : 0);
   };
 
   const expandPenaltyItems = (items = [], billingMonth) => {

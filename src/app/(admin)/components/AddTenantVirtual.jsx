@@ -59,6 +59,7 @@ import {
   Info as InfoIcon,
   BusinessCenter as BusinessCenterIcon,
 } from "@mui/icons-material";
+import { getBillingSettings } from "../utils/billingSettingsService";
 
 // Helper to format number as PHP currency with thousands separator
 function formatPHP(amount) {
@@ -68,34 +69,34 @@ function formatPHP(amount) {
 // Function to calculate billing end date
 function calculateBillingEndDate(startDate, monthsToAvail) {
   if (!startDate || !monthsToAvail) return "";
-  
+
   // Parse the date parts
   const [year, month, day] = startDate.split('-').map(Number);
-  
+
   // Calculate target month and year
   let targetYear = year;
   let targetMonth = month + monthsToAvail;
-  
+
   // Adjust year if month goes beyond 12
   while (targetMonth > 12) {
     targetMonth -= 12;
     targetYear += 1;
   }
-  
+
   // Create the target date
   const targetDate = new Date(targetYear, targetMonth - 1, day);
-  
+
   // Handle month-end rollover (e.g., Jan 31 + 1 month = Feb 28)
   if (targetDate.getMonth() !== targetMonth - 1) {
     // The date rolled over to next month, so set to last day of target month
     targetDate.setDate(0);
   }
-  
+
   // Format as YYYY-MM-DD
-  const result = targetDate.getFullYear() + '-' + 
-                 String(targetDate.getMonth() + 1).padStart(2, '0') + '-' + 
-                 String(targetDate.getDate()).padStart(2, '0');
-  
+  const result = targetDate.getFullYear() + '-' +
+    String(targetDate.getMonth() + 1).padStart(2, '0') + '-' +
+    String(targetDate.getDate()).padStart(2, '0');
+
   return result;
 }
 
@@ -149,16 +150,25 @@ export default function AddVirtualOfficeTenantModal({
   const [openSuccess, setOpenSuccess] = useState(false);
   const [openError, setOpenError] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [vatEnabled, setVatEnabled] = useState(false);
   const nameRef = useRef(null);
 
   // Effect to calculate initial billing end date and due date when modal opens
   useEffect(() => {
     if (showAddModal) {
       setIsLoading(false);
+
+      // Load settings
+      const loadSettings = async () => {
+        const settings = await getBillingSettings();
+        setVatEnabled(settings.vatEnabled);
+      };
+      loadSettings();
+
       setNewTenant((prev) => {
         const newBillingEndDate = calculateBillingEndDate(prev.billing.startDate, prev.billing.monthsToAvail);
         const newDueDate = calculateDueDate(prev.billing.startDate);
-        
+
         return {
           ...prev,
           billing: {
@@ -193,13 +203,13 @@ export default function AddVirtualOfficeTenantModal({
     const months = parseInt(`${newTenant.billing.monthsToAvail}`) || 1;
     const cusaFee = parseFloat(newTenant.billing.cusaFee) || 0;
     const parkingFee = parseFloat(newTenant.billing.parkingFee) || 0;
-    
+
     return (rate * months) + (cusaFee * months) + (parkingFee * months);
   };
 
   const calculateVAT = () => {
     const subtotal = calculateSubtotal();
-    return subtotal * 0.12; // 12% VAT
+    return vatEnabled ? subtotal * 0.12 : 0;
   };
 
   const calculateTotal = () => {
@@ -239,11 +249,11 @@ export default function AddVirtualOfficeTenantModal({
         type: "virtual-office", // Optionally tag as virtual office
         status: "active",
       };
-      
+
       // Add tenant to database
       const docRef = await addDoc(collection(db, "virtualOffice"), tenantData);
       const tenantId = docRef.id;
-      
+
       // Refresh the clients list in parent component
       refreshClients();
 
@@ -348,10 +358,10 @@ export default function AddVirtualOfficeTenantModal({
       onClose={handleClose}
       maxWidth="md"
       fullWidth
-  onKeyDown={handleKeyDown}
+      onKeyDown={handleKeyDown}
       PaperProps={{
-        sx: { 
-          maxHeight: "95vh", 
+        sx: {
+          maxHeight: "95vh",
           borderRadius: 4,
           boxShadow: 24
         },
@@ -370,11 +380,11 @@ export default function AddVirtualOfficeTenantModal({
         }}
       >
         <Box display="flex" alignItems="center">
-          <Avatar 
-            sx={{ 
-              bgcolor: 'rgba(0,0,0,0.2)', 
-              mr: 2, 
-              width: 40, 
+          <Avatar
+            sx={{
+              bgcolor: 'rgba(0,0,0,0.2)',
+              mr: 2,
+              width: 40,
               height: 40,
             }}
           >
@@ -395,7 +405,7 @@ export default function AddVirtualOfficeTenantModal({
           size="large"
           sx={{
             color: 'black',
-            "&:hover": { 
+            "&:hover": {
               bgcolor: 'rgba(0,0,0,0.1)',
             },
           }}
@@ -403,8 +413,8 @@ export default function AddVirtualOfficeTenantModal({
           <CloseIcon />
         </IconButton>
       </DialogTitle>
-      <DialogContent sx={{ 
-        p: 4, 
+      <DialogContent sx={{
+        p: 4,
         overflow: 'auto'
       }}>
         {isLoading ? (
@@ -490,7 +500,7 @@ export default function AddVirtualOfficeTenantModal({
                     ),
                   }}
                   disabled={isSubmitting}
-                    inputProps={{ 'aria-label': 'email address' }}
+                  inputProps={{ 'aria-label': 'email address' }}
                 />
               </Grid>
               <Grid item xs={12}>
@@ -532,7 +542,7 @@ export default function AddVirtualOfficeTenantModal({
                     ),
                   }}
                   disabled={isSubmitting}
-                    inputProps={{ 'aria-label': 'address' }}
+                  inputProps={{ 'aria-label': 'address' }}
                 />
               </Grid>
             </Grid>
@@ -683,12 +693,12 @@ export default function AddVirtualOfficeTenantModal({
                 <TableContainer>
                   <Table>
                     <TableHead>
-                                              <TableRow>
-                          <TableCell>Item</TableCell>
-                          <TableCell align="right">Quantity (Months)</TableCell>
-                          <TableCell align="right">Unit Price</TableCell>
-                          <TableCell align="right">Amount</TableCell>
-                        </TableRow>
+                      <TableRow>
+                        <TableCell>Item</TableCell>
+                        <TableCell align="right">Quantity (Months)</TableCell>
+                        <TableCell align="right">Unit Price</TableCell>
+                        <TableCell align="right">Amount</TableCell>
+                      </TableRow>
                     </TableHead>
                     <TableBody>
                       <TableRow>
@@ -736,7 +746,7 @@ export default function AddVirtualOfficeTenantModal({
                       <TableRow>
                         <TableCell colSpan={3} align="right">
                           <Typography variant="subtitle1">
-                            VAT (12%)
+                            {vatEnabled ? "VAT (12%)" : "VAT"}
                           </Typography>
                         </TableCell>
                         <TableCell align="right">
@@ -757,30 +767,30 @@ export default function AddVirtualOfficeTenantModal({
                           </Typography>
                         </TableCell>
                       </TableRow>
-                                              <TableRow>
-                          <TableCell colSpan={3} align="right">
-                            <Typography variant="subtitle2">
-                              Billing End Date:
-                            </Typography>
-                          </TableCell>
-                                                     <TableCell align="right">
-                             <Typography variant="subtitle2" fontWeight="bold">
-                               {newTenant.billing.billingEndDate || 'N/A'}
-                             </Typography>
-                           </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell colSpan={3} align="right">
-                            <Typography variant="subtitle2">
-                              Due Date:
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="subtitle2" fontWeight="bold">
-                              {newTenant.billing.dueDate || 'N/A'}
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
+                      <TableRow>
+                        <TableCell colSpan={3} align="right">
+                          <Typography variant="subtitle2">
+                            Billing End Date:
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="subtitle2" fontWeight="bold">
+                            {newTenant.billing.billingEndDate || 'N/A'}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell colSpan={3} align="right">
+                          <Typography variant="subtitle2">
+                            Due Date:
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="subtitle2" fontWeight="bold">
+                            {newTenant.billing.dueDate || 'N/A'}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
                     </TableBody>
                   </Table>
                 </TableContainer>
@@ -789,8 +799,8 @@ export default function AddVirtualOfficeTenantModal({
           </Box>
         )}
       </DialogContent>
-      <DialogActions sx={{ 
-        p: 4, 
+      <DialogActions sx={{
+        p: 4,
         borderTop: `1px solid ${theme.palette.divider}`,
         bgcolor: 'background.paper',
         gap: 2
@@ -808,7 +818,7 @@ export default function AddVirtualOfficeTenantModal({
             fontSize: '0.875rem',
             borderColor: grey[300],
             color: grey[700],
-            "&:hover": { 
+            "&:hover": {
               borderColor: grey[400],
               bgcolor: grey[50],
             },
@@ -823,27 +833,27 @@ export default function AddVirtualOfficeTenantModal({
               onClick={handleAddTenant}
               variant="contained"
               startIcon={isSubmitting ? <CircularProgress size={20} color="inherit" /> : <AddIcon />}
-          sx={{
-            px: 3,
-            py: 1.5,
-            borderRadius: 1,
-            bgcolor: 'primary.main',
-            textTransform: 'none',
-            fontWeight: 500,
-            fontSize: '0.875rem',
-            "&:hover": { 
-              bgcolor: 'primary.dark',
-            },
-            "&:disabled": {
-              bgcolor: grey[400],
-            },
-          }}
-            disabled={isSubmitting || !formValid}
-            aria-label="add-tenant"
-          >
-            {isSubmitting ? "Processing..." : "Add Tenant"}
-          </Button>
-        </span>
+              sx={{
+                px: 3,
+                py: 1.5,
+                borderRadius: 1,
+                bgcolor: 'primary.main',
+                textTransform: 'none',
+                fontWeight: 500,
+                fontSize: '0.875rem',
+                "&:hover": {
+                  bgcolor: 'primary.dark',
+                },
+                "&:disabled": {
+                  bgcolor: grey[400],
+                },
+              }}
+              disabled={isSubmitting || !formValid}
+              aria-label="add-tenant"
+            >
+              {isSubmitting ? "Processing..." : "Add Tenant"}
+            </Button>
+          </span>
         </Tooltip>
       </DialogActions>
       {/* Success / Error Snackbars */}

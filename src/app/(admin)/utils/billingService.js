@@ -12,6 +12,7 @@ import {
   Timestamp
 } from "firebase/firestore";
 import { sendBillingNotification } from "./email";
+import { getBillingSettings } from "./billingSettingsService";
 
 const ENABLE_PENALTY_ROLLOVER = true;
 
@@ -144,8 +145,8 @@ export async function applyPenaltyRolloverToBillRecords(billingRecords, billingM
     const currentSubtotal = parseFloat(bill.subtotal) || 0;
     const subtotalMinusPrev = Math.max(0, currentSubtotal - previousPenaltyFromItems);
     const newSubtotal = subtotalMinusPrev + finalPrevPenaltyTotal;
-    const updatedVat = newSubtotal * 0.12;
-    const updatedTotal = newSubtotal + updatedVat;
+    const updatedVat = 0;
+    const updatedTotal = newSubtotal;
 
     return {
       ...bill,
@@ -170,7 +171,7 @@ export async function applyPenaltyRolloverToBillRecords(billingRecords, billingM
 }
 
 // Calculate billing amount based on tenant type and configuration
-export function calculateBillingAmount(tenant) {
+export function calculateBillingAmount(tenant, vatEnabled = false) {
   // Set default rates if not provided
   let defaultRate = 0;
   if (tenant.selectedSeats && tenant.selectedSeats.length > 0) {
@@ -204,7 +205,7 @@ export function calculateBillingAmount(tenant) {
   }
 
   const subtotal = baseAmount + cusaFee + parkingFee + penaltyFee + damageFee;
-  const vat = subtotal * 0.12; // 12% VAT
+  const vat = vatEnabled ? subtotal * 0.12 : 0;
   const total = subtotal + vat;
 
   return {
@@ -220,9 +221,9 @@ export function calculateBillingAmount(tenant) {
 }
 
 // Generate billing record for a tenant
-export async function generateBillingRecord(tenant, billingMonth, tenantType, billingDate = new Date()) {
+export async function generateBillingRecord(tenant, billingMonth, tenantType, billingDate = new Date(), settings = { vatEnabled: false }) {
   // Calculate billing amount
-  const billingAmounts = calculateBillingAmount(tenant);
+  const billingAmounts = calculateBillingAmount(tenant, settings.vatEnabled);
   const shouldApplyPenaltyRollover = tenant.billing?.enablePenaltyRollover ?? ENABLE_PENALTY_ROLLOVER;
   const { total: rolledPenaltyTotal, months: rolledPenaltyMonths } = shouldApplyPenaltyRollover
     ? await getRolledPenaltiesForTenant(tenant.id, billingMonth)
@@ -293,7 +294,7 @@ export async function generateBillingRecord(tenant, billingMonth, tenantType, bi
   }
 
   const subtotal = billingAmounts.baseAmount + billingAmounts.cusaFee + billingAmounts.parkingFee + billingAmounts.damageFee + penaltyFee;
-  const vat = subtotal * 0.12; // 12% VAT
+  const vat = billingAmounts.vat; // Use calculated VAT
   const total = subtotal + vat;
 
   const billingRecord = {
@@ -372,6 +373,10 @@ export async function generateMonthlyBilling(targetMonth = null) {
 
     console.log(`Generating monthly billing for ${billingMonth}...`);
 
+    // Fetch billing settings
+    const settings = await getBillingSettings();
+    console.log(`Using billing settings: VAT ${settings.vatEnabled ? 'Enabled' : 'Disabled'}`);
+
     const billingRecords = [];
     const errors = [];
     const skippedTenants = [];
@@ -417,7 +422,7 @@ export async function generateMonthlyBilling(targetMonth = null) {
 
             if (existingBilling.empty) {
               // Generate new billing record
-              const billingRecord = await generateBillingRecord(tenant, billingMonth, type, billingDate);
+              const billingRecord = await generateBillingRecord(tenant, billingMonth, type, billingDate, settings);
 
               // Add to billing collection
               const billingDocRef = await addDoc(collection(db, 'billing'), billingRecord);
@@ -729,10 +734,12 @@ export async function updateBillingFees(billingId, additionalFees) {
     const billingData = billingDoc.data();
     const { penaltyFee = 0, damageFee = 0, notes = '' } = additionalFees;
 
+    const billingSettings = await getBillingSettings();
+
     // Calculate new totals
     const baseSubtotal = billingData.subtotal - (billingData.penaltyFee || 0) - (billingData.damageFee || 0);
     const newSubtotal = baseSubtotal + penaltyFee + damageFee;
-    const vat = newSubtotal * 0.12; // 12% VAT
+    const vat = billingSettings.vatEnabled ? newSubtotal * 0.12 : 0;
     const newTotal = newSubtotal + vat;
 
     // Update items array to include new fees
@@ -993,7 +1000,7 @@ export async function updateTenantBillingInfo(tenantId, tenantType, updatedBilli
 
       // Recalculate subtotal and total with preserved penalties
       const newSubtotalWithPenalties = newBillingAmounts.subtotal - newBillingAmounts.penaltyFee - newBillingAmounts.damageFee + existingPenalty + existingDamage;
-      const newVat = newSubtotalWithPenalties * 0.12;
+      const newVat = 0;
       const newTotalWithPenalties = newSubtotalWithPenalties + newVat;
 
       // Update the billing record
@@ -1072,7 +1079,12 @@ export async function updateTenantBillingInfo(tenantId, tenantType, updatedBilli
 // Fix billing records with incorrect VAT calculations (removes VAT from total)
 export async function fixBillingVATCalculations(billingMonth = null) {
   try {
-    console.log('Fixing billing records to add 12% VAT...');
+    // Fetch billing settings
+    const settings = await getBillingSettings();
+    const shouldHaveVAT = settings.vatEnabled;
+    const vatRate = shouldHaveVAT ? 0.12 : 0; // Default to 12% if enabled
+
+    console.log(`Fixing billing calculations. VAT Enabled: ${shouldHaveVAT}`);
 
     let billingQuery;
     if (billingMonth) {
@@ -1094,20 +1106,18 @@ export async function fixBillingVATCalculations(billingMonth = null) {
       const currentSubtotal = parseFloat(billingData.subtotal) || 0;
       const currentVAT = parseFloat(billingData.vat) || 0;
 
-      // Check if VAT is missing or incorrect (total should equal subtotal + VAT)
-      const expectedVAT = currentSubtotal * 0.12;
-      const expectedTotalWithVAT = currentSubtotal + expectedVAT;
-      const difference = Math.abs(currentTotal - expectedTotalWithVAT);
+      // Calculate expected values based on settings
+      const expectedVAT = shouldHaveVAT ? currentSubtotal * 0.12 : 0;
+      const expectedTotal = currentSubtotal + expectedVAT;
 
-      // If difference is more than 1 peso OR VAT field is missing, fix it
-      if (difference > 1 || currentVAT === 0 || !billingData.hasOwnProperty('vat')) {
-        // Calculate correct VAT and total
-        const correctVAT = currentSubtotal * 0.12;
-        const correctTotal = currentSubtotal + correctVAT;
+      // Check for mismatch (allow small float difference)
+      const vatMismatch = Math.abs(currentVAT - expectedVAT) > 1;
+      const totalMismatch = Math.abs(currentTotal - expectedTotal) > 1;
 
+      if (vatMismatch || totalMismatch) {
         await updateDoc(doc(db, 'billing', billingDoc.id), {
-          vat: correctVAT,
-          total: correctTotal,
+          vat: expectedVAT,
+          total: expectedTotal,
           updatedAt: serverTimestamp()
         });
 
@@ -1115,18 +1125,21 @@ export async function fixBillingVATCalculations(billingMonth = null) {
           id: billingDoc.id,
           tenantName: billingData.tenantName,
           oldTotal: currentTotal,
-          newTotal: correctTotal,
+          newTotal: expectedTotal,
           oldVAT: currentVAT,
-          newVAT: correctVAT,
-          difference: correctTotal - currentTotal
+          newVAT: expectedVAT,
+          difference: expectedTotal - currentTotal
         });
 
         totalFixed++;
-        console.log(`Fixed billing record ${billingDoc.id}: ${formatPHP(currentTotal)} → ${formatPHP(correctTotal)} (VAT: ${formatPHP(correctVAT)})`);
+        console.log(`Fixed billing record ${billingDoc.id}: VAT ${currentVAT} -> ${expectedVAT}, Total ${currentTotal} -> ${expectedTotal}`);
       }
+
+
+
     }
 
-    console.log(`Fixed ${totalFixed} billing records with 12% VAT`);
+    console.log(`Fixed ${totalFixed} billing records. VAT Enabled: ${shouldHaveVAT}`);
 
     return {
       success: true,

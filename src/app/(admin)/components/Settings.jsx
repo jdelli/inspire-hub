@@ -11,6 +11,7 @@ import {
   sendEmailVerification // Import sendEmailVerification
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { getBillingSettings, updateBillingSettings } from '../utils/billingSettingsService';
 
 const SettingsPage = () => {
   // User profile state
@@ -43,18 +44,21 @@ const SettingsPage = () => {
   const [emailChangeError, setEmailChangeError] = useState('');
   const [emailVerificationSent, setEmailVerificationSent] = useState(false); // New state for email verification status
 
+  // Billing Settings State
+  const [vatEnabled, setVatEnabled] = useState(false);
+  const [billingSettingsLoading, setBillingSettingsLoading] = useState(false);
+  const [billingSettingsMessage, setBillingSettingsMessage] = useState('');
+
   // --- Fetch User Data on Component Mount ---
   useEffect(() => {
     const fetchUserData = async () => {
+      // ... existing user fetch logic ...
       if (auth.currentUser) {
         setLoading(true);
         try {
+          // ... existing user fetch code ...
           const user = auth.currentUser;
           let currentProfile = {
-            // Note: Firebase Auth's displayName isn't typically split into first/last.
-            // You might manage this entirely in Firestore or parse displayName if it
-            // contains both names (e.g., "John Doe" -> firstName: "John", lastName: "Doe").
-            // For now, we'll try to populate from Firestore first, then fallback.
             firstName: '',
             lastName: '',
             email: user.email || '',
@@ -73,7 +77,6 @@ const SettingsPage = () => {
               phone: firestoreData.phone || '',
             };
           } else {
-            // If no Firestore data, try to parse from displayName if it exists
             if (user.displayName) {
               const nameParts = user.displayName.split(' ');
               currentProfile.firstName = nameParts[0] || '';
@@ -82,8 +85,15 @@ const SettingsPage = () => {
           }
           setProfile(currentProfile);
           setEmailChangeData(prev => ({ ...prev, newEmail: prev.newEmail || user.email || '' }));
+
+          // Fetch Billing Settings
+          setBillingSettingsLoading(true);
+          const billingSettings = await getBillingSettings();
+          setVatEnabled(billingSettings.vatEnabled);
+          setBillingSettingsLoading(false);
+
         } catch (error) {
-          console.error("Error fetching user data:", error);
+          console.error("Error fetching data:", error);
           setProfileError("Failed to load user data.");
         } finally {
           setLoading(false);
@@ -235,6 +245,24 @@ const SettingsPage = () => {
   };
 
   // --- Submit Password Change to Firebase ---
+  // --- Handle Billing Settings Change ---
+  const handleToggleVAT = async () => {
+    setBillingSettingsLoading(true);
+    setBillingSettingsMessage('');
+    try {
+      const newVatEnabled = !vatEnabled;
+      await updateBillingSettings({ vatEnabled: newVatEnabled });
+      setVatEnabled(newVatEnabled);
+      setBillingSettingsMessage(`VAT calculation is now ${newVatEnabled ? 'ENABLED (12%)' : 'DISABLED'}.`);
+    } catch (error) {
+      console.error("Error updating billing settings:", error);
+      setBillingSettingsMessage('Failed to update billing settings.');
+    } finally {
+      setBillingSettingsLoading(false);
+      setTimeout(() => setBillingSettingsMessage(''), 3000);
+    }
+  };
+
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     setPasswordError('');
@@ -481,6 +509,38 @@ const SettingsPage = () => {
               </button>
             </div>
           </form>
+        </div>
+
+        {/* Billing Settings Section */}
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">Billing Settings</h2>
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col">
+              <span className="text-gray-700 font-medium">Automatic VAT Calculation (12%)</span>
+              <span className="text-gray-500 text-sm">
+                If enabled, a 12% Value Added Tax will be automatically added to all new billing records.
+              </span>
+            </div>
+            <button
+              onClick={handleToggleVAT}
+              disabled={billingSettingsLoading}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${vatEnabled ? 'bg-blue-600' : 'bg-gray-200'
+                }`}
+              role="switch"
+              aria-checked={vatEnabled}
+            >
+              <span
+                aria-hidden="true"
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${vatEnabled ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+              />
+            </button>
+          </div>
+          {billingSettingsMessage && (
+            <div className="mt-4 text-blue-600 text-sm font-medium">
+              {billingSettingsMessage}
+            </div>
+          )}
         </div>
       </div>
     </div>

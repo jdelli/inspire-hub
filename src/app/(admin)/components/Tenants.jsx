@@ -111,7 +111,7 @@ const ITEMS_PER_PAGE = 8;
 export default function SeatMapTable() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  
+
   const [clients, setClients] = useState([]);
   const [privateOfficeClients, setPrivateOfficeClients] = useState([]);
   const [virtualOfficeClients, setVirtualOfficeClients] = useState([]);
@@ -394,17 +394,17 @@ export default function SeatMapTable() {
     setIsFixingVAT(true);
     try {
       const result = await fixBillingVATCalculations();
-      
+
       if (result.success && result.totalFixed > 0) {
         setVatAlert({
           open: true,
-          message: `Successfully added 12% VAT to ${result.totalFixed} billing records (checked ${result.totalRecordsChecked} records)`,
+          message: `Successfully removed VAT from ${result.totalFixed} billing records (checked ${result.totalRecordsChecked} records)`,
           severity: 'success'
         });
       } else if (result.success && result.totalFixed === 0) {
         setVatAlert({
           open: true,
-          message: `All billing records already have correct VAT (checked ${result.totalRecordsChecked} records)`,
+          message: `All billing records already have VAT removed (checked ${result.totalRecordsChecked} records)`,
           severity: 'info'
         });
       } else {
@@ -518,8 +518,8 @@ export default function SeatMapTable() {
       variant="contained"
       startIcon={<AddIcon />}
       onClick={() => { setAddModalType("dedicated"); setShowAddModal(true); }}
-      sx={{ 
-        bgcolor: 'primary.main', 
+      sx={{
+        bgcolor: 'primary.main',
         mb: 2,
         borderRadius: 1,
         py: 1.5,
@@ -541,8 +541,8 @@ export default function SeatMapTable() {
       variant="contained"
       startIcon={<AddIcon />}
       onClick={() => { setAddModalType("private"); setShowAddModal(true); }}
-      sx={{ 
-        bgcolor: 'primary.main', 
+      sx={{
+        bgcolor: 'primary.main',
         mb: 2,
         borderRadius: 1,
         py: 1.5,
@@ -564,8 +564,8 @@ export default function SeatMapTable() {
       variant="contained"
       startIcon={<AddIcon />}
       onClick={() => { setShowVirtualOfficeModal(true); }}
-      sx={{ 
-        bgcolor: 'primary.main', 
+      sx={{
+        bgcolor: 'primary.main',
         mb: 2,
         borderRadius: 1,
         py: 1.5,
@@ -625,16 +625,16 @@ export default function SeatMapTable() {
               px: 3,
             }}
           >
-            {isFixingVAT ? 'Fixing VAT...' : 'Fix VAT (12%)'}
+            {isFixingVAT ? 'Removing VAT...' : 'Remove VAT'}
           </Button>
         </Stack>
 
         {/* Statistics Cards */}
         <Grid container spacing={2} sx={{ mb: 4 }}>
           <Grid item xs={12} sm={6} md={3}>
-            <Card 
-              elevation={0} 
-              sx={{ 
+            <Card
+              elevation={0}
+              sx={{
                 backgroundColor: 'background.paper',
                 border: `1px solid ${grey[200]}`,
                 borderRadius: 1,
@@ -657,11 +657,11 @@ export default function SeatMapTable() {
               </CardContent>
             </Card>
           </Grid>
-          
+
           <Grid item xs={12} sm={6} md={3}>
-            <Card 
-              elevation={0} 
-              sx={{ 
+            <Card
+              elevation={0}
+              sx={{
                 backgroundColor: 'background.paper',
                 border: `1px solid ${grey[200]}`,
                 borderRadius: 1,
@@ -684,11 +684,11 @@ export default function SeatMapTable() {
               </CardContent>
             </Card>
           </Grid>
-          
+
           <Grid item xs={12} sm={6} md={3}>
-            <Card 
-              elevation={0} 
-              sx={{ 
+            <Card
+              elevation={0}
+              sx={{
                 backgroundColor: 'background.paper',
                 border: `1px solid ${grey[200]}`,
                 borderRadius: 1,
@@ -711,11 +711,11 @@ export default function SeatMapTable() {
               </CardContent>
             </Card>
           </Grid>
-          
+
           <Grid item xs={12} sm={6} md={3}>
-            <Card 
-              elevation={0} 
-              sx={{ 
+            <Card
+              elevation={0}
+              sx={{
                 backgroundColor: 'background.paper',
                 border: `1px solid ${grey[200]}`,
                 borderRadius: 1,
@@ -747,7 +747,7 @@ export default function SeatMapTable() {
         <Tabs
           value={tabIndex}
           onChange={(_, newValue) => setTabIndex(newValue)}
-          sx={{ 
+          sx={{
             '& .MuiTab-root': {
               minHeight: 48,
               fontSize: '0.875rem',
@@ -762,29 +762,29 @@ export default function SeatMapTable() {
           textColor="primary"
           variant="fullWidth"
         >
-          <Tab 
+          <Tab
             label={
               <Stack direction="row" alignItems="center" spacing={1}>
                 <Monitor size={18} />
                 <span>Dedicated Desk</span>
               </Stack>
-            } 
+            }
           />
-          <Tab 
+          <Tab
             label={
               <Stack direction="row" alignItems="center" spacing={1}>
                 <BusinessIcon fontSize="small" />
                 <span>Private Office</span>
               </Stack>
-            } 
+            }
           />
-          <Tab 
+          <Tab
             label={
               <Stack direction="row" alignItems="center" spacing={1}>
                 <HomeWorkIcon fontSize="small" />
                 <span>Virtual Office</span>
               </Stack>
-            } 
+            }
           />
         </Tabs>
       </Card>
@@ -833,9 +833,9 @@ export default function SeatMapTable() {
               {paginatedClients[tabIndex].map((client, index) => {
                 return (
                   <Zoom in={true} timeout={300 + (index * 100)} key={client.id}>
-                    <TableRow 
-                      hover 
-                      sx={{ 
+                    <TableRow
+                      hover
+                      sx={{
                         '&:hover': { backgroundColor: grey[50] },
                       }}
                     >
@@ -851,12 +851,12 @@ export default function SeatMapTable() {
                       </TableCell>
                       <TableCell sx={{ py: 2, px: 3 }}>
                         <Stack direction="row" spacing={1.5} alignItems="center">
-                          <Avatar 
-                            sx={{ 
-                              bgcolor: grey[200], 
+                          <Avatar
+                            sx={{
+                              bgcolor: grey[200],
                               color: grey[800],
-                              width: 36, 
-                              height: 36, 
+                              width: 36,
+                              height: 36,
                               fontSize: 14,
                               fontWeight: 500
                             }}
@@ -948,14 +948,14 @@ export default function SeatMapTable() {
                             <Button
                               size="small"
                               startIcon={<VisibilityIcon fontSize="small" />}
-                              sx={{ 
+                              sx={{
                                 color: grey[700],
                                 textTransform: 'none',
                                 fontSize: '0.75rem',
                                 py: 0.5,
                                 px: 1,
                                 minWidth: 'auto',
-                                '&:hover': { 
+                                '&:hover': {
                                   bgcolor: grey[100],
                                 },
                               }}
@@ -970,14 +970,14 @@ export default function SeatMapTable() {
                           <Button
                             size="small"
                             startIcon={<InfoIcon fontSize="small" />}
-                            sx={{ 
+                            sx={{
                               color: grey[700],
                               textTransform: 'none',
                               fontSize: '0.75rem',
                               py: 0.5,
                               px: 1,
                               minWidth: 'auto',
-                              '&:hover': { 
+                              '&:hover': {
                                 bgcolor: grey[100],
                               },
                             }}
@@ -991,14 +991,14 @@ export default function SeatMapTable() {
                           <Button
                             size="small"
                             startIcon={<PictureAsPdfIcon fontSize="small" />}
-                            sx={{ 
+                            sx={{
                               color: grey[700],
                               textTransform: 'none',
                               fontSize: '0.75rem',
                               py: 0.5,
                               px: 1,
                               minWidth: 'auto',
-                              '&:hover': { 
+                              '&:hover': {
                                 bgcolor: grey[100],
                               },
                             }}
@@ -1009,14 +1009,14 @@ export default function SeatMapTable() {
                           <Button
                             size="small"
                             startIcon={<EditIcon fontSize="small" />}
-                            sx={{ 
+                            sx={{
                               color: grey[700],
                               textTransform: 'none',
                               fontSize: '0.75rem',
                               py: 0.5,
                               px: 1,
                               minWidth: 'auto',
-                              '&:hover': { 
+                              '&:hover': {
                                 bgcolor: grey[100],
                               },
                             }}
@@ -1027,14 +1027,14 @@ export default function SeatMapTable() {
                           <Button
                             size="small"
                             startIcon={<DeleteIcon fontSize="small" />}
-                            sx={{ 
+                            sx={{
                               color: grey[700],
                               textTransform: 'none',
                               fontSize: '0.75rem',
                               py: 0.5,
                               px: 1,
                               minWidth: 'auto',
-                              '&:hover': { 
+                              '&:hover': {
                                 bgcolor: grey[100],
                               },
                             }}
@@ -1045,14 +1045,14 @@ export default function SeatMapTable() {
                           <Button
                             size="small"
                             startIcon={<DeleteIcon fontSize="small" />}
-                            sx={{ 
+                            sx={{
                               color: red[600],
                               textTransform: 'none',
                               fontSize: '0.75rem',
                               py: 0.5,
                               px: 1,
                               minWidth: 'auto',
-                              '&:hover': { 
+                              '&:hover': {
                                 bgcolor: red[50],
                               },
                             }}
@@ -1069,7 +1069,7 @@ export default function SeatMapTable() {
             </TableBody>
           </Table>
         </TableContainer>
-        
+
         {/* Pagination */}
         <Box sx={{ p: 2, borderTop: `1px solid ${grey[200]}` }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
@@ -1104,15 +1104,15 @@ export default function SeatMapTable() {
         maxWidth="xl"
         fullWidth
         PaperProps={{
-          sx: { 
+          sx: {
             maxHeight: '90vh',
             borderRadius: 1,
           }
         }}
       >
-        <DialogTitle sx={{ 
-          display: "flex", 
-          justifyContent: "space-between", 
+        <DialogTitle sx={{
+          display: "flex",
+          justifyContent: "space-between",
           alignItems: "center",
           borderBottom: `1px solid ${grey[200]}`
         }}>
@@ -1128,7 +1128,7 @@ export default function SeatMapTable() {
             onClick={() => setShowModal(false)}
             aria-label="close"
             size="small"
-            sx={{ 
+            sx={{
               color: grey[600],
               '&:hover': { bgcolor: grey[100] }
             }}
@@ -1185,9 +1185,9 @@ export default function SeatMapTable() {
           ) : null}
         </DialogContent>
         <DialogActions sx={{ p: 2, pt: 0 }}>
-          <Button 
-            onClick={() => setShowModal(false)} 
-            color="primary" 
+          <Button
+            onClick={() => setShowModal(false)}
+            color="primary"
             variant="outlined"
             sx={{ borderRadius: 1, fontWeight: 500 }}
           >
@@ -1264,7 +1264,7 @@ export default function SeatMapTable() {
         <DialogContent dividers sx={{ p: 2 }}>
           <Typography id="confirm-action-description" gutterBottom>
             Are you sure you want to {confirmDialog.action} <strong>{confirmDialog.client?.name}</strong> ({confirmDialog.client?.company})?
-            {confirmDialog.action === "delete" 
+            {confirmDialog.action === "delete"
               ? " This action will permanently delete the tenant and all associated data. This action cannot be undone."
               : " This action will deactivate the tenant. This action cannot be undone."
             }
@@ -1286,9 +1286,9 @@ export default function SeatMapTable() {
           />
         </DialogContent>
         <DialogActions sx={{ p: 2, pt: 0 }}>
-          <Button 
-            onClick={cancelAction} 
-            color="primary" 
+          <Button
+            onClick={cancelAction}
+            color="primary"
             variant="outlined"
             sx={{ borderRadius: 1, fontWeight: 500 }}
           >

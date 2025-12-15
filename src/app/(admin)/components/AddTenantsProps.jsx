@@ -67,6 +67,7 @@ import {
   PictureAsPdf as PictureAsPdfIcon,
   TableChart as TableChartIcon,
 } from "@mui/icons-material";
+import { getBillingSettings } from "../utils/billingSettingsService";
 
 // Import seat maps and utility functions
 import seatMap1 from "../../(admin)/seatMap1.json";
@@ -167,6 +168,7 @@ export default function AddTenantModal({
     billingRate: false,
     monthsToAvail: false,
   });
+  const [vatEnabled, setVatEnabled] = useState(false);
 
   // Tabs state
   const [tabIndex, setTabIndex] = useState(0);
@@ -174,34 +176,34 @@ export default function AddTenantModal({
   // Function to calculate billing end date
   const calculateBillingEndDate = (startDate, monthsToAvail) => {
     if (!startDate || !monthsToAvail) return "";
-    
+
     // Parse the date parts
     const [year, month, day] = startDate.split('-').map(Number);
-    
+
     // Calculate target month and year
     let targetYear = year;
     let targetMonth = month + monthsToAvail;
-    
+
     // Adjust year if month goes beyond 12
     while (targetMonth > 12) {
       targetMonth -= 12;
       targetYear += 1;
     }
-    
+
     // Create the target date
     const targetDate = new Date(targetYear, targetMonth - 1, day);
-    
+
     // Handle month-end rollover (e.g., Jan 31 + 1 month = Feb 28)
     if (targetDate.getMonth() !== targetMonth - 1) {
       // The date rolled over to next month, so set to last day of target month
       targetDate.setDate(0);
     }
-    
+
     // Format as YYYY-MM-DD
-    const result = targetDate.getFullYear() + '-' + 
-                   String(targetDate.getMonth() + 1).padStart(2, '0') + '-' + 
-                   String(targetDate.getDate()).padStart(2, '0');
-    
+    const result = targetDate.getFullYear() + '-' +
+      String(targetDate.getMonth() + 1).padStart(2, '0') + '-' +
+      String(targetDate.getDate()).padStart(2, '0');
+
     return result;
   };
 
@@ -248,6 +250,13 @@ export default function AddTenantModal({
           currency: "PHP"
         }
       }));
+
+      // Load settings
+      const loadSettings = async () => {
+        const settings = await getBillingSettings();
+        setVatEnabled(settings.vatEnabled);
+      };
+      loadSettings();
     }
   }, [showAddModal]);
 
@@ -257,13 +266,13 @@ export default function AddTenantModal({
     const months = parseInt(newTenant.billing.monthsToAvail) || 1;
     const cusaFee = parseFloat(newTenant.billing.cusaFee) || 0;
     const parkingFee = parseFloat(newTenant.billing.parkingFee) || 0;
-    
+
     return (rate * seatCount * months) + (cusaFee * months) + (parkingFee * months);
   };
 
   const calculateVAT = () => {
     const subtotal = calculateSubtotal();
-    return subtotal * 0.12; // 12% VAT
+    return vatEnabled ? subtotal * 0.12 : 0;
   };
 
   const calculateTotal = () => {
@@ -308,7 +317,7 @@ export default function AddTenantModal({
       // Add tenant to database
       const docRef = await addDoc(collection(db, "seatMap"), tenantWithSeats);
       const tenantId = docRef.id;
-      
+
       // Refresh the clients list in parent component
       refreshClients();
 
@@ -494,10 +503,10 @@ export default function AddTenantModal({
                                 bgcolor: disabled
                                   ? seatBg
                                   : isSelected
-                                  ? green[500]
-                                  : isWindow
-                                  ? grey[300]
-                                  : grey[100],
+                                    ? green[500]
+                                    : isWindow
+                                      ? grey[300]
+                                      : grey[100],
                               },
                             }}
                             disableRipple
@@ -541,8 +550,8 @@ export default function AddTenantModal({
       maxWidth="xl"
       fullWidth
       PaperProps={{
-        sx: { 
-          maxHeight: "95vh", 
+        sx: {
+          maxHeight: "95vh",
           borderRadius: 4,
           boxShadow: 24
         },
@@ -561,11 +570,11 @@ export default function AddTenantModal({
         }}
       >
         <Box display="flex" alignItems="center">
-          <Avatar 
-            sx={{ 
-              bgcolor: 'rgba(0,0,0,0.2)', 
-              mr: 2, 
-              width: 40, 
+          <Avatar
+            sx={{
+              bgcolor: 'rgba(0,0,0,0.2)',
+              mr: 2,
+              width: 40,
               height: 40,
             }}
           >
@@ -586,7 +595,7 @@ export default function AddTenantModal({
           size="large"
           sx={{
             color: 'black',
-            "&:hover": { 
+            "&:hover": {
               bgcolor: 'rgba(0,0,0,0.1)',
             },
           }}
@@ -611,8 +620,8 @@ export default function AddTenantModal({
             <LinearProgress sx={{ width: '60%', mt: 2 }} />
           </Box>
         ) : (
-          <Box sx={{ 
-            display: 'flex', 
+          <Box sx={{
+            display: 'flex',
             flexDirection: 'column',
             height: '100%'
           }}>
@@ -620,7 +629,7 @@ export default function AddTenantModal({
               <Tabs
                 value={tabIndex}
                 onChange={(_, v) => setTabIndex(v)}
-                sx={{ 
+                sx={{
                   px: 3,
                   pt: 2,
                   bgcolor: 'background.paper',
@@ -645,554 +654,554 @@ export default function AddTenantModal({
                 indicatorColor="primary"
                 textColor="primary"
               >
-              <Tab
-                label={
-                  <Box display="flex" alignItems="center">
-                    <PersonIcon fontSize="small" sx={{ mr: 1 }} />
-                    Tenant Details
-                  </Box>
-                }
-              />
-              <Tab
-                label={
-                  <Box display="flex" alignItems="center">
-                    <ChairIcon fontSize="small" sx={{ mr: 1 }} />
-                    Seat Selection
-                  </Box>
-                }
-              />
-              <Tab
-                label={
-                  <Box display="flex" alignItems="center">
-                    <AttachMoneyIcon fontSize="small" sx={{ mr: 1 }} />
-                    Billing
-                  </Box>
-                }
-              />
-            </Tabs>
+                <Tab
+                  label={
+                    <Box display="flex" alignItems="center">
+                      <PersonIcon fontSize="small" sx={{ mr: 1 }} />
+                      Tenant Details
+                    </Box>
+                  }
+                />
+                <Tab
+                  label={
+                    <Box display="flex" alignItems="center">
+                      <ChairIcon fontSize="small" sx={{ mr: 1 }} />
+                      Seat Selection
+                    </Box>
+                  }
+                />
+                <Tab
+                  label={
+                    <Box display="flex" alignItems="center">
+                      <AttachMoneyIcon fontSize="small" sx={{ mr: 1 }} />
+                      Billing
+                    </Box>
+                  }
+                />
+              </Tabs>
             </Paper>
 
             {/* Tab Content Container */}
-            <Box sx={{ 
-              flex: 1, 
-              overflow: 'auto', 
+            <Box sx={{
+              flex: 1,
+              overflow: 'auto',
               p: 3
             }}>
               {/* Tenant Details Tab */}
-            {tabIndex === 0 && (
-              <Box>
-                <Grid container spacing={3} mb={3} direction="column">
-                  <Grid item xs={12}>
-                    <TextField
-                      label="Tenant Name"
-                      fullWidth
-                      value={newTenant.name}
-                      onChange={(e) =>
-                        handleInputChange("name", e.target.value)
-                      }
-                      variant="outlined"
-                      error={errors.name}
-                      helperText={errors.name ? "Name is required" : ""}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <PersonIcon color={errors.name ? "error" : "action"} />
-                          </InputAdornment>
-                        ),
-                      }}
-                      disabled={isSubmitting}
-                    />
+              {tabIndex === 0 && (
+                <Box>
+                  <Grid container spacing={3} mb={3} direction="column">
+                    <Grid item xs={12}>
+                      <TextField
+                        label="Tenant Name"
+                        fullWidth
+                        value={newTenant.name}
+                        onChange={(e) =>
+                          handleInputChange("name", e.target.value)
+                        }
+                        variant="outlined"
+                        error={errors.name}
+                        helperText={errors.name ? "Name is required" : ""}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <PersonIcon color={errors.name ? "error" : "action"} />
+                            </InputAdornment>
+                          ),
+                        }}
+                        disabled={isSubmitting}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        label="Company"
+                        fullWidth
+                        value={newTenant.company}
+                        onChange={(e) =>
+                          handleInputChange("company", e.target.value)
+                        }
+                        variant="outlined"
+                        error={errors.company}
+                        helperText={errors.company ? "Company is required" : ""}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <BusinessIcon color={errors.company ? "error" : "action"} />
+                            </InputAdornment>
+                          ),
+                        }}
+                        disabled={isSubmitting}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        label="Email"
+                        fullWidth
+                        value={newTenant.email}
+                        onChange={(e) =>
+                          handleInputChange("email", e.target.value)
+                        }
+                        variant="outlined"
+                        type="email"
+                        error={errors.email}
+                        helperText={
+                          errors.email
+                            ? !newTenant.email
+                              ? "Email is required"
+                              : "Please enter a valid email"
+                            : ""
+                        }
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <EmailIcon color={errors.email ? "error" : "action"} />
+                            </InputAdornment>
+                          ),
+                        }}
+                        disabled={isSubmitting}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        label="Phone"
+                        fullWidth
+                        value={newTenant.phone}
+                        onChange={(e) =>
+                          handleInputChange("phone", e.target.value)
+                        }
+                        variant="outlined"
+                        type="tel"
+                        error={errors.phone}
+                        helperText={errors.phone ? "Phone is required" : ""}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <PhoneIcon color={errors.phone ? "error" : "action"} />
+                            </InputAdornment>
+                          ),
+                        }}
+                        disabled={isSubmitting}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        label="Address"
+                        fullWidth
+                        value={newTenant.address}
+                        onChange={(e) =>
+                          handleInputChange("address", e.target.value)
+                        }
+                        variant="outlined"
+                        multiline
+                        rows={2}
+                        error={errors.address}
+                        helperText={errors.address ? "Address is required" : ""}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <HomeIcon color={errors.address ? "error" : "action"} />
+                            </InputAdornment>
+                          ),
+                        }}
+                        disabled={isSubmitting}
+                      />
+                    </Grid>
                   </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      label="Company"
-                      fullWidth
-                      value={newTenant.company}
-                      onChange={(e) =>
-                        handleInputChange("company", e.target.value)
-                      }
-                      variant="outlined"
-                      error={errors.company}
-                      helperText={errors.company ? "Company is required" : ""}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <BusinessIcon color={errors.company ? "error" : "action"} />
-                          </InputAdornment>
-                        ),
-                      }}
-                      disabled={isSubmitting}
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      label="Email"
-                      fullWidth
-                      value={newTenant.email}
-                      onChange={(e) =>
-                        handleInputChange("email", e.target.value)
-                      }
-                      variant="outlined"
-                      type="email"
-                      error={errors.email}
-                      helperText={
-                        errors.email
-                          ? !newTenant.email
-                            ? "Email is required"
-                            : "Please enter a valid email"
-                          : ""
-                      }
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <EmailIcon color={errors.email ? "error" : "action"} />
-                          </InputAdornment>
-                        ),
-                      }}
-                      disabled={isSubmitting}
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      label="Phone"
-                      fullWidth
-                      value={newTenant.phone}
-                      onChange={(e) =>
-                        handleInputChange("phone", e.target.value)
-                      }
-                      variant="outlined"
-                      type="tel"
-                      error={errors.phone}
-                      helperText={errors.phone ? "Phone is required" : ""}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <PhoneIcon color={errors.phone ? "error" : "action"} />
-                          </InputAdornment>
-                        ),
-                      }}
-                      disabled={isSubmitting}
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      label="Address"
-                      fullWidth
-                      value={newTenant.address}
-                      onChange={(e) =>
-                        handleInputChange("address", e.target.value)
-                      }
-                      variant="outlined"
-                      multiline
-                      rows={2}
-                      error={errors.address}
-                      helperText={errors.address ? "Address is required" : ""}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <HomeIcon color={errors.address ? "error" : "action"} />
-                          </InputAdornment>
-                        ),
-                      }}
-                      disabled={isSubmitting}
-                    />
-                  </Grid>
-                </Grid>
 
-                <Paper
-                  elevation={0}
-                  sx={{
-                    p: 2,
-                    bgcolor: grey[50],
-                    borderRadius: 2,
-                    border: `1px solid ${errors.seats ? red[200] : grey[200]}`,
-                  }}
-                >
-                  <Box display="flex" alignItems="center" mb={1}>
-                    <ChairIcon
-                      color={errors.seats ? "error" : "action"}
-                      sx={{ mr: 1 }}
-                    />
-                    <Typography
-                      fontWeight={600}
-                      color={errors.seats ? "error" : "text.primary"}
-                    >
-                      Selected Seats:
-                    </Typography>
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      p: 2,
+                      bgcolor: grey[50],
+                      borderRadius: 2,
+                      border: `1px solid ${errors.seats ? red[200] : grey[200]}`,
+                    }}
+                  >
+                    <Box display="flex" alignItems="center" mb={1}>
+                      <ChairIcon
+                        color={errors.seats ? "error" : "action"}
+                        sx={{ mr: 1 }}
+                      />
+                      <Typography
+                        fontWeight={600}
+                        color={errors.seats ? "error" : "text.primary"}
+                      >
+                        Selected Seats:
+                      </Typography>
+                    </Box>
+                    {tempSelectedSeats.length > 0 ? (
+                      <Stack direction="row" spacing={1} flexWrap="wrap">
+                        {tempSelectedSeats.map((seat, idx) => (
+                          <Chip
+                            key={idx}
+                            label={seat}
+                            size="small"
+                            sx={{
+                              bgcolor: blue[50],
+                              color: blue[800],
+                              mb: 0.5,
+                              "& .MuiChip-deleteIcon": {
+                                color: blue[400],
+                                "&:hover": { color: blue[600] },
+                              },
+                            }}
+                            onDelete={!isSubmitting ? () =>
+                              setTempSelectedSeats((prev) =>
+                                prev.filter((s) => s !== seat)
+                              ) : undefined}
+                            disabled={isSubmitting}
+                          />
+                        ))}
+                      </Stack>
+                    ) : (
+                      <Typography
+                        color={errors.seats ? "error" : "text.secondary"}
+                      >
+                        {errors.seats
+                          ? "Please select at least one seat"
+                          : "No seats selected"}
+                      </Typography>
+                    )}
+                  </Paper>
+                </Box>
+              )}
+
+              {/* Seat Map Tab */}
+              {tabIndex === 1 && (
+                <Box>
+                  <Box
+                    sx={{
+                      mb: 3,
+                      p: 2,
+                      bgcolor: blue[50],
+                      borderRadius: 2,
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Box>
+                      <Typography fontWeight={600} gutterBottom>
+                        Seat Selection Guide
+                      </Typography>
+                      <Stack direction="row" spacing={2}>
+                        <Box display="flex" alignItems="center">
+                          <Box
+                            width={16}
+                            height={16}
+                            bgcolor={green[400]}
+                            mr={1}
+                            border={`1px solid ${green[600]}`}
+                          />
+                          <Typography variant="caption">Selected</Typography>
+                        </Box>
+                        <Box display="flex" alignItems="center">
+                          <Box
+                            width={16}
+                            height={16}
+                            bgcolor={red[400]}
+                            mr={1}
+                            border={`1px solid ${red[600]}`}
+                          />
+                          <Typography variant="caption">Occupied</Typography>
+                        </Box>
+                        <Box display="flex" alignItems="center">
+                          <Box
+                            width={16}
+                            height={16}
+                            bgcolor={grey[200]}
+                            mr={1}
+                            border={`1px solid ${grey[400]}`}
+                          />
+                          <Typography variant="caption">Window</Typography>
+                        </Box>
+                        <Box display="flex" alignItems="center">
+                          <Box
+                            width={16}
+                            height={16}
+                            bgcolor={grey[50]}
+                            mr={1}
+                            border={`1px solid ${grey[300]}`}
+                          />
+                          <Typography variant="caption">Available</Typography>
+                        </Box>
+                      </Stack>
+                    </Box>
                   </Box>
-                  {tempSelectedSeats.length > 0 ? (
-                    <Stack direction="row" spacing={1} flexWrap="wrap">
-                      {tempSelectedSeats.map((seat, idx) => (
-                        <Chip
-                          key={idx}
-                          label={seat}
-                          size="small"
-                          sx={{
-                            bgcolor: blue[50],
-                            color: blue[800],
-                            mb: 0.5,
-                            "& .MuiChip-deleteIcon": {
-                              color: blue[400],
-                              "&:hover": { color: blue[600] },
-                            },
-                          }}
-                          onDelete={!isSubmitting ? () =>
-                            setTempSelectedSeats((prev) =>
-                              prev.filter((s) => s !== seat)
-                            ) : undefined}
+
+                  <Box
+                    sx={{
+                      overflowX: "auto",
+                      width: "100%",
+                      minWidth: "max-content",
+                      pb: 1,
+                    }}
+                  >
+                    <Stack direction="row" spacing={2} minWidth="max-content">
+                      {renderSeatMap(groupPairs1, "map1", "Seat Map 1")}
+                      {renderSeatMap(groupPairs2, "map2", "Seat Map 2")}
+                      {renderSeatMap(groupPairs3, "map3", "Seat Map 3")}
+                      {renderSeatMap(groupPairs4, "map4", "Seat Map 4")}
+                      {renderSeatMap(groupPairs5, "map5", "Seat Map 5")}
+                    </Stack>
+                  </Box>
+                </Box>
+              )}
+
+              {/* Billing Tab */}
+              {tabIndex === 2 && (
+                <Box>
+                  <Grid container spacing={3}>
+                    <Grid item xs={12} md={6}>
+                      <FormControl fullWidth margin="normal">
+                        <InputLabel>Billing Plan</InputLabel>
+                        <Select
+                          value={newTenant.billing.plan}
+                          onChange={(e) => handleBillingChange('plan', e.target.value)}
+                          label="Billing Plan"
                           disabled={isSubmitting}
-                        />
-                      ))}
-                    </Stack>
-                  ) : (
-                    <Typography
-                      color={errors.seats ? "error" : "text.secondary"}
-                    >
-                      {errors.seats
-                        ? "Please select at least one seat"
-                        : "No seats selected"}
-                    </Typography>
-                  )}
-                </Paper>
-              </Box>
-            )}
+                        >
+                          <MenuItem value="monthly">Monthly</MenuItem>
+                          <MenuItem value="quarterly">Quarterly</MenuItem>
+                          <MenuItem value="yearly">Yearly</MenuItem>
+                          <MenuItem value="custom">Custom</MenuItem>
+                        </Select>
+                      </FormControl>
 
-            {/* Seat Map Tab */}
-            {tabIndex === 1 && (
-              <Box>
-                <Box
-                  sx={{
-                    mb: 3,
-                    p: 2,
-                    bgcolor: blue[50],
-                    borderRadius: 2,
-                    display: "flex",
-                    alignItems: "center",
-                  }}
-                >
-                  <Box>
-                    <Typography fontWeight={600} gutterBottom>
-                      Seat Selection Guide
-                    </Typography>
-                    <Stack direction="row" spacing={2}>
-                      <Box display="flex" alignItems="center">
-                        <Box
-                          width={16}
-                          height={16}
-                          bgcolor={green[400]}
-                          mr={1}
-                          border={`1px solid ${green[600]}`}
-                        />
-                        <Typography variant="caption">Selected</Typography>
-                      </Box>
-                      <Box display="flex" alignItems="center">
-                        <Box
-                          width={16}
-                          height={16}
-                          bgcolor={red[400]}
-                          mr={1}
-                          border={`1px solid ${red[600]}`}
-                        />
-                        <Typography variant="caption">Occupied</Typography>
-                      </Box>
-                      <Box display="flex" alignItems="center">
-                        <Box
-                          width={16}
-                          height={16}
-                          bgcolor={grey[200]}
-                          mr={1}
-                          border={`1px solid ${grey[400]}`}
-                        />
-                        <Typography variant="caption">Window</Typography>
-                      </Box>
-                      <Box display="flex" alignItems="center">
-                        <Box
-                          width={16}
-                          height={16}
-                          bgcolor={grey[50]}
-                          mr={1}
-                          border={`1px solid ${grey[300]}`}
-                        />
-                        <Typography variant="caption">Available</Typography>
-                      </Box>
-                    </Stack>
-                  </Box>
-                </Box>
-
-                <Box
-                  sx={{
-                    overflowX: "auto",
-                    width: "100%",
-                    minWidth: "max-content",
-                    pb: 1,
-                  }}
-                >
-                  <Stack direction="row" spacing={2} minWidth="max-content">
-                    {renderSeatMap(groupPairs1, "map1", "Seat Map 1")}
-                    {renderSeatMap(groupPairs2, "map2", "Seat Map 2")}
-                    {renderSeatMap(groupPairs3, "map3", "Seat Map 3")}
-                    {renderSeatMap(groupPairs4, "map4", "Seat Map 4")}
-                    {renderSeatMap(groupPairs5, "map5", "Seat Map 5")}
-                  </Stack>
-                </Box>
-              </Box>
-            )}
-
-            {/* Billing Tab */}
-            {tabIndex === 2 && (
-              <Box>
-                <Grid container spacing={3}>
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth margin="normal">
-                      <InputLabel>Billing Plan</InputLabel>
-                      <Select
-                        value={newTenant.billing.plan}
-                        onChange={(e) => handleBillingChange('plan', e.target.value)}
-                        label="Billing Plan"
+                      <TextField
+                        label="Rate per Seat"
+                        fullWidth
+                        margin="normal"
+                        type="number"
+                        value={newTenant.billing.rate}
+                        onChange={(e) => handleBillingChange('rate', parseFloat(e.target.value))}
+                        error={errors.billingRate}
+                        helperText={errors.billingRate ? "Rate must be greater than 0" : ""}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <span style={{ color: errors.billingRate ? 'red' : 'rgba(0, 0, 0, 0.54)' }}>₱</span>
+                            </InputAdornment>
+                          ),
+                        }}
                         disabled={isSubmitting}
-                      >
-                        <MenuItem value="monthly">Monthly</MenuItem>
-                        <MenuItem value="quarterly">Quarterly</MenuItem>
-                        <MenuItem value="yearly">Yearly</MenuItem>
-                        <MenuItem value="custom">Custom</MenuItem>
-                      </Select>
-                    </FormControl>
+                      />
 
-                    <TextField
-                      label="Rate per Seat"
-                      fullWidth
-                      margin="normal"
-                      type="number"
-                      value={newTenant.billing.rate}
-                      onChange={(e) => handleBillingChange('rate', parseFloat(e.target.value))}
-                      error={errors.billingRate}
-                      helperText={errors.billingRate ? "Rate must be greater than 0" : ""}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <span style={{ color: errors.billingRate ? 'red' : 'rgba(0, 0, 0, 0.54)' }}>₱</span>
-                          </InputAdornment>
-                        ),
-                      }}
-                      disabled={isSubmitting}
-                    />
+                      <TextField
+                        label="Months to Avail"
+                        fullWidth
+                        margin="normal"
+                        type="number"
+                        value={newTenant.billing.monthsToAvail}
+                        onChange={(e) => handleBillingChange('monthsToAvail', parseInt(e.target.value))}
+                        error={errors.monthsToAvail}
+                        helperText={errors.monthsToAvail ? "Must be at least 1 month" : ""}
+                        inputProps={{ min: 1 }}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <ReceiptIcon color={errors.monthsToAvail ? "error" : "action"} />
+                            </InputAdornment>
+                          ),
+                        }}
+                        disabled={isSubmitting}
+                      />
 
-                    <TextField
-                      label="Months to Avail"
-                      fullWidth
-                      margin="normal"
-                      type="number"
-                      value={newTenant.billing.monthsToAvail}
-                      onChange={(e) => handleBillingChange('monthsToAvail', parseInt(e.target.value))}
-                      error={errors.monthsToAvail}
-                      helperText={errors.monthsToAvail ? "Must be at least 1 month" : ""}
-                      inputProps={{ min: 1 }}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <ReceiptIcon color={errors.monthsToAvail ? "error" : "action"} />
-                          </InputAdornment>
-                        ),
-                      }}
-                      disabled={isSubmitting}
-                    />
+                      <TextField
+                        label="CUSA Fee"
+                        fullWidth
+                        margin="normal"
+                        type="number"
+                        value={newTenant.billing.cusaFee}
+                        onChange={(e) => handleBillingChange('cusaFee', parseFloat(e.target.value))}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <span>₱</span>
+                            </InputAdornment>
+                          ),
+                        }}
+                        disabled={isSubmitting}
+                      />
 
-                    <TextField
-                      label="CUSA Fee"
-                      fullWidth
-                      margin="normal"
-                      type="number"
-                      value={newTenant.billing.cusaFee}
-                      onChange={(e) => handleBillingChange('cusaFee', parseFloat(e.target.value))}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <span>₱</span>
-                          </InputAdornment>
-                        ),
-                      }}
-                      disabled={isSubmitting}
-                    />
+                      <TextField
+                        label="Parking Fee"
+                        fullWidth
+                        margin="normal"
+                        type="number"
+                        value={newTenant.billing.parkingFee}
+                        onChange={(e) => handleBillingChange('parkingFee', parseFloat(e.target.value))}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <span>₱</span>
+                            </InputAdornment>
+                          ),
+                        }}
+                        disabled={isSubmitting}
+                      />
 
-                    <TextField
-                      label="Parking Fee"
-                      fullWidth
-                      margin="normal"
-                      type="number"
-                      value={newTenant.billing.parkingFee}
-                      onChange={(e) => handleBillingChange('parkingFee', parseFloat(e.target.value))}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <span>₱</span>
-                          </InputAdornment>
-                        ),
-                      }}
-                      disabled={isSubmitting}
-                    />
+                      <TextField
+                        label="Billing Start Date"
+                        fullWidth
+                        margin="normal"
+                        type="date"
+                        value={newTenant.billing.startDate}
+                        onChange={(e) => handleBillingChange('startDate', e.target.value)}
+                        InputLabelProps={{
+                          shrink: true,
+                        }}
+                        disabled={isSubmitting}
+                      />
+                    </Grid>
 
-                    <TextField
-                      label="Billing Start Date"
-                      fullWidth
-                      margin="normal"
-                      type="date"
-                      value={newTenant.billing.startDate}
-                      onChange={(e) => handleBillingChange('startDate', e.target.value)}
-                      InputLabelProps={{
-                        shrink: true,
-                      }}
-                      disabled={isSubmitting}
-                    />
+                    <Grid item xs={12} md={6}>
+                      <FormControl fullWidth margin="normal">
+                        <InputLabel>Payment Method</InputLabel>
+                        <Select
+                          value={newTenant.billing.paymentMethod}
+                          onChange={(e) => handleBillingChange('paymentMethod', e.target.value)}
+                          label="Payment Method"
+                          disabled={isSubmitting}
+                        >
+                          <MenuItem value="credit">Credit Card</MenuItem>
+                          <MenuItem value="bank">Bank Transfer</MenuItem>
+                          <MenuItem value="cash">Cash</MenuItem>
+                          <MenuItem value="check">Check</MenuItem>
+                        </Select>
+                      </FormControl>
+
+                      <TextField
+                        label="Billing Address"
+                        fullWidth
+                        margin="normal"
+                        value={newTenant.billing.billingAddress}
+                        onChange={(e) => handleBillingChange('billingAddress', e.target.value)}
+                        multiline
+                        rows={3}
+                        disabled={isSubmitting}
+                      />
+                    </Grid>
                   </Grid>
 
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth margin="normal">
-                      <InputLabel>Payment Method</InputLabel>
-                      <Select
-                        value={newTenant.billing.paymentMethod}
-                        onChange={(e) => handleBillingChange('paymentMethod', e.target.value)}
-                        label="Payment Method"
-                        disabled={isSubmitting}
-                      >
-                        <MenuItem value="credit">Credit Card</MenuItem>
-                        <MenuItem value="bank">Bank Transfer</MenuItem>
-                        <MenuItem value="cash">Cash</MenuItem>
-                        <MenuItem value="check">Check</MenuItem>
-                      </Select>
-                    </FormControl>
-
-                    <TextField
-                      label="Billing Address"
-                      fullWidth
-                      margin="normal"
-                      value={newTenant.billing.billingAddress}
-                      onChange={(e) => handleBillingChange('billingAddress', e.target.value)}
-                      multiline
-                      rows={3}
-                      disabled={isSubmitting}
-                    />
-                  </Grid>
-                </Grid>
-
-                <Paper elevation={3} sx={{ mt: 3, p: 2 }}>
-                  <Typography variant="h6" gutterBottom>
-                    Billing Summary
-                  </Typography>
-                  <TableContainer>
-                    <Table>
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Item</TableCell>
-                          <TableCell align="right">Quantity (Seats × Months)</TableCell>
-                          <TableCell align="right">Unit Price</TableCell>
-                          <TableCell align="right">Amount</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        <TableRow>
-                          <TableCell>Seat Rental</TableCell>
-                          <TableCell align="right">{tempSelectedSeats.length} × {newTenant.billing.monthsToAvail}</TableCell>
-                          <TableCell align="right">
-                            {formatPHP(newTenant.billing.rate)}
-                          </TableCell>
-                          <TableCell align="right">
-                            {formatPHP(newTenant.billing.rate * tempSelectedSeats.length * newTenant.billing.monthsToAvail)}
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>CUSA Fee</TableCell>
-                          <TableCell align="right">{newTenant.billing.monthsToAvail}</TableCell>
-                          <TableCell align="right">
-                            {formatPHP(newTenant.billing.cusaFee)}
-                          </TableCell>
-                          <TableCell align="right">
-                            {formatPHP(newTenant.billing.cusaFee * newTenant.billing.monthsToAvail)}
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Parking Fee</TableCell>
-                          <TableCell align="right">{newTenant.billing.monthsToAvail}</TableCell>
-                          <TableCell align="right">
-                            {formatPHP(newTenant.billing.parkingFee)}
-                          </TableCell>
-                          <TableCell align="right">
-                            {formatPHP(newTenant.billing.parkingFee * newTenant.billing.monthsToAvail)}
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell colSpan={3} align="right">
-                            <Typography variant="subtitle1">
-                              Subtotal ({newTenant.billing.monthsToAvail} {newTenant.billing.monthsToAvail > 1 ? 'months' : 'month'})
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="subtitle1">
-                              {formatPHP(calculateSubtotal())}
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell colSpan={3} align="right">
-                            <Typography variant="subtitle1">
-                              VAT (12%)
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="subtitle1">
-                              {formatPHP(calculateVAT())}
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell colSpan={3} align="right">
-                            <Typography variant="h6" fontWeight="bold">
-                              Total ({newTenant.billing.monthsToAvail} {newTenant.billing.monthsToAvail > 1 ? 'months' : 'month'})
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="h6" fontWeight="bold">
-                              {formatPHP(calculateTotal())}
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                        {/* New row for Billing End Date */}
-                        <TableRow>
-                          <TableCell colSpan={3} align="right">
-                            <Typography variant="subtitle2">
-                              Billing End Date:
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="subtitle2" fontWeight="bold">
-                              {newTenant.billing.billingEndDate || 'N/A'}
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                        {/* New row for Due Date */}
-                        <TableRow>
-                          <TableCell colSpan={3} align="right">
-                            <Typography variant="subtitle2">
-                              Due Date:
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="subtitle2" fontWeight="bold">
-                              {newTenant.billing.dueDate || 'N/A'}
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </Paper>
-              </Box>
-            )}
+                  <Paper elevation={3} sx={{ mt: 3, p: 2 }}>
+                    <Typography variant="h6" gutterBottom>
+                      Billing Summary
+                    </Typography>
+                    <TableContainer>
+                      <Table>
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Item</TableCell>
+                            <TableCell align="right">Quantity (Seats × Months)</TableCell>
+                            <TableCell align="right">Unit Price</TableCell>
+                            <TableCell align="right">Amount</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          <TableRow>
+                            <TableCell>Seat Rental</TableCell>
+                            <TableCell align="right">{tempSelectedSeats.length} × {newTenant.billing.monthsToAvail}</TableCell>
+                            <TableCell align="right">
+                              {formatPHP(newTenant.billing.rate)}
+                            </TableCell>
+                            <TableCell align="right">
+                              {formatPHP(newTenant.billing.rate * tempSelectedSeats.length * newTenant.billing.monthsToAvail)}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell>CUSA Fee</TableCell>
+                            <TableCell align="right">{newTenant.billing.monthsToAvail}</TableCell>
+                            <TableCell align="right">
+                              {formatPHP(newTenant.billing.cusaFee)}
+                            </TableCell>
+                            <TableCell align="right">
+                              {formatPHP(newTenant.billing.cusaFee * newTenant.billing.monthsToAvail)}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell>Parking Fee</TableCell>
+                            <TableCell align="right">{newTenant.billing.monthsToAvail}</TableCell>
+                            <TableCell align="right">
+                              {formatPHP(newTenant.billing.parkingFee)}
+                            </TableCell>
+                            <TableCell align="right">
+                              {formatPHP(newTenant.billing.parkingFee * newTenant.billing.monthsToAvail)}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell colSpan={3} align="right">
+                              <Typography variant="subtitle1">
+                                Subtotal ({newTenant.billing.monthsToAvail} {newTenant.billing.monthsToAvail > 1 ? 'months' : 'month'})
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography variant="subtitle1">
+                                {formatPHP(calculateSubtotal())}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell colSpan={3} align="right">
+                              <Typography variant="subtitle1">
+                                {vatEnabled ? "VAT (12%)" : "VAT"}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography variant="subtitle1">
+                                {formatPHP(calculateVAT())}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell colSpan={3} align="right">
+                              <Typography variant="h6" fontWeight="bold">
+                                Total ({newTenant.billing.monthsToAvail} {newTenant.billing.monthsToAvail > 1 ? 'months' : 'month'})
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography variant="h6" fontWeight="bold">
+                                {formatPHP(calculateTotal())}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                          {/* New row for Billing End Date */}
+                          <TableRow>
+                            <TableCell colSpan={3} align="right">
+                              <Typography variant="subtitle2">
+                                Billing End Date:
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography variant="subtitle2" fontWeight="bold">
+                                {newTenant.billing.billingEndDate || 'N/A'}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                          {/* New row for Due Date */}
+                          <TableRow>
+                            <TableCell colSpan={3} align="right">
+                              <Typography variant="subtitle2">
+                                Due Date:
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography variant="subtitle2" fontWeight="bold">
+                                {newTenant.billing.dueDate || 'N/A'}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Paper>
+                </Box>
+              )}
             </Box>
           </Box>
         )}
       </DialogContent>
-      <DialogActions sx={{ 
-        p: 4, 
+      <DialogActions sx={{
+        p: 4,
         borderTop: `1px solid ${theme.palette.divider}`,
         bgcolor: 'background.paper',
         gap: 2
@@ -1210,7 +1219,7 @@ export default function AddTenantModal({
             fontSize: '0.875rem',
             borderColor: grey[300],
             color: grey[700],
-            "&:hover": { 
+            "&:hover": {
               borderColor: grey[400],
               bgcolor: grey[50],
             },
@@ -1231,7 +1240,7 @@ export default function AddTenantModal({
             textTransform: 'none',
             fontWeight: 500,
             fontSize: '0.875rem',
-            "&:hover": { 
+            "&:hover": {
               bgcolor: 'primary.dark',
             },
             "&:disabled": {

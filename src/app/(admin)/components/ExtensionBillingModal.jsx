@@ -17,6 +17,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import { saveAs } from 'file-saver';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from "../../../../script/firebaseConfig";
+import { getBillingSettings } from "../utils/billingSettingsService";
 
 const ExtensionBillingModal = ({
   open,
@@ -26,7 +27,8 @@ const ExtensionBillingModal = ({
 }) => {
   const [extensionMonths, setExtensionMonths] = useState(1);
   const [rate, setRate] = useState(0);
-  
+  const [vatEnabled, setVatEnabled] = useState(false);
+
   // Manual Overrides
   const [overrideSubtotal, setOverrideSubtotal] = useState('');
   const [overrideVat, setOverrideVat] = useState('');
@@ -45,20 +47,27 @@ const ExtensionBillingModal = ({
     setOverrideVat('');
     setOverrideTotal('');
     setExtensionMonths(1);
+
+    // Load settings
+    const loadSettings = async () => {
+      const settings = await getBillingSettings();
+      setVatEnabled(settings.vatEnabled);
+    };
+    loadSettings();
   }, [client, open]);
 
   // 1. Calculate Defaults
   const calcSubtotal = rate * extensionMonths;
-  const calcVat = calcSubtotal * 0.12;
-  
+  const calcVat = 0;
+
   // 2. Determine Final Values (Use override or default)
   // Note: If User overrides Subtotal, we normally re-calc VAT/Total unless they are ALSO overridden.
-  
+
   const activeSubtotal = overrideSubtotal !== '' ? parseFloat(overrideSubtotal) : calcSubtotal;
-  
+
   // If VAT is overridden, use it. If not, calc 12% of the ACTIVE subtotal
-  const activeVat = overrideVat !== '' ? parseFloat(overrideVat) : activeSubtotal * 0.12;
-  
+  const activeVat = overrideVat !== '' ? parseFloat(overrideVat) : (vatEnabled ? activeSubtotal * 0.12 : 0);
+
   // If Total is overridden, use it. If not, sum active subtotal + active vat
   const activeTotal = overrideTotal !== '' ? parseFloat(overrideTotal) : activeSubtotal + activeVat;
 
@@ -73,19 +82,19 @@ const ExtensionBillingModal = ({
         clientName: client.name || "N/A",
         address: client.address || "",
         tin: client.tin || "",
-        
+
         invoiceDate: new Date().toLocaleDateString(),
         dueDate: client.billing?.billingEndDate ? new Date(client.billing.billingEndDate).toLocaleDateString() : new Date().toLocaleDateString(),
-        
+
         description: `Tenancy Extension (${extensionMonths} month${extensionMonths > 1 ? 's' : ''})`,
         months: extensionMonths,
         rate: rate.toLocaleString(),
         currency: client.billing?.currency || "PHP",
-        
+
         // Format as integers as requested by user ("do not includ the deciumal")
         // But keep VAT precision if manually entered (like 3395.2)
         subtotal: Math.round(activeSubtotal).toLocaleString(),
-        vat: activeVat.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}),
+        vat: activeVat.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         total: Math.round(activeTotal).toLocaleString()
       };
 
@@ -124,7 +133,7 @@ const ExtensionBillingModal = ({
       const collectionName = client.selectedPO ? "privateOffice" : "seatMap";
       const clientRef = doc(db, collectionName, client.id);
 
-      const currentEndDate = client.billing?.billingEndDate 
+      const currentEndDate = client.billing?.billingEndDate
         ? new Date(client.billing.billingEndDate)
         : new Date();
 
@@ -229,7 +238,7 @@ const ExtensionBillingModal = ({
                   Monthly Rate
                 </Typography>
                 <Box mt={1}>
-                   <TextField
+                  <TextField
                     type="number"
                     value={rate}
                     onChange={(e) => setRate(parseFloat(e.target.value) || 0)}
@@ -240,7 +249,7 @@ const ExtensionBillingModal = ({
                   />
                 </Box>
               </Grid>
-              
+
               <Grid item xs={6}>
                 <Typography variant="caption" color="text.secondary">
                   Subtotal (Auto: Rate * Months)
@@ -260,15 +269,15 @@ const ExtensionBillingModal = ({
                   />
                 </Box>
               </Grid>
-              
+
               <Grid item xs={6}>
                 <Typography variant="caption" color="text.secondary">
-                  VAT (Auto: 12%)
+                  VAT (Auto: {vatEnabled ? "12%" : "0"})
                 </Typography>
                 <Box mt={1}>
                   <TextField
                     type="number"
-                    value={overrideVat !== '' ? overrideVat : (activeSubtotal * 0.12).toFixed(2)}
+                    value={overrideVat !== '' ? overrideVat : (0).toFixed(2)}
                     onChange={(e) => setOverrideVat(e.target.value)}
                     variant="outlined"
                     size="small"
@@ -278,33 +287,33 @@ const ExtensionBillingModal = ({
                   />
                 </Box>
               </Grid>
-              
+
               <Grid item xs={12}>
                 <Divider sx={{ my: 1 }} />
                 <Grid container alignItems="center" spacing={2}>
                   <Grid item xs={6}>
-                     <Typography variant="subtitle1" fontWeight={600}>
+                    <Typography variant="subtitle1" fontWeight={600}>
                       Extension Total
                     </Typography>
-                     <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" color="text.secondary">
                       (Subtotal + VAT)
                     </Typography>
                   </Grid>
                   <Grid item xs={6}>
-                     <TextField
-                        type="number"
-                        value={overrideTotal !== '' ? overrideTotal : Math.round(activeTotal)}
-                        onChange={(e) => setOverrideTotal(e.target.value)}
-                        variant="outlined"
-                        size="small"
-                        fullWidth
-                        error={Math.abs(activeTotal - (activeSubtotal + activeVat)) > 1 && overrideTotal !== ''}
-                        helperText={overrideTotal !== '' ? "Manual Override (Check Math!)" : "Auto-calculated"}
-                        InputProps={{
-                          style: { fontWeight: 'bold', fontSize: '1.1rem', color: '#1976d2' }
-                        }}
-                        disabled={isSubmitting}
-                      />
+                    <TextField
+                      type="number"
+                      value={overrideTotal !== '' ? overrideTotal : Math.round(activeTotal)}
+                      onChange={(e) => setOverrideTotal(e.target.value)}
+                      variant="outlined"
+                      size="small"
+                      fullWidth
+                      error={Math.abs(activeTotal - (activeSubtotal + activeVat)) > 1 && overrideTotal !== ''}
+                      helperText={overrideTotal !== '' ? "Manual Override (Check Math!)" : "Auto-calculated"}
+                      InputProps={{
+                        style: { fontWeight: 'bold', fontSize: '1.1rem', color: '#1976d2' }
+                      }}
+                      disabled={isSubmitting}
+                    />
                   </Grid>
                 </Grid>
               </Grid>
@@ -314,7 +323,7 @@ const ExtensionBillingModal = ({
       </DialogContent>
 
       <DialogActions>
-        <Button 
+        <Button
           onClick={handleDownloadInvoice}
           color="secondary"
           variant="outlined"
@@ -326,9 +335,9 @@ const ExtensionBillingModal = ({
         <Button onClick={onClose} color="primary" variant="outlined" disabled={isSubmitting}>
           Cancel
         </Button>
-        <Button 
-          onClick={handleExtendTenancy} 
-          color="primary" 
+        <Button
+          onClick={handleExtendTenancy}
+          color="primary"
           variant="contained"
           startIcon={<EventAvailableIcon />}
           disabled={isSubmitting}
