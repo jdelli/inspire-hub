@@ -120,6 +120,7 @@ import {
   getBillingStatistics,
   getMonthlyBillingRecords,
   getAllBillingRecords,
+  getUnpaidBillingRecordsBeforeMonth,
   applyPenaltyRolloverToBillRecords,
   updateBillingStatus,
   checkAndUpdateOverdueBills,
@@ -226,6 +227,7 @@ export default function BillingManagement() {
     amount: '',
     date: new Date().toISOString().split('T')[0]
   });
+  const [payOutstandingBalance, setPayOutstandingBalance] = useState(true);
 
   // Additional fees details
   const [additionalFeesDetails, setAdditionalFeesDetails] = useState({
@@ -320,8 +322,8 @@ export default function BillingManagement() {
           bValue = b.tenantName || '';
           break;
         case 'amount':
-          aValue = a.total || 0;
-          bValue = b.total || 0;
+          aValue = getAmountDueInfoForBill(a).amountDue;
+          bValue = getAmountDueInfoForBill(b).amountDue;
           break;
         case 'dueDate':
           aValue = new Date(a.dueDate);
@@ -347,7 +349,7 @@ export default function BillingManagement() {
     setFilteredBills(filtered);
     // Reset to first page when filters change
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, typeFilter, sortBy, sortOrder]);
+  }, [searchTerm, statusFilter, typeFilter, sortBy, sortOrder, vatEnabled]);
 
   // Load billing data with enhanced error handling
   const loadBillingData = async () => {
@@ -360,8 +362,28 @@ export default function BillingManagement() {
       ]);
 
       setBillingStats(stats);
+      const previousUnpaidBills = await getUnpaidBillingRecordsBeforeMonth(selectedMonth);
+
       const billsWithRolledPenalties = await applyPenaltyRolloverToBillRecords(bills, selectedMonth);
-      setCurrentMonthBills(billsWithRolledPenalties);
+
+      const previousUnpaidByTenant = (previousUnpaidBills || []).reduce((acc, bill) => {
+        const tenantId = bill?.tenantId;
+        if (!tenantId) return acc;
+        if (!acc[tenantId]) acc[tenantId] = [];
+        acc[tenantId].push(bill);
+        return acc;
+      }, {});
+
+      Object.values(previousUnpaidByTenant).forEach((tenantBills) => {
+        tenantBills.sort((a, b) => (a.billingMonth || '').localeCompare(b.billingMonth || ''));
+      });
+
+      const enrichedBills = billsWithRolledPenalties.map((bill) => ({
+        ...bill,
+        balanceForwardBills: previousUnpaidByTenant[bill.tenantId] || []
+      }));
+
+      setCurrentMonthBills(enrichedBills);
 
       // Load billing settings
       const settings = await getBillingSettings();
@@ -369,7 +391,7 @@ export default function BillingManagement() {
 
 
 
-      processAndFilterBills(billsWithRolledPenalties);
+      processAndFilterBills(enrichedBills);
 
       setSnackbar({
         open: true,
@@ -1420,15 +1442,44 @@ export default function BillingManagement() {
 
     setLoadingStates(prev => ({ ...prev, bulkAction: true }));
     try {
-      await updateBillingStatus(selectedBill.id, 'paid', paymentDetails);
+      const isPayableStatus = (status) => !['paid', 'cancelled'].includes((status || '').toLowerCase());
+      const balanceForwardBills = Array.isArray(selectedBill.balanceForwardBills) ? selectedBill.balanceForwardBills : [];
+
+      const idsToMarkPaid = new Set();
+
+      if (payOutstandingBalance) {
+        balanceForwardBills.forEach((bill) => {
+          if (bill?.id && isPayableStatus(bill.status)) {
+            idsToMarkPaid.add(bill.id);
+          }
+        });
+      }
+
+      if (selectedBill?.id && isPayableStatus(selectedBill.status)) {
+        idsToMarkPaid.add(selectedBill.id);
+      }
+
+      const ids = Array.from(idsToMarkPaid);
+
+      if (ids.length === 0) {
+        setSnackbar({
+          open: true,
+          message: 'No unpaid bills selected for payment',
+          severity: 'info'
+        });
+        return;
+      }
+
+      await Promise.all(ids.map((id) => updateBillingStatus(id, 'paid', paymentDetails)));
       setSnackbar({
         open: true,
-        message: 'Payment recorded successfully',
+        message: ids.length === 1 ? 'Payment recorded successfully' : `Payment recorded successfully for ${ids.length} bills`,
         severity: 'success'
       });
       setShowPaymentDialog(false);
       setSelectedBill(null);
       setPaymentDetails({ method: 'credit', reference: '', notes: '', amount: '', date: new Date().toISOString().split('T')[0] });
+      setPayOutstandingBalance(true);
       loadBillingData();
     } catch (error) {
       console.error('Error updating payment status:', error);
@@ -1821,6 +1872,123 @@ export default function BillingManagement() {
     return explicitRate ?? envRate ?? (vatEnabled ? 0.12 : 0);
   };
 
+  const getRolledPreviousPenaltyFromBill = (bill) => {
+    const explicit = toNumber(bill?.previousPenaltyAmount ?? bill?.unpaidPenaltiesAmount);
+    if (explicit > 0) return explicit;
+
+    const items = bill?.items || [];
+    return items.reduce((sum, item) => {
+      const desc = (item?.description || '').toLowerCase();
+      const isPrevPenalty = desc.includes('prev') && desc.includes('penalt');
+      if (!isPrevPenalty) return sum;
+      return sum + toNumber(item?.amount ?? item?.unitPrice);
+    }, 0);
+  };
+
+  const getAdjustedBillAmounts = (bill) => {
+    const subtotal = toNumber(bill?.subtotal);
+    const vat = toNumber(bill?.vat);
+    const penaltyFee = toNumber(bill?.penaltyFee);
+    const vatRate = getVatRateForBill(bill);
+
+    const rolledPreviousPenalty = Math.max(0, getRolledPreviousPenaltyFromBill(bill));
+    const rolledPreviousPenaltyVat = Number((rolledPreviousPenalty * vatRate).toFixed(2));
+
+    const adjustedPenalty = Math.max(0, penaltyFee - rolledPreviousPenalty);
+    const adjustedSubtotal = Math.max(0, subtotal - rolledPreviousPenalty);
+    const adjustedVat = Math.max(0, vat - rolledPreviousPenaltyVat);
+    const adjustedTotal = Math.max(0, Number((adjustedSubtotal + adjustedVat).toFixed(2)));
+
+    const adjustedCharges = Math.max(0, Number((adjustedSubtotal - adjustedPenalty).toFixed(2)));
+
+    return {
+      adjustedCharges,
+      adjustedPenalty,
+      adjustedSubtotal,
+      adjustedVat,
+      adjustedTotal,
+      rolledPreviousPenalty,
+      rolledPreviousPenaltyVat,
+      vatRate
+    };
+  };
+
+  const getAmountDueInfoForBill = (bill) => {
+    const balanceForwardBills = Array.isArray(bill?.balanceForwardBills) ? bill.balanceForwardBills : [];
+    const balanceForwardTotal = balanceForwardBills.reduce((sum, previousBill) => (
+      sum + getAdjustedBillAmounts(previousBill).adjustedTotal
+    ), 0);
+
+    const currentAdjustedTotal = getAdjustedBillAmounts(bill).adjustedTotal;
+    const includeCurrentInAmountDue = bill?.status !== 'paid' && bill?.status !== 'cancelled';
+    const amountDue = Number((balanceForwardTotal + (includeCurrentInAmountDue ? currentAdjustedTotal : 0)).toFixed(2));
+
+    return {
+      amountDue,
+      balanceForwardCount: balanceForwardBills.length,
+      balanceForwardTotal,
+      currentAdjustedTotal,
+      includeCurrentInAmountDue,
+      hasBalanceForward: balanceForwardBills.length > 0 && balanceForwardTotal > 0,
+    };
+  };
+
+  const buildMonthlyInvoiceBreakdown = (bill) => {
+    if (!bill) {
+      return { rows: [], totals: { charges: 0, penalty: 0, subtotal: 0, vat: 0, total: 0 } };
+    }
+
+    const balanceForwardBills = Array.isArray(bill.balanceForwardBills) ? bill.balanceForwardBills : [];
+    const rows = [
+      ...balanceForwardBills.map((previousBill) => {
+        const amounts = getAdjustedBillAmounts(previousBill);
+        return {
+          type: 'balanceForward',
+          billingMonth: previousBill.billingMonth,
+          dueDate: previousBill.dueDate,
+          status: previousBill.status,
+          ...amounts
+        };
+      }),
+      {
+        type: 'current',
+        billingMonth: bill.billingMonth,
+        dueDate: bill.dueDate,
+        status: bill.status,
+        ...getAdjustedBillAmounts(bill)
+      }
+    ]
+      .filter((row) => row.billingMonth)
+      .sort((a, b) => (a.billingMonth || '').localeCompare(b.billingMonth || ''));
+
+    const totals = rows.reduce((acc, row) => {
+      acc.charges += toNumber(row.adjustedCharges);
+      acc.penalty += toNumber(row.adjustedPenalty);
+      acc.subtotal += toNumber(row.adjustedSubtotal);
+      acc.vat += toNumber(row.adjustedVat);
+      acc.total += toNumber(row.adjustedTotal);
+      return acc;
+    }, { charges: 0, penalty: 0, subtotal: 0, vat: 0, total: 0 });
+
+    return {
+      rows,
+      totals: {
+        charges: Number(totals.charges.toFixed(2)),
+        penalty: Number(totals.penalty.toFixed(2)),
+        subtotal: Number(totals.subtotal.toFixed(2)),
+        vat: Number(totals.vat.toFixed(2)),
+        total: Number(totals.total.toFixed(2))
+      }
+    };
+  };
+
+  const formatBillingMonthLabel = (billingMonth) => {
+    if (!billingMonth) return 'N/A';
+    const date = new Date(`${billingMonth}-01`);
+    if (Number.isNaN(date.getTime())) return billingMonth;
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+  };
+
   const expandPenaltyItems = (items = [], billingMonth) => {
     const expanded = [];
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1939,39 +2107,20 @@ export default function BillingManagement() {
 
   // Generate PDF content (same as print)
   const generatePDFContent = (bill) => {
-    const {
-      regularItems,
-      expandedPenaltyItems,
-      baseMonthlyRate,
-      subtotal,
-      vat,
-      total,
-      vatRate
-    } = prepareInvoiceData(bill);
-
-    const regularRows = regularItems.map(item => (
-      '<tr>' +
-      '<td>' + (item.description || '') + '</td>' +
-      '<td class="amount">' + formatCurrency(item.unitPrice) + '</td>' +
-      '<td class="amount">-</td>' +
-      '<td class="amount">' + formatCurrency(item.amount) + '</td>' +
-      '</tr>'
-    )).join('');
-
-    const penaltyRows = expandedPenaltyItems.map(item => {
-      const penaltyAmount = toNumber(item.amount);
-      const basePortion = item.isPreviousPenalty ? baseMonthlyRate : 0;
-      const totalAmount = basePortion + penaltyAmount;
-
-      return '<tr style="color: #f57c00;">' +
-        '<td style="font-weight: 500;">' + (item.description || '') + '</td>' +
-        '<td class="amount">' + formatCurrency(basePortion) + '</td>' +
-        '<td class="amount" style="font-weight: 600;">' + formatCurrency(penaltyAmount) + '</td>' +
-        '<td class="amount" style="font-weight: 600;">' + formatCurrency(totalAmount) + '</td>' +
+    const breakdown = buildMonthlyInvoiceBreakdown(bill);
+    const monthlyRows = (breakdown.rows || []).map((row) => {
+      const isBalanceForward = row.type === 'balanceForward';
+      const rowStyle = isBalanceForward ? 'style="color: #f57c00;"' : '';
+      return '<tr ' + rowStyle + '>' +
+        '<td style="font-weight: 500;">' + (formatBillingMonthLabel(row.billingMonth) || row.billingMonth || '') + '</td>' +
+        '<td class="amount">' + formatCurrency(row.adjustedCharges) + '</td>' +
+        '<td class="amount" style="font-weight: 600;">' + formatCurrency(row.adjustedPenalty) + '</td>' +
+        '<td class="amount">' + formatCurrency(row.adjustedVat) + '</td>' +
+        '<td class="amount" style="font-weight: 600;">' + formatCurrency(row.adjustedTotal) + '</td>' +
         '</tr>';
     }).join('');
 
-    const billingRows = `${regularRows}${penaltyRows}`;
+    const totals = breakdown.totals || { charges: 0, penalty: 0, vat: 0, total: 0 };
 
     return `
       <!DOCTYPE html>
@@ -2192,29 +2341,25 @@ export default function BillingManagement() {
               </div>
             </div>
             
-            <div class="section-title">BILLING BREAKDOWN</div>
+            <div class="section-title">INVOICE BREAKDOWN (MONTHLY)</div>
             <table class="billing-table">
               <thead>
                 <tr>
-                  <th>Description</th>
-                  <th class="amount">Unit Price</th>
+                  <th>Month</th>
+                  <th class="amount">Charges</th>
                   <th class="amount">Penalty</th>
-                  <th class="amount">Amount</th>
+                  <th class="amount">VAT</th>
+                  <th class="amount">Total</th>
                 </tr>
               </thead>
               <tbody>
-                ${billingRows}
+                ${monthlyRows}
                 <tr class="total-row">
-                  <td colspan="3" class="amount"><strong>Subtotal</strong></td>
-                  <td class="amount"><strong>${formatCurrency(subtotal)}</strong></td>
-                </tr>
-                <tr class="total-row">
-                  <td colspan="3" class="amount"><strong>VAT (${(vatRate * 100).toFixed(2)}%)</strong></td>
-                  <td class="amount"><strong>${formatCurrency(vat)}</strong></td>
-                </tr>
-                <tr class="total-row">
-                  <td colspan="3" class="amount"><strong>TOTAL</strong></td>
-                  <td class="amount"><strong>${formatCurrency(total)}</strong></td>
+                  <td style="font-weight: bold;">TOTAL DUE</td>
+                  <td class="amount"><strong>${formatCurrency(totals.charges)}</strong></td>
+                  <td class="amount"><strong>${formatCurrency(totals.penalty)}</strong></td>
+                  <td class="amount"><strong>${formatCurrency(totals.vat)}</strong></td>
+                  <td class="amount"><strong>${formatCurrency(totals.total)}</strong></td>
                 </tr>
               </tbody>
             </table>
@@ -2273,42 +2418,22 @@ export default function BillingManagement() {
   const handlePrint = () => {
     if (!selectedBill) return;
 
-    const {
-      regularItems,
-      expandedPenaltyItems,
-      baseMonthlyRate,
-      subtotal,
-      vat,
-      total,
-      vatRate
-    } = prepareInvoiceData(selectedBill);
-
-    const regularRows = regularItems.map(item => (
-      '<tr>' +
-      '<td>' + (item.description || '') + '</td>' +
-      '<td class="amount">' + formatCurrency(item.unitPrice) + '</td>' +
-      '<td class="amount">-</td>' +
-      '<td class="amount">' + formatCurrency(item.amount) + '</td>' +
-      '</tr>'
-    )).join('');
-
-    const penaltyRows = expandedPenaltyItems.map(item => {
-      const penaltyAmount = toNumber(item.amount);
-      const basePortion = item.isPreviousPenalty ? baseMonthlyRate : 0;
-      const totalAmount = basePortion + penaltyAmount;
-
-      return '<tr style="color: #f57c00;">' +
-        '<td style="font-weight: 500;">' + (item.description || '') + '</td>' +
-        '<td class="amount">' + formatCurrency(basePortion) + '</td>' +
-        '<td class="amount" style="font-weight: 600;">' + formatCurrency(penaltyAmount) + '</td>' +
-        '<td class="amount" style="font-weight: 600;">' + formatCurrency(totalAmount) + '</td>' +
+    const breakdown = buildMonthlyInvoiceBreakdown(selectedBill);
+    const monthlyRows = (breakdown.rows || []).map((row) => {
+      const isBalanceForward = row.type === 'balanceForward';
+      const rowStyle = isBalanceForward ? 'style="color: #f57c00;"' : '';
+      return '<tr ' + rowStyle + '>' +
+        '<td style="font-weight: 500;">' + (formatBillingMonthLabel(row.billingMonth) || row.billingMonth || '') + '</td>' +
+        '<td class="amount">' + formatCurrency(row.adjustedCharges) + '</td>' +
+        '<td class="amount" style="font-weight: 600;">' + formatCurrency(row.adjustedPenalty) + '</td>' +
+        '<td class="amount">' + formatCurrency(row.adjustedVat) + '</td>' +
+        '<td class="amount" style="font-weight: 600;">' + formatCurrency(row.adjustedTotal) + '</td>' +
         '</tr>';
     }).join('');
 
-    const billingRows = `${regularRows}${penaltyRows}`;
+    const totals = breakdown.totals || { charges: 0, penalty: 0, vat: 0, total: 0 };
 
     const printWindow = window.open('', '_blank');
-    const printContent = printRef.current.innerHTML;
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -2530,29 +2655,25 @@ export default function BillingManagement() {
               </div>
             </div>
             
-            <div class="section-title">BILLING BREAKDOWN</div>
+            <div class="section-title">INVOICE BREAKDOWN (MONTHLY)</div>
             <table class="billing-table">
               <thead>
                 <tr>
-                  <th>Description</th>
-                  <th class="amount">Unit Price</th>
+                  <th>Month</th>
+                  <th class="amount">Charges</th>
                   <th class="amount">Penalty</th>
-                  <th class="amount">Amount</th>
+                  <th class="amount">VAT</th>
+                  <th class="amount">Total</th>
                 </tr>
               </thead>
               <tbody>
-                ${billingRows}
+                ${monthlyRows}
                 <tr class="total-row">
-                  <td colspan="3" class="amount"><strong>Subtotal</strong></td>
-                  <td class="amount"><strong>${formatCurrency(subtotal)}</strong></td>
-                </tr>
-                <tr class="total-row">
-                  <td colspan="3" class="amount"><strong>VAT (${(vatRate * 100).toFixed(2)}%)</strong></td>
-                  <td class="amount"><strong>${formatCurrency(vat)}</strong></td>
-                </tr>
-                <tr class="total-row">
-                  <td colspan="3" class="amount"><strong>TOTAL</strong></td>
-                  <td class="amount"><strong>${formatCurrency(total)}</strong></td>
+                  <td style="font-weight: bold;">TOTAL DUE</td>
+                  <td class="amount"><strong>${formatCurrency(totals.charges)}</strong></td>
+                  <td class="amount"><strong>${formatCurrency(totals.penalty)}</strong></td>
+                  <td class="amount"><strong>${formatCurrency(totals.vat)}</strong></td>
+                  <td class="amount"><strong>${formatCurrency(totals.total)}</strong></td>
                 </tr>
               </tbody>
             </table>
@@ -2737,6 +2858,8 @@ export default function BillingManagement() {
   }
 
   const selectedInvoiceData = selectedBill ? prepareInvoiceData(selectedBill) : null;
+  const selectedMonthlyBreakdown = selectedBill ? buildMonthlyInvoiceBreakdown(selectedBill) : null;
+  const selectedCurrentAdjusted = selectedBill ? getAdjustedBillAmounts(selectedBill) : null;
 
   return (
     <Box sx={{ p: 3 }}>
@@ -2878,18 +3001,18 @@ export default function BillingManagement() {
           <Grid item xs={12} md={3}>
             <FormControl fullWidth size="small">
               <InputLabel>Sort By</InputLabel>
-              <Select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                label="Sort By"
-              >
-                <MenuItem value="dueDate">Due Date</MenuItem>
-                <MenuItem value="tenantName">Tenant Name</MenuItem>
-                <MenuItem value="amount">Amount</MenuItem>
-                <MenuItem value="status">Status</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
+                 <Select
+                   value={sortBy}
+                   onChange={(e) => setSortBy(e.target.value)}
+                   label="Sort By"
+                 >
+                   <MenuItem value="dueDate">Due Date</MenuItem>
+                   <MenuItem value="tenantName">Tenant Name</MenuItem>
+                  <MenuItem value="amount">Amount Due</MenuItem>
+                   <MenuItem value="status">Status</MenuItem>
+                 </Select>
+               </FormControl>
+             </Grid>
 
           <Grid item xs={12} md={2}>
             <Stack direction="row" spacing={1}>
@@ -3191,7 +3314,7 @@ export default function BillingManagement() {
                   </TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Tenant</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Amount</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Amount Due</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Due Date</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
@@ -3218,15 +3341,23 @@ export default function BillingManagement() {
                 ) : (
                   filteredBills
                     .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                    .map((bill) => (
-                      <TableRow
-                        key={bill.id}
-                        hover
-                        sx={{
-                          '&:hover': { backgroundColor: 'grey.50' },
-                          cursor: 'pointer'
-                        }}
-                      >
+                    .map((bill) => {
+                      const {
+                        amountDue,
+                        balanceForwardTotal,
+                        currentAdjustedTotal,
+                        hasBalanceForward
+                      } = getAmountDueInfoForBill(bill);
+
+                      return (
+                        <TableRow
+                          key={bill.id}
+                          hover
+                          sx={{
+                            '&:hover': { backgroundColor: 'grey.50' },
+                            cursor: 'pointer'
+                          }}
+                        >
                         <TableCell padding="checkbox">
                           <Checkbox
                             checked={selectedBills.includes(bill.id)}
@@ -3262,10 +3393,11 @@ export default function BillingManagement() {
                         </TableCell>
                         <TableCell>
                           <Typography variant="subtitle2" fontWeight={600}>
-                            {formatPHP(bill.total)}
+                            {formatPHP(amountDue)}
                           </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            Due: {new Date(bill.dueDate).toLocaleDateString()}
+                          <Typography variant="caption" color={hasBalanceForward ? 'warning.main' : 'text.secondary'}>
+                            Current: {formatPHP(currentAdjustedTotal)}
+                            {hasBalanceForward && ` • Prev: ${formatPHP(balanceForwardTotal)}`}
                           </Typography>
                         </TableCell>
                         <TableCell>
@@ -3316,7 +3448,7 @@ export default function BillingManagement() {
                               PDF
                             </Button>
 
-                            {bill.status !== 'paid' && (
+                            {amountDue > 0 && (
                               <Button
                                 size="small"
                                 variant="outlined"
@@ -3324,6 +3456,7 @@ export default function BillingManagement() {
                                 startIcon={<CheckCircleIcon />}
                                 onClick={() => {
                                   setSelectedBill(bill);
+                                  setPayOutstandingBalance(true);
                                   setShowPaymentDialog(true);
                                 }}
                                 sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
@@ -3428,7 +3561,8 @@ export default function BillingManagement() {
                           </Stack>
                         </TableCell>
                       </TableRow>
-                    ))
+                      );
+                    })
                 )}
               </TableBody>
             </Table>
@@ -3565,7 +3699,55 @@ export default function BillingManagement() {
                 </Grid>
 
                 <Grid item xs={12}>
-                  <Typography variant="h6" gutterBottom>Items Breakdown</Typography>
+                  <Typography variant="h6" gutterBottom>Invoice Breakdown (Monthly)</Typography>
+                  <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Month</TableCell>
+                          <TableCell align="right">Charges</TableCell>
+                          <TableCell align="right">Penalty</TableCell>
+                          <TableCell align="right">VAT</TableCell>
+                          <TableCell align="right">Total</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {(selectedMonthlyBreakdown?.rows || []).map((row, index) => (
+                          <TableRow
+                            key={`${row.billingMonth}-${index}`}
+                            sx={row.type === 'balanceForward' ? { backgroundColor: 'rgba(255, 193, 7, 0.08)' } : undefined}
+                          >
+                            <TableCell>
+                              <Typography variant="body2" fontWeight={row.type === 'current' ? 700 : 600}>
+                                {formatBillingMonthLabel(row.billingMonth)}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {row.billingMonth}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">{formatPHP(row.adjustedCharges)}</TableCell>
+                            <TableCell align="right" sx={{ color: row.adjustedPenalty > 0 ? 'warning.main' : 'text.primary', fontWeight: row.adjustedPenalty > 0 ? 600 : 400 }}>
+                              {formatPHP(row.adjustedPenalty)}
+                            </TableCell>
+                            <TableCell align="right">{formatPHP(row.adjustedVat)}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: row.type === 'current' ? 700 : 600 }}>
+                              {formatPHP(row.adjustedTotal)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+
+                        <TableRow sx={{ backgroundColor: 'grey.50' }}>
+                          <TableCell align="right" sx={{ fontWeight: 700 }}>TOTAL DUE</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 700 }}>{formatPHP(selectedMonthlyBreakdown?.totals?.charges ?? 0)}</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 700 }}>{formatPHP(selectedMonthlyBreakdown?.totals?.penalty ?? 0)}</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 700 }}>{formatPHP(selectedMonthlyBreakdown?.totals?.vat ?? 0)}</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 700 }}>{formatPHP(selectedMonthlyBreakdown?.totals?.total ?? 0)}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+
+                  <Typography variant="h6" gutterBottom>Current Month Items</Typography>
                   <TableContainer sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                     <Table>
                       <TableHead>
@@ -3593,7 +3775,7 @@ export default function BillingManagement() {
                                 </TableRow>
                               ))}
 
-                              {expandedPenaltyItems.map((item, index) => {
+                              {expandedPenaltyItems.filter(item => !item.isPreviousPenalty).map((item, index) => {
                                 const penaltyAmount = toNumber(item.amount);
                                 const basePortion = item.isPreviousPenalty ? baseMonthlyRate : 0;
                                 const totalAmount = basePortion + penaltyAmount;
@@ -3621,15 +3803,15 @@ export default function BillingManagement() {
 
                         <TableRow>
                           <TableCell colSpan={3} align="right"><strong>Subtotal:</strong></TableCell>
-                          <TableCell align="right"><strong>{formatPHP(selectedInvoiceData?.subtotal ?? selectedBill.subtotal)}</strong></TableCell>
+                          <TableCell align="right"><strong>{formatPHP(selectedCurrentAdjusted?.adjustedSubtotal ?? selectedBill.subtotal)}</strong></TableCell>
                         </TableRow>
                         <TableRow>
-                          <TableCell colSpan={3} align="right"><strong>VAT ({((selectedInvoiceData?.vatRate ?? 0) * 100).toFixed(2)}%):</strong></TableCell>
-                          <TableCell align="right"><strong>{formatPHP(selectedInvoiceData?.vat ?? (selectedBill.vat ?? 0))}</strong></TableCell>
+                          <TableCell colSpan={3} align="right"><strong>VAT ({(((selectedCurrentAdjusted?.vatRate ?? selectedInvoiceData?.vatRate ?? 0) * 100).toFixed(2))}%):</strong></TableCell>
+                          <TableCell align="right"><strong>{formatPHP(selectedCurrentAdjusted?.adjustedVat ?? (selectedBill.vat ?? 0))}</strong></TableCell>
                         </TableRow>
                         <TableRow>
                           <TableCell colSpan={3} align="right"><strong>Total:</strong></TableCell>
-                          <TableCell align="right"><strong>{formatPHP(selectedInvoiceData?.total ?? selectedBill.total)}</strong></TableCell>
+                          <TableCell align="right"><strong>{formatPHP(selectedCurrentAdjusted?.adjustedTotal ?? selectedBill.total)}</strong></TableCell>
                         </TableRow>
                       </TableBody>
                     </Table>
@@ -3654,6 +3836,49 @@ export default function BillingManagement() {
         <DialogTitle>Record Payment</DialogTitle>
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 1 }}>
+            {selectedBill && (
+              <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
+                {(() => {
+                  const balanceForwardBills = Array.isArray(selectedBill.balanceForwardBills) ? selectedBill.balanceForwardBills : [];
+                  const balanceForwardTotal = balanceForwardBills.reduce((sum, previousBill) => (
+                    sum + getAdjustedBillAmounts(previousBill).adjustedTotal
+                  ), 0);
+                  const includeCurrent = selectedBill.status !== 'paid' && selectedBill.status !== 'cancelled';
+                  const currentTotal = selectedCurrentAdjusted?.adjustedTotal ?? 0;
+                  const totalSelected = Number((((payOutstandingBalance ? balanceForwardTotal : 0) + (includeCurrent ? currentTotal : 0))).toFixed(2));
+
+                  return (
+                    <Stack spacing={0.5}>
+                      <Typography variant="subtitle2" fontWeight={700}>Payment Summary</Typography>
+                      {balanceForwardTotal > 0 && (
+                        <Typography variant="body2">
+                          Previous unpaid ({balanceForwardBills.length} month{balanceForwardBills.length === 1 ? '' : 's'}): <strong>{formatPHP(balanceForwardTotal)}</strong>
+                        </Typography>
+                      )}
+                      <Typography variant="body2">
+                        Current bill: <strong>{formatPHP(currentTotal)}</strong>
+                      </Typography>
+                      <Typography variant="body2">
+                        Total selected for payment: <strong>{formatPHP(totalSelected)}</strong>
+                      </Typography>
+
+                      {balanceForwardTotal > 0 && (
+                        <FormControlLabel
+                          control={(
+                            <Checkbox
+                              checked={payOutstandingBalance}
+                              onChange={(e) => setPayOutstandingBalance(e.target.checked)}
+                            />
+                          )}
+                          label={`Include previous unpaid month${balanceForwardBills.length === 1 ? '' : 's'} in this payment`}
+                        />
+                      )}
+                    </Stack>
+                  );
+                })()}
+              </Paper>
+            )}
+
             <FormControl fullWidth>
               <InputLabel>Payment Method</InputLabel>
               <Select

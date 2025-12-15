@@ -535,6 +535,39 @@ export async function getMonthlyBillingRecords(billingMonth) {
   }
 }
 
+// Get all unpaid billing records before a specific month (useful for balance carryover)
+export async function getUnpaidBillingRecordsBeforeMonth(billingMonth, statuses = ['pending', 'overdue', 'unpaid']) {
+  const targetMonth = normalizeBillingMonth(billingMonth);
+  if (!targetMonth) return [];
+
+  try {
+    // Query by status only to avoid composite index requirements, then filter by month client-side.
+    const billingQuery = query(
+      collection(db, 'billing'),
+      where('status', 'in', statuses)
+    );
+
+    const querySnapshot = await getDocs(billingQuery);
+    const unpaidRecords = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    return unpaidRecords.filter((bill) => {
+      const month = normalizeBillingMonth(bill.billingMonth);
+      return Boolean(month) && month < targetMonth;
+    });
+  } catch (error) {
+    console.warn('Falling back to client-side filtering for unpaid bills:', error);
+
+    const allBills = await getAllBillingRecords();
+    return allBills.filter((bill) => {
+      const month = normalizeBillingMonth(bill.billingMonth);
+      return Boolean(month) && month < targetMonth && statuses.includes(bill.status);
+    });
+  }
+}
+
 // Get all billing records from all months
 export async function getAllBillingRecords() {
   try {
