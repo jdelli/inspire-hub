@@ -113,6 +113,8 @@ import {
   Info as InfoIcon,
   TableChart as TableChartIcon,
   Percent as PercentIcon,
+  ExpandMore as ExpandMoreIcon,
+  ChevronRight as ChevronRightIcon,
 } from "@mui/icons-material";
 import { getFirestore, doc, deleteDoc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../../../../script/firebaseConfig";
@@ -189,6 +191,10 @@ export default function BillingManagement() {
   // Date range selection for multi-month billing fetch
   const [useDateRange, setUseDateRange] = useState(false);
   const [endMonth, setEndMonth] = useState('');
+  // Group by tenant feature
+  const [groupByTenant, setGroupByTenant] = useState(false);
+  const [expandedTenants, setExpandedTenants] = useState({});
+  const [focusedTenantId, setFocusedTenantId] = useState(null); // When set, hides other tenants
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedBill, setSelectedBill] = useState(null);
@@ -266,6 +272,45 @@ export default function BillingManagement() {
 
   // Add state for storing all billing records for export summary
   const [allBillsForExportSummary, setAllBillsForExportSummary] = useState([]);
+
+  // Helper function to toggle tenant expansion
+  const toggleTenantExpanded = (tenantId) => {
+    setExpandedTenants(prev => ({
+      ...prev,
+      [tenantId]: !prev[tenantId]
+    }));
+  };
+
+  // Helper function to expand/collapse all tenants
+  const toggleAllTenants = (expand) => {
+    const newExpanded = {};
+    Object.keys(groupBillsByTenant(filteredBills)).forEach(tenantId => {
+      newExpanded[tenantId] = expand;
+    });
+    setExpandedTenants(newExpanded);
+  };
+
+  // Helper function to group bills by tenant (defined early, uses getAmountDueInfoForBill)
+  const groupBillsByTenant = useCallback((bills) => {
+    const groups = {};
+    bills.forEach(bill => {
+      const tenantId = bill.tenantId || 'unknown';
+      if (!groups[tenantId]) {
+        groups[tenantId] = {
+          tenantId,
+          tenantName: bill.tenantName || 'Unknown Tenant',
+          tenantCompany: bill.tenantCompany || '',
+          tenantEmail: bill.tenantEmail || '',
+          tenantType: bill.tenantType || '',
+          bills: [],
+          totals: { amountDue: 0, paid: 0, pending: 0, overdue: 0, count: 0 }
+        };
+      }
+      groups[tenantId].bills.push(bill);
+      groups[tenantId].totals.count += 1;
+    });
+    return groups;
+  }, []);
 
   // Enhanced data processing and filtering
   const processAndFilterBills = useCallback((bills) => {
@@ -3364,7 +3409,38 @@ export default function BillingManagement() {
             />
           </Grid>
 
-          <Grid item xs={12} md={useDateRange ? 4 : 6}>
+          <Grid item xs={12} md={2}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={groupByTenant}
+                  onChange={(e) => {
+                    setGroupByTenant(e.target.checked);
+                    // Expand all tenants by default when enabling
+                    if (e.target.checked) {
+                      const initialExpanded = {};
+                      Object.keys(groupBillsByTenant(filteredBills)).forEach(tenantId => {
+                        initialExpanded[tenantId] = true;
+                      });
+                      setExpandedTenants(initialExpanded);
+                    }
+                  }}
+                  color="secondary"
+                />
+              }
+              label={
+                <Tooltip title="Group billing records by tenant with subtotals">
+                  <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <PersonIcon fontSize="small" />
+                    Group by Tenant
+                  </Typography>
+                </Tooltip>
+              }
+              sx={{ ml: 0 }}
+            />
+          </Grid>
+
+          <Grid item xs={12} md={useDateRange ? 4 : 4}>
             <Stack direction="row" spacing={2} justifyContent="flex-end" flexWrap="wrap" sx={{ gap: 1 }}>
               <Button
                 variant="outlined"
@@ -3464,6 +3540,7 @@ export default function BillingManagement() {
                   </TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Tenant</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
+                  {groupByTenant && <TableCell sx={{ fontWeight: 600 }}>Billing Month</TableCell>}
                   <TableCell sx={{ fontWeight: 600 }}>Amount Due</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Due Date</TableCell>
@@ -3473,7 +3550,7 @@ export default function BillingManagement() {
               <TableBody>
                 {filteredBills.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                    <TableCell colSpan={groupByTenant ? 9 : 8} align="center" sx={{ py: 4 }}>
                       <Box textAlign="center">
                         <SearchIcon sx={{ fontSize: 48, color: 'grey.400', mb: 2 }} />
                         <Typography variant="h6" color="text.secondary" gutterBottom>
@@ -3488,6 +3565,244 @@ export default function BillingManagement() {
                       </Box>
                     </TableCell>
                   </TableRow>
+                ) : groupByTenant ? (
+                  // Grouped view by tenant
+                  Object.values(groupBillsByTenant(filteredBills))
+                    .filter(group => !focusedTenantId || group.tenantId === focusedTenantId)
+                    .sort((a, b) => a.tenantName.localeCompare(b.tenantName))
+                    .map((group) => {
+                      const isExpanded = expandedTenants[group.tenantId] !== false;
+                      const groupTotalAmountDue = group.bills.reduce((sum, bill) => {
+                        const { amountDue } = getAmountDueInfoForBill(bill);
+                        return sum + amountDue;
+                      }, 0);
+                      const isFocused = focusedTenantId === group.tenantId;
+
+                      return (
+                        <React.Fragment key={group.tenantId}>
+                          {/* Tenant Header Row */}
+                          <TableRow
+                            sx={{
+                              backgroundColor: isFocused ? 'secondary.100' : 'primary.50',
+                              cursor: 'pointer',
+                              '&:hover': { backgroundColor: isFocused ? 'secondary.200' : 'primary.100' },
+                              borderLeft: isFocused ? '4px solid' : 'none',
+                              borderLeftColor: 'secondary.main'
+                            }}
+                            onClick={() => toggleTenantExpanded(group.tenantId)}
+                          >
+                            <TableCell padding="checkbox">
+                              <Checkbox
+                                checked={group.bills.every(bill => selectedBills.includes(bill.id))}
+                                indeterminate={group.bills.some(bill => selectedBills.includes(bill.id)) && !group.bills.every(bill => selectedBills.includes(bill.id))}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  if (e.target.checked) {
+                                    setSelectedBills([...new Set([...selectedBills, ...group.bills.map(b => b.id)])]);
+                                  } else {
+                                    setSelectedBills(selectedBills.filter(id => !group.bills.find(b => b.id === id)));
+                                  }
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell colSpan={2}>
+                              <Box display="flex" alignItems="center" gap={1}>
+                                <IconButton size="small" sx={{ p: 0 }}>
+                                  {isExpanded ? <ExpandMoreIcon /> : <ChevronRightIcon />}
+                                </IconButton>
+                                <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
+                                  {getTenantTypeIcon(group.tenantType)}
+                                </Avatar>
+                                <Box>
+                                  <Typography variant="subtitle1" fontWeight={700}>
+                                    {group.tenantName}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {group.tenantCompany} • {group.bills.length} bill(s)
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={`${group.bills.length} records`}
+                                size="small"
+                                color="primary"
+                                variant="outlined"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="subtitle1" fontWeight={700} color="primary.main">
+                                {formatPHP(groupTotalAmountDue)}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Stack direction="row" spacing={0.5}>
+                                {group.bills.filter(b => b.status === 'paid').length > 0 && (
+                                  <Chip label={`${group.bills.filter(b => b.status === 'paid').length} Paid`} size="small" color="success" />
+                                )}
+                                {group.bills.filter(b => b.status === 'pending').length > 0 && (
+                                  <Chip label={`${group.bills.filter(b => b.status === 'pending').length} Pending`} size="small" color="warning" />
+                                )}
+                                {group.bills.filter(b => b.status === 'overdue').length > 0 && (
+                                  <Chip label={`${group.bills.filter(b => b.status === 'overdue').length} Overdue`} size="small" color="error" />
+                                )}
+                              </Stack>
+                            </TableCell>
+                            <TableCell colSpan={2}>
+                              <Box display="flex" justifyContent="space-between" alignItems="center">
+                                <Typography variant="body2" color="text.secondary">
+                                  {group.tenantEmail}
+                                </Typography>
+                                <Button
+                                  size="small"
+                                  variant={isFocused ? "contained" : "outlined"}
+                                  color={isFocused ? "secondary" : "primary"}
+                                  startIcon={isFocused ? <CloseIcon /> : <VisibilityIcon />}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setFocusedTenantId(isFocused ? null : group.tenantId);
+                                    // Ensure the focused tenant is expanded
+                                    if (!isFocused) {
+                                      setExpandedTenants(prev => ({ ...prev, [group.tenantId]: true }));
+                                    }
+                                  }}
+                                  sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
+                                >
+                                  {isFocused ? "Show All" : "Focus"}
+                                </Button>
+                              </Box>
+                            </TableCell>
+                          </TableRow>
+
+                          {/* Nested Bill Rows */}
+                          {isExpanded && group.bills
+                            .sort((a, b) => (b.billingMonth || '').localeCompare(a.billingMonth || ''))
+                            .map((bill) => {
+                              const {
+                                amountDue,
+                                balanceForwardTotal,
+                                currentAdjustedTotal,
+                                hasBalanceForward
+                              } = getAmountDueInfoForBill(bill);
+
+                              return (
+                                <TableRow
+                                  key={bill.id}
+                                  hover
+                                  sx={{
+                                    backgroundColor: 'grey.50',
+                                    '&:hover': { backgroundColor: 'grey.100' },
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <TableCell padding="checkbox" sx={{ pl: 4 }}>
+                                    <Checkbox
+                                      checked={selectedBills.includes(bill.id)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setSelectedBills([...selectedBills, bill.id]);
+                                        } else {
+                                          setSelectedBills(selectedBills.filter(id => id !== bill.id));
+                                        }
+                                      }}
+                                    />
+                                  </TableCell>
+                                  <TableCell sx={{ pl: 6 }}>
+                                    <Typography variant="body2" color="text.secondary">
+                                      └ Bill #{bill.id?.slice(-8) || 'N/A'}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Box display="flex" alignItems="center" gap={1}>
+                                      {getTenantTypeIcon(bill.tenantType)}
+                                      <Typography variant="body2">
+                                        {bill.tenantType?.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                      </Typography>
+                                    </Box>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Chip
+                                      label={bill.billingMonth || 'N/A'}
+                                      size="small"
+                                      variant="outlined"
+                                      icon={<CalendarIcon />}
+                                    />
+                                  </TableCell>
+                                  <TableCell>
+                                    <Typography variant="subtitle2" fontWeight={600}>
+                                      {formatPHP(amountDue)}
+                                    </Typography>
+                                    <Typography variant="caption" color={hasBalanceForward ? 'warning.main' : 'text.secondary'}>
+                                      Current: {formatPHP(currentAdjustedTotal)}
+                                      {hasBalanceForward && ` • Prev: ${formatPHP(balanceForwardTotal)}`}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Chip
+                                      icon={getStatusIcon(bill.status)}
+                                      label={bill.status?.toUpperCase()}
+                                      color={getStatusColor(bill.status)}
+                                      size="small"
+                                      sx={{
+                                        fontWeight: 600,
+                                        '& .MuiChip-icon': { color: 'inherit' }
+                                      }}
+                                    />
+                                  </TableCell>
+                                  <TableCell>
+                                    <Typography variant="body2">
+                                      {new Date(bill.dueDate).toLocaleDateString()}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Stack direction="row" spacing={0.5}>
+                                      <Button
+                                        size="small"
+                                        variant="outlined"
+                                        startIcon={<VisibilityIcon />}
+                                        onClick={() => {
+                                          setSelectedBill(bill);
+                                          setShowBillDetails(true);
+                                        }}
+                                        sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.7rem' }}
+                                      >
+                                        View
+                                      </Button>
+                                      <Button
+                                        size="small"
+                                        variant="outlined"
+                                        color="primary"
+                                        startIcon={<PictureAsPdfIcon />}
+                                        onClick={() => handleDownloadPDF(bill)}
+                                        sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.7rem' }}
+                                      >
+                                        PDF
+                                      </Button>
+                                      {amountDue > 0 && (
+                                        <Button
+                                          size="small"
+                                          variant="outlined"
+                                          color="success"
+                                          startIcon={<CheckCircleIcon />}
+                                          onClick={() => {
+                                            setSelectedBill(bill);
+                                            setPayOutstandingBalance(true);
+                                            setShowPaymentDialog(true);
+                                          }}
+                                          sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.7rem' }}
+                                        >
+                                          Pay
+                                        </Button>
+                                      )}
+                                    </Stack>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                        </React.Fragment>
+                      );
+                    })
                 ) : (
                   filteredBills
                     .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
