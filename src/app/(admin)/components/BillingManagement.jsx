@@ -72,6 +72,7 @@ import {
   Switch as MuiSwitch,
   Slider as MuiSlider,
   Rating as MuiRating,
+  Pagination,
 } from "@mui/material";
 import {
   AttachMoney as AttachMoneyIcon,
@@ -185,6 +186,9 @@ export default function BillingManagement() {
   const [selectedMonth, setSelectedMonth] = useState(
     `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
   );
+  // Date range selection for multi-month billing fetch
+  const [useDateRange, setUseDateRange] = useState(false);
+  const [endMonth, setEndMonth] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedBill, setSelectedBill] = useState(null);
@@ -333,6 +337,10 @@ export default function BillingManagement() {
           aValue = a.status || '';
           bValue = b.status || '';
           break;
+        case 'billingMonth':
+          aValue = a.billingMonth || '';
+          bValue = b.billingMonth || '';
+          break;
         default:
           aValue = a[sortBy] || '';
           bValue = b[sortBy] || '';
@@ -351,51 +359,124 @@ export default function BillingManagement() {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, typeFilter, sortBy, sortOrder, vatEnabled]);
 
+  // Helper function to generate all months between two month strings (YYYY-MM format)
+  const getMonthsBetween = (startMonth, endMonth) => {
+    const months = [];
+    const [startYear, startMo] = startMonth.split('-').map(Number);
+    const [endYear, endMo] = endMonth.split('-').map(Number);
+
+    // Ensure we iterate from earlier to later month
+    let start = new Date(startYear, startMo - 1, 1);
+    let end = new Date(endYear, endMo - 1, 1);
+
+    // Swap if start is after end
+    if (start > end) {
+      [start, end] = [end, start];
+    }
+
+    const current = new Date(start);
+    while (current <= end) {
+      const year = current.getFullYear();
+      const month = String(current.getMonth() + 1).padStart(2, '0');
+      months.push(`${year}-${month}`);
+      current.setMonth(current.getMonth() + 1);
+    }
+
+    return months;
+  };
+
   // Load billing data with enhanced error handling
   const loadBillingData = async () => {
     setIsLoading(true);
     setShowBackdrop(true);
     try {
-      const [stats, bills] = await Promise.all([
-        getBillingStatistics(selectedMonth),
-        getMonthlyBillingRecords(selectedMonth)
-      ]);
+      let allBills = [];
+      let aggregatedStats = {
+        totalBills: 0,
+        totalAmount: 0,
+        paidAmount: 0,
+        pendingAmount: 0,
+        overdueAmount: 0,
+        paidCount: 0,
+        pendingCount: 0,
+        overdueCount: 0
+      };
 
-      setBillingStats(stats);
-      const previousUnpaidBills = await getUnpaidBillingRecordsBeforeMonth(selectedMonth);
+      // Determine which months to fetch
+      const monthsToFetch = useDateRange && endMonth
+        ? getMonthsBetween(selectedMonth, endMonth)
+        : [selectedMonth];
 
-      const billsWithRolledPenalties = await applyPenaltyRolloverToBillRecords(bills, selectedMonth);
+      // Fetch data for all selected months
+      for (const month of monthsToFetch) {
+        const [stats, bills] = await Promise.all([
+          getBillingStatistics(month),
+          getMonthlyBillingRecords(month)
+        ]);
 
-      const previousUnpaidByTenant = (previousUnpaidBills || []).reduce((acc, bill) => {
-        const tenantId = bill?.tenantId;
-        if (!tenantId) return acc;
-        if (!acc[tenantId]) acc[tenantId] = [];
-        acc[tenantId].push(bill);
-        return acc;
-      }, {});
+        // Aggregate statistics
+        if (stats) {
+          aggregatedStats.totalBills += stats.totalBills || 0;
+          aggregatedStats.totalAmount += stats.totalAmount || 0;
+          aggregatedStats.paidAmount += stats.paidAmount || 0;
+          aggregatedStats.pendingAmount += stats.pendingAmount || 0;
+          aggregatedStats.overdueAmount += stats.overdueAmount || 0;
+          aggregatedStats.paidCount += stats.paidCount || 0;
+          aggregatedStats.pendingCount += stats.pendingCount || 0;
+          aggregatedStats.overdueCount += stats.overdueCount || 0;
+        }
 
-      Object.values(previousUnpaidByTenant).forEach((tenantBills) => {
-        tenantBills.sort((a, b) => (a.billingMonth || '').localeCompare(b.billingMonth || ''));
-      });
+        // Process bills for this month
+        const previousUnpaidBills = await getUnpaidBillingRecordsBeforeMonth(month);
+        const billsWithRolledPenalties = await applyPenaltyRolloverToBillRecords(bills, month);
 
-      const enrichedBills = billsWithRolledPenalties.map((bill) => ({
-        ...bill,
-        balanceForwardBills: previousUnpaidByTenant[bill.tenantId] || []
-      }));
+        const previousUnpaidByTenant = (previousUnpaidBills || []).reduce((acc, bill) => {
+          const tenantId = bill?.tenantId;
+          if (!tenantId) return acc;
+          if (!acc[tenantId]) acc[tenantId] = [];
+          acc[tenantId].push(bill);
+          return acc;
+        }, {});
 
-      setCurrentMonthBills(enrichedBills);
+        Object.values(previousUnpaidByTenant).forEach((tenantBills) => {
+          tenantBills.sort((a, b) => (a.billingMonth || '').localeCompare(b.billingMonth || ''));
+        });
+
+        const enrichedBills = billsWithRolledPenalties.map((bill) => ({
+          ...bill,
+          balanceForwardBills: previousUnpaidByTenant[bill.tenantId] || []
+        }));
+
+        allBills = [...allBills, ...enrichedBills];
+      }
+
+      // Sort bills by billing month when using date range
+      if (useDateRange && endMonth && allBills.length > 0) {
+        allBills.sort((a, b) => {
+          // Sort by billing month first (descending - newest first)
+          const monthCompare = (b.billingMonth || '').localeCompare(a.billingMonth || '');
+          if (monthCompare !== 0) return monthCompare;
+          // Then by tenant name
+          return (a.tenantName || '').localeCompare(b.tenantName || '');
+        });
+      }
+
+      setBillingStats(aggregatedStats);
+      setCurrentMonthBills(allBills);
 
       // Load billing settings
       const settings = await getBillingSettings();
       setVatEnabled(settings.vatEnabled);
 
+      processAndFilterBills(allBills);
 
-
-      processAndFilterBills(enrichedBills);
+      const dateRangeLabel = useDateRange && endMonth
+        ? `${selectedMonth} to ${endMonth}`
+        : selectedMonth;
 
       setSnackbar({
         open: true,
-        message: `Loaded ${bills.length} billing records for ${selectedMonth}`,
+        message: `Loaded ${allBills.length} billing records for ${dateRangeLabel}`,
         severity: 'success'
       });
     } catch (error) {
@@ -414,8 +495,13 @@ export default function BillingManagement() {
 
 
   useEffect(() => {
-    loadBillingData();
-  }, [selectedMonth]);
+    // Only fetch when:
+    // 1. Date range is disabled (single month mode), OR
+    // 2. Date range is enabled AND endMonth is selected
+    if (!useDateRange || (useDateRange && endMonth)) {
+      loadBillingData();
+    }
+  }, [selectedMonth, useDateRange, endMonth]);
 
   useEffect(() => {
     if (currentMonthBills.length > 0) {
@@ -3022,6 +3108,7 @@ export default function BillingManagement() {
                 <MenuItem value="tenantName">Tenant Name</MenuItem>
                 <MenuItem value="amount">Amount Due</MenuItem>
                 <MenuItem value="status">Status</MenuItem>
+                <MenuItem value="billingMonth">Billing Month</MenuItem>
               </Select>
             </FormControl>
           </Grid>
@@ -3209,25 +3296,76 @@ export default function BillingManagement() {
       {/* Enhanced Month Selector and Actions */}
       <Card sx={{ mb: 3, p: 2 }}>
         <Grid container spacing={3} alignItems="center">
-          <Grid item xs={12} md={4}>
-            <FormControl fullWidth>
-              <InputLabel>Select Month</InputLabel>
-              <Select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                label="Select Month"
-              >
-                {generateMonthOptions().map((option) => (
-                  <MenuItem key={option.value} value={option.value}>
-                    {option.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+          <Grid item xs={12} md={useDateRange ? 6 : 4}>
+            <Stack direction="row" spacing={2} alignItems="center">
+              <FormControl fullWidth>
+                <InputLabel>{useDateRange ? 'Start Month' : 'Select Month'}</InputLabel>
+                <Select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  label={useDateRange ? 'Start Month' : 'Select Month'}
+                >
+                  {generateMonthOptions().map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              {useDateRange && (
+                <>
+                  <Typography variant="body1" color="text.secondary" sx={{ minWidth: 30, textAlign: 'center' }}>
+                    to
+                  </Typography>
+                  <FormControl fullWidth>
+                    <InputLabel>End Month</InputLabel>
+                    <Select
+                      value={endMonth}
+                      onChange={(e) => setEndMonth(e.target.value)}
+                      label="End Month"
+                    >
+                      {generateMonthOptions().map((option) => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </>
+              )}
+            </Stack>
           </Grid>
 
-          <Grid item xs={12} md={8}>
-            <Stack direction="row" spacing={2} justifyContent="flex-end">
+          <Grid item xs={12} md={useDateRange ? 2 : 2}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={useDateRange}
+                  onChange={(e) => {
+                    setUseDateRange(e.target.checked);
+                    // Reset endMonth to selectedMonth when toggling off
+                    if (!e.target.checked) {
+                      setEndMonth(selectedMonth);
+                    }
+                  }}
+                  color="primary"
+                />
+              }
+              label={
+                <Tooltip title="Enable to fetch billing records from multiple months at once">
+                  <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <CalendarIcon fontSize="small" />
+                    Date Range
+                  </Typography>
+                </Tooltip>
+              }
+              sx={{ ml: 0 }}
+            />
+          </Grid>
+
+          <Grid item xs={12} md={useDateRange ? 4 : 6}>
+            <Stack direction="row" spacing={2} justifyContent="flex-end" flexWrap="wrap" sx={{ gap: 1 }}>
               <Button
                 variant="outlined"
                 startIcon={<WarningIcon />}
@@ -3275,7 +3413,7 @@ export default function BillingManagement() {
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
             <Box display="flex" alignItems="center" gap={1}>
               <Typography variant="h5" fontWeight={600}>
-                Billing Records - {selectedMonth}
+                Billing Records - {useDateRange && endMonth ? `${selectedMonth} to ${endMonth}` : selectedMonth}
               </Typography>
               {(searchTerm || statusFilter !== 'all' || typeFilter !== 'all') && (
                 <Tooltip title={
