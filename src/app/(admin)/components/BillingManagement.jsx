@@ -1677,7 +1677,7 @@ export default function BillingManagement() {
       // Calculate base subtotal without penalty
       const baseSubtotal = subtotal - currentPenalty;
       const newSubtotal = baseSubtotal + cusaFee + parkingFee + damageFee;
-      const vat = newSubtotal * 0.12;
+      const vat = vatEnabled ? newSubtotal * 0.12 : 0;
       const newTotal = newSubtotal + vat;
 
       // Update items array to remove penalty
@@ -1762,7 +1762,7 @@ export default function BillingManagement() {
       ];
 
       const newSubtotal = baseCharges + previousPenaltyTotal + newCurrentPenalty;
-      const vat = newSubtotal * 0.12;
+      const vat = vatEnabled ? newSubtotal * 0.12 : 0;
       const newTotal = newSubtotal + vat;
 
       await updateDoc(doc(db, 'billing', selectedBill.id), {
@@ -2032,14 +2032,14 @@ export default function BillingManagement() {
     const subtotal = toNumber(bill?.subtotal);
     const vat = toNumber(bill?.vat);
     const penaltyFee = toNumber(bill?.penaltyFee);
-    const vatRate = getVatRateForBill(bill);
+    const vatRate = vatEnabled ? getVatRateForBill(bill) : 0;
 
     const rolledPreviousPenalty = Math.max(0, getRolledPreviousPenaltyFromBill(bill));
-    const rolledPreviousPenaltyVat = Number((rolledPreviousPenalty * vatRate).toFixed(2));
+    const rolledPreviousPenaltyVat = vatEnabled ? Number((rolledPreviousPenalty * vatRate).toFixed(2)) : 0;
 
     const adjustedPenalty = Math.max(0, penaltyFee - rolledPreviousPenalty);
     const adjustedSubtotal = Math.max(0, subtotal - rolledPreviousPenalty);
-    const adjustedVat = Math.max(0, vat - rolledPreviousPenaltyVat);
+    const adjustedVat = vatEnabled ? Math.max(0, vat - rolledPreviousPenaltyVat) : 0;
     const adjustedTotal = Math.max(0, Number((adjustedSubtotal + adjustedVat).toFixed(2)));
 
     const adjustedCharges = Math.max(0, Number((adjustedSubtotal - adjustedPenalty).toFixed(2)));
@@ -2057,7 +2057,11 @@ export default function BillingManagement() {
   };
 
   const getAmountDueInfoForBill = (bill) => {
-    const balanceForwardBills = Array.isArray(bill?.balanceForwardBills) ? bill.balanceForwardBills : [];
+    const allBalanceForwardBills = Array.isArray(bill?.balanceForwardBills) ? bill.balanceForwardBills : [];
+    // Filter out the current month from balance forward bills to avoid duplicates
+    const balanceForwardBills = allBalanceForwardBills.filter(
+      (previousBill) => previousBill.billingMonth !== bill?.billingMonth
+    );
     const balanceForwardTotal = balanceForwardBills.reduce((sum, previousBill) => (
       sum + getAdjustedBillAmounts(previousBill).adjustedTotal
     ), 0);
@@ -2082,8 +2086,12 @@ export default function BillingManagement() {
     }
 
     const balanceForwardBills = Array.isArray(bill.balanceForwardBills) ? bill.balanceForwardBills : [];
+    // Filter out any balance forward bills that have the same billingMonth as the current bill to avoid duplicates
+    const filteredBalanceForwardBills = balanceForwardBills.filter(
+      (previousBill) => previousBill.billingMonth !== bill.billingMonth
+    );
     const rows = [
-      ...balanceForwardBills.map((previousBill) => {
+      ...filteredBalanceForwardBills.map((previousBill) => {
         const amounts = getAdjustedBillAmounts(previousBill);
         return {
           type: 'balanceForward',
@@ -4237,7 +4245,11 @@ export default function BillingManagement() {
             {selectedBill && (
               <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
                 {(() => {
-                  const balanceForwardBills = Array.isArray(selectedBill.balanceForwardBills) ? selectedBill.balanceForwardBills : [];
+                  const allBalanceForwardBills = Array.isArray(selectedBill.balanceForwardBills) ? selectedBill.balanceForwardBills : [];
+                  // Filter out the current month from balance forward bills to avoid duplicates
+                  const balanceForwardBills = allBalanceForwardBills.filter(
+                    (previousBill) => previousBill.billingMonth !== selectedBill.billingMonth
+                  );
                   const balanceForwardTotal = balanceForwardBills.reduce((sum, previousBill) => (
                     sum + getAdjustedBillAmounts(previousBill).adjustedTotal
                   ), 0);
@@ -4887,7 +4899,7 @@ export default function BillingManagement() {
                         const damageFee = parseFloat(selectedBill.damageFee) || 0;
                         const baseSubtotal = subtotal - currentPenalty;
                         const newSubtotal = baseSubtotal + cusaFee + parkingFee + damageFee;
-                        const vat = newSubtotal * 0.12;
+                        const vat = vatEnabled ? newSubtotal * 0.12 : 0;
                         return newSubtotal + vat;
                       })()
                     )}
@@ -4979,7 +4991,7 @@ export default function BillingManagement() {
                         const previousPenaltyTotal = previousPenaltyItems.reduce((sum, item) => sum + (parseFloat(item.amount) || parseFloat(item.unitPrice) || 0), 0);
 
                         const newSubtotal = baseCharges + previousPenaltyTotal + penaltyAmount;
-                        const vat = newSubtotal * 0.12;
+                        const vat = vatEnabled ? newSubtotal * 0.12 : 0;
                         const newTotal = newSubtotal + vat;
 
                         return (
@@ -4991,7 +5003,7 @@ export default function BillingManagement() {
                             {previousPenaltyTotal > 0 && (
                               <>Previous Penalties: {formatPHP(previousPenaltyTotal)}<br /></>
                             )}
-                            <strong>New Total (with VAT):</strong> {formatPHP(newTotal)}
+                            <strong>New Total{vatEnabled ? ' (with VAT)' : ''}:</strong> {formatPHP(newTotal)}
                           </>
                         );
                       })()}
