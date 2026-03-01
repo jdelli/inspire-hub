@@ -39,6 +39,17 @@ import { AttachMoney as AttachMoneyIcon, Calculate as CalculateIcon, Info as Inf
 import { updateTenantBillingInfo, calculateBillingAmount, formatPHP, getMonthlyBillingRecords } from "../utils/billingService";
 
 export default function EditTenantModal({ open, onClose, client, onSave }) {
+  const normalizeDateInput = (value) => {
+    if (!value) return "";
+    if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    const parsedDate = new Date(value);
+    if (Number.isNaN(parsedDate.getTime())) return "";
+    const year = parsedDate.getFullYear();
+    const month = String(parsedDate.getMonth() + 1).padStart(2, "0");
+    const day = String(parsedDate.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   const [formData, setFormData] = useState({
     company: "",
     name: "",
@@ -51,6 +62,7 @@ export default function EditTenantModal({ open, onClose, client, onSave }) {
       currency: "PHP",
       paymentMethod: "",
       startDate: "",
+      dueDate: "",
       billingStartDate: "",
       billingEndDate: "",
       price: "",
@@ -111,7 +123,8 @@ export default function EditTenantModal({ open, onClose, client, onSave }) {
           rate: client.billing?.rate || "",
           currency: client.billing?.currency || "PHP",
           paymentMethod: client.billing?.paymentMethod || "",
-          startDate: client.billing?.startDate || "",
+          startDate: normalizeDateInput(client.billing?.startDate),
+          dueDate: normalizeDateInput(client.billing?.dueDate),
           billingStartDate: client.billing?.billingStartDate || "",
           billingEndDate: client.billing?.billingEndDate || "",
           price: client.billing?.price || "",
@@ -604,6 +617,21 @@ export default function EditTenantModal({ open, onClose, client, onSave }) {
                                 name="billing.startDate"
                                 type="date"
                                 value={formData.billing.startDate}
+                                onChange={handleChange}
+                                fullWidth
+                                variant="outlined"
+                                size="small"
+                                InputLabelProps={{ shrink: true }}
+                              />
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 600 }}>Due Date</TableCell>
+                            <TableCell>
+                              <TextField
+                                name="billing.dueDate"
+                                type="date"
+                                value={formData.billing.dueDate}
                                 onChange={handleChange}
                                 fullWidth
                                 variant="outlined"

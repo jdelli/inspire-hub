@@ -73,6 +73,49 @@ function normalizeBillingMonth(value) {
   return trimmed.slice(0, 7);
 }
 
+function parseDateValue(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+
+function getDueDayFromBillingInfo(billingInfo, fallbackDate = new Date()) {
+  const explicitDueDate = parseDateValue(billingInfo?.dueDate);
+  if (explicitDueDate) return explicitDueDate.getDate();
+
+  const startDate = parseDateValue(billingInfo?.startDate);
+  if (startDate) {
+    const derivedDueDate = new Date(startDate.getTime() + (30 * 24 * 60 * 60 * 1000));
+    return derivedDueDate.getDate();
+  }
+
+  const baseDate = parseDateValue(fallbackDate) || new Date();
+  const fallbackDueDate = new Date(baseDate.getTime() + (30 * 24 * 60 * 60 * 1000));
+  return fallbackDueDate.getDate();
+}
+
+function getDueDateForBillingMonth(billingMonth, billingInfo, fallbackDate = new Date()) {
+  const dueDay = getDueDayFromBillingInfo(billingInfo, fallbackDate);
+  const normalizedMonth = normalizeBillingMonth(billingMonth);
+
+  if (normalizedMonth) {
+    const [yearStr, monthStr] = normalizedMonth.split('-');
+    const year = parseInt(yearStr, 10);
+    const monthIndex = parseInt(monthStr, 10) - 1;
+
+    if (!Number.isNaN(year) && !Number.isNaN(monthIndex) && monthIndex >= 0 && monthIndex <= 11) {
+      const lastDayOfMonth = new Date(year, monthIndex + 1, 0).getDate();
+      const clampedDay = Math.min(Math.max(dueDay, 1), lastDayOfMonth);
+      return new Date(year, monthIndex, clampedDay);
+    }
+  }
+
+  const fallback = parseDateValue(fallbackDate) || new Date();
+  fallback.setDate(fallback.getDate() + 30);
+  return fallback;
+}
+
 export async function getRolledPenaltiesForTenant(tenantId, billingMonth) {
   const penalties = await getUnpaidPenaltiesForTenant(tenantId);
   const targetMonth = normalizeBillingMonth(billingMonth);
@@ -229,9 +272,8 @@ export async function generateBillingRecord(tenant, billingMonth, tenantType, bi
     ? await getRolledPenaltiesForTenant(tenant.id, billingMonth)
     : { total: 0, months: [] };
 
-  // Use tenant's billing start date if available, otherwise use billingDate
-  const startDate = tenant.billing?.startDate ? new Date(tenant.billing.startDate) : billingDate;
-  const dueDate = new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days from start date
+  // Build due date for the target billing month using tenant billing due-day settings.
+  const dueDate = getDueDateForBillingMonth(billingMonth, tenant.billing, billingDate);
 
   // Set default rate if not provided
   let defaultRate = 0;
@@ -309,7 +351,7 @@ export async function generateBillingRecord(tenant, billingMonth, tenantType, bi
     // Billing period
     billingMonth: billingMonth, // Format: '2024-01'
     billingDate: billingDate.toISOString(),
-    dueDate: dueDate.toISOString(), // 30 days from tenant's billing start date
+    dueDate: dueDate.toISOString(),
 
     // Billing details
     baseRate: tenant.billing?.rate || defaultRate,
@@ -1026,6 +1068,11 @@ export async function updateTenantBillingInfo(tenantId, tenantType, updatedBilli
 
       // Recalculate billing amounts with updated tenant information
       const newBillingAmounts = calculateBillingAmount(updatedTenant);
+      const recalculatedDueDate = getDueDateForBillingMonth(
+        billingData.billingMonth,
+        updatedBillingInfo,
+        parseDateValue(billingData.dueDate) || new Date()
+      );
 
       // Preserve existing penalty and damage fees (they are manually added per invoice)
       const existingPenalty = parseFloat(billingData.penaltyFee) || 0;
@@ -1039,6 +1086,7 @@ export async function updateTenantBillingInfo(tenantId, tenantType, updatedBilli
       // Update the billing record
       await updateDoc(doc(db, 'billing', billingDoc.id), {
         baseRate: updatedBillingInfo.rate || billingData.baseRate,
+        dueDate: recalculatedDueDate.toISOString(),
         subtotal: newSubtotalWithPenalties,
         vat: newVat,
         total: newTotalWithPenalties,

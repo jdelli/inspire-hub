@@ -176,6 +176,17 @@ const getTenantTypeIcon = (type) => {
   }
 };
 
+const SORT_BY_OPTIONS = [
+  { value: 'dueDate', label: 'Due Date' },
+  { value: 'tenantName', label: 'Tenant Name' },
+  { value: 'tenantCompany', label: 'Company' },
+  { value: 'amount', label: 'Amount Due' },
+  { value: 'total', label: 'Invoice Total' },
+  { value: 'status', label: 'Status' },
+  { value: 'tenantType', label: 'Tenant Type' },
+  { value: 'billingMonth', label: 'Billing Month' },
+];
+
 export default function BillingManagement() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -199,6 +210,10 @@ export default function BillingManagement() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedBill, setSelectedBill] = useState(null);
   const [showBillDetails, setShowBillDetails] = useState(false);
+  const [billDetailsEditMode, setBillDetailsEditMode] = useState(false);
+  const [billDetailsDraft, setBillDetailsDraft] = useState(null);
+  const [billDetailsErrors, setBillDetailsErrors] = useState({});
+  const [billDetailsSaving, setBillDetailsSaving] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [showGenerateBillingDialog, setShowGenerateBillingDialog] = useState(false);
   const [showBulkActionsDialog, setShowBulkActionsDialog] = useState(false);
@@ -363,39 +378,54 @@ export default function BillingManagement() {
 
     // Sorting
     filtered.sort((a, b) => {
-      let aValue, bValue;
+      let aValue;
+      let bValue;
 
       switch (sortBy) {
         case 'tenantName':
-          aValue = a.tenantName || '';
-          bValue = b.tenantName || '';
+          aValue = (a.tenantName || '').toLowerCase();
+          bValue = (b.tenantName || '').toLowerCase();
+          break;
+        case 'tenantCompany':
+          aValue = (a.tenantCompany || '').toLowerCase();
+          bValue = (b.tenantCompany || '').toLowerCase();
           break;
         case 'amount':
           aValue = getAmountDueInfoForBill(a).amountDue;
           bValue = getAmountDueInfoForBill(b).amountDue;
           break;
+        case 'total':
+          aValue = toNumber(a.total);
+          bValue = toNumber(b.total);
+          break;
         case 'dueDate':
-          aValue = new Date(a.dueDate);
-          bValue = new Date(b.dueDate);
+          aValue = new Date(a.dueDate).getTime() || 0;
+          bValue = new Date(b.dueDate).getTime() || 0;
           break;
         case 'status':
-          aValue = a.status || '';
-          bValue = b.status || '';
+          aValue = (a.status || '').toLowerCase();
+          bValue = (b.status || '').toLowerCase();
+          break;
+        case 'tenantType':
+          aValue = (a.tenantType || '').toLowerCase();
+          bValue = (b.tenantType || '').toLowerCase();
           break;
         case 'billingMonth':
           aValue = a.billingMonth || '';
           bValue = b.billingMonth || '';
           break;
         default:
-          aValue = a[sortBy] || '';
-          bValue = b[sortBy] || '';
+          aValue = (a[sortBy] || '').toString().toLowerCase();
+          bValue = (b[sortBy] || '').toString().toLowerCase();
       }
 
-      if (sortOrder === 'asc') {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
+      if (aValue === bValue) {
+        // Keep ordering predictable when values are equal.
+        return (a.tenantName || '').localeCompare(b.tenantName || '');
       }
+
+      const compareResult = aValue > bValue ? 1 : -1;
+      return sortOrder === 'asc' ? compareResult : -compareResult;
     });
 
     console.log(`Final filtered result: ${filtered.length} bills`);
@@ -1998,6 +2028,239 @@ export default function BillingManagement() {
 
   // Helpers to keep invoice math consistent across modal and PDF
   const toNumber = (value) => parseFloat(value) || 0;
+  const BILL_DETAILS_STATUS_OPTIONS = ['pending', 'overdue', 'cancelled'];
+  const BILL_DETAILS_PAYMENT_METHOD_OPTIONS = ['credit', 'bank', 'cash', 'check'];
+
+  const toDateInputValue = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const toIsoFromDateInput = (value) => {
+    if (!value) return '';
+    const date = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toISOString();
+  };
+
+  const getBillDetailsDraftFromBill = (bill) => ({
+    tenantName: bill?.tenantName || '',
+    tenantCompany: bill?.tenantCompany || '',
+    tenantEmail: bill?.tenantEmail || '',
+    dueDate: toDateInputValue(bill?.dueDate),
+    status: (bill?.status || 'pending').toLowerCase(),
+    paymentMethod: (bill?.paymentMethod || 'credit').toLowerCase(),
+  });
+
+  const hasBillDetailsDraftChanges = (bill, draft) => {
+    if (!bill || !draft) return false;
+    const baseline = getBillDetailsDraftFromBill(bill);
+    return (
+      baseline.tenantName !== (draft.tenantName || '') ||
+      baseline.tenantCompany !== (draft.tenantCompany || '') ||
+      baseline.tenantEmail !== (draft.tenantEmail || '') ||
+      baseline.dueDate !== (draft.dueDate || '') ||
+      baseline.status !== (draft.status || '') ||
+      baseline.paymentMethod !== (draft.paymentMethod || '')
+    );
+  };
+
+  const validateBillDetailsDraft = (draft, originalStatus) => {
+    const errors = {};
+    if (!draft?.dueDate) {
+      errors.dueDate = 'Due date is required';
+    } else if (!toIsoFromDateInput(draft.dueDate)) {
+      errors.dueDate = 'Due date is invalid';
+    }
+
+    const emailValue = (draft?.tenantEmail || '').trim();
+    if (emailValue && emailValue.toLowerCase() !== 'no email provided') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(emailValue)) {
+        errors.tenantEmail = 'Enter a valid email address';
+      }
+    }
+
+    const originalStatusNormalized = (originalStatus || '').toLowerCase();
+    const nextStatusNormalized = (draft?.status || '').toLowerCase();
+    if (originalStatusNormalized !== 'paid' && !BILL_DETAILS_STATUS_OPTIONS.includes(nextStatusNormalized)) {
+      errors.status = 'Select a valid status';
+    }
+
+    const paymentMethodNormalized = (draft?.paymentMethod || '').toLowerCase();
+    if (!BILL_DETAILS_PAYMENT_METHOD_OPTIONS.includes(paymentMethodNormalized)) {
+      errors.paymentMethod = 'Select a valid payment method';
+    }
+
+    return errors;
+  };
+
+  const handleBillDetailsDraftChange = (field, value) => {
+    setBillDetailsDraft((prevDraft) => ({
+      ...(prevDraft || {}),
+      [field]: value
+    }));
+    setBillDetailsErrors((prevErrors) => ({
+      ...prevErrors,
+      [field]: undefined
+    }));
+  };
+
+  const resetBillDetailsEditor = () => {
+    setBillDetailsEditMode(false);
+    setBillDetailsDraft(null);
+    setBillDetailsErrors({});
+    setBillDetailsSaving(false);
+  };
+
+  const openBillDetailsDialog = (bill) => {
+    setSelectedBill(bill);
+    setBillDetailsDraft(getBillDetailsDraftFromBill(bill));
+    setBillDetailsErrors({});
+    setBillDetailsEditMode(false);
+    setBillDetailsSaving(false);
+    setShowBillDetails(true);
+  };
+
+  const handleStartBillDetailsEdit = () => {
+    if (!selectedBill) return;
+    setBillDetailsDraft(getBillDetailsDraftFromBill(selectedBill));
+    setBillDetailsErrors({});
+    setBillDetailsEditMode(true);
+  };
+
+  const handleCancelBillDetailsEdit = () => {
+    if (billDetailsSaving) return;
+    setBillDetailsDraft(getBillDetailsDraftFromBill(selectedBill));
+    setBillDetailsErrors({});
+    setBillDetailsEditMode(false);
+  };
+
+  const handleCloseBillDetailsDialog = () => {
+    if (billDetailsSaving) return;
+    if (billDetailsEditMode && hasBillDetailsDraftChanges(selectedBill, billDetailsDraft)) {
+      const shouldDiscard = window.confirm('Discard unsaved changes?');
+      if (!shouldDiscard) return;
+    }
+    setShowBillDetails(false);
+    resetBillDetailsEditor();
+  };
+
+  const applyStatusDeltaToStats = (stats, status, amount, countDelta) => {
+    const safeStats = stats || {};
+    const safeAmount = Number(amount) || 0;
+
+    switch ((status || '').toLowerCase()) {
+      case 'paid':
+        return {
+          ...safeStats,
+          paidAmount: Math.max(0, (safeStats.paidAmount || 0) + (safeAmount * countDelta)),
+          paidCount: Math.max(0, (safeStats.paidCount || 0) + countDelta),
+        };
+      case 'pending':
+        return {
+          ...safeStats,
+          pendingAmount: Math.max(0, (safeStats.pendingAmount || 0) + (safeAmount * countDelta)),
+          pendingCount: Math.max(0, (safeStats.pendingCount || 0) + countDelta),
+        };
+      case 'overdue':
+        return {
+          ...safeStats,
+          overdueAmount: Math.max(0, (safeStats.overdueAmount || 0) + (safeAmount * countDelta)),
+          overdueCount: Math.max(0, (safeStats.overdueCount || 0) + countDelta),
+        };
+      default:
+        return safeStats;
+    }
+  };
+
+  const adjustBillingStatsForStatusChange = (stats, previousStatus, nextStatus, billAmount) => {
+    if (!stats) return stats;
+    const previous = (previousStatus || '').toLowerCase();
+    const next = (nextStatus || '').toLowerCase();
+    if (previous === next) return stats;
+
+    let updatedStats = { ...stats };
+    updatedStats = applyStatusDeltaToStats(updatedStats, previous, billAmount, -1);
+    updatedStats = applyStatusDeltaToStats(updatedStats, next, billAmount, 1);
+    return updatedStats;
+  };
+
+  const handleSaveBillDetailsChanges = async () => {
+    if (!selectedBill?.id || !billDetailsDraft) return;
+
+    const validationErrors = validateBillDetailsDraft(billDetailsDraft, selectedBill.status);
+    if (Object.keys(validationErrors).length > 0) {
+      setBillDetailsErrors(validationErrors);
+      return;
+    }
+
+    const isPaidBill = (selectedBill.status || '').toLowerCase() === 'paid';
+    const normalizedStatus = isPaidBill
+      ? 'paid'
+      : (billDetailsDraft.status || 'pending').toLowerCase();
+    const normalizedPaymentMethod = (billDetailsDraft.paymentMethod || 'credit').toLowerCase();
+    const normalizedDueDate = toIsoFromDateInput(billDetailsDraft.dueDate) || selectedBill.dueDate;
+
+    const localBillUpdate = {
+      tenantName: (billDetailsDraft.tenantName || '').trim(),
+      tenantCompany: (billDetailsDraft.tenantCompany || '').trim(),
+      tenantEmail: (billDetailsDraft.tenantEmail || '').trim(),
+      dueDate: normalizedDueDate,
+      status: normalizedStatus,
+      paymentMethod: normalizedPaymentMethod,
+    };
+
+    setBillDetailsSaving(true);
+    try {
+      await updateDoc(doc(db, 'billing', selectedBill.id), {
+        ...localBillUpdate,
+        updatedAt: serverTimestamp(),
+      });
+
+      const updatedBill = {
+        ...selectedBill,
+        ...localBillUpdate,
+      };
+
+      setSelectedBill(updatedBill);
+      setCurrentMonthBills((previousBills) => {
+        return previousBills.map((bill) => (
+          bill.id === selectedBill.id ? { ...bill, ...localBillUpdate } : bill
+        ));
+      });
+      setBillingStats((previousStats) => (
+        adjustBillingStatsForStatusChange(
+          previousStats,
+          selectedBill.status,
+          localBillUpdate.status,
+          toNumber(selectedBill.total)
+        )
+      ));
+      setBillDetailsDraft(getBillDetailsDraftFromBill(updatedBill));
+      setBillDetailsErrors({});
+      setBillDetailsEditMode(false);
+      setSnackbar({
+        open: true,
+        message: 'Billing details updated successfully',
+        severity: 'success'
+      });
+    } catch (error) {
+      console.error('Error saving billing details:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to save billing details',
+        severity: 'error'
+      });
+    } finally {
+      setBillDetailsSaving(false);
+    }
+  };
 
   const normalizeRate = (rate) => {
     const numericRate = parseFloat(rate);
@@ -3149,7 +3412,7 @@ export default function BillingManagement() {
             </FormControl>
           </Grid>
 
-          <Grid item xs={12} md={3}>
+          <Grid item xs={12} md={2}>
             <FormControl fullWidth size="small">
               <InputLabel>Sort By</InputLabel>
               <Select
@@ -3157,11 +3420,25 @@ export default function BillingManagement() {
                 onChange={(e) => setSortBy(e.target.value)}
                 label="Sort By"
               >
-                <MenuItem value="dueDate">Due Date</MenuItem>
-                <MenuItem value="tenantName">Tenant Name</MenuItem>
-                <MenuItem value="amount">Amount Due</MenuItem>
-                <MenuItem value="status">Status</MenuItem>
-                <MenuItem value="billingMonth">Billing Month</MenuItem>
+                {SORT_BY_OPTIONS.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+
+          <Grid item xs={12} md={2}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Order</InputLabel>
+              <Select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
+                label="Order"
+              >
+                <MenuItem value="asc">Ascending</MenuItem>
+                <MenuItem value="desc">Descending</MenuItem>
               </Select>
             </FormControl>
           </Grid>
@@ -3174,10 +3451,10 @@ export default function BillingManagement() {
                 onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
                 startIcon={<SortIcon />}
               >
-                {sortOrder === 'asc' ? '↑' : '↓'}
+                {sortOrder === 'asc' ? 'ASC' : 'DESC'}
               </Button>
 
-              {(searchTerm || statusFilter !== 'all' || typeFilter !== 'all') && (
+              {(searchTerm || statusFilter !== 'all' || typeFilter !== 'all' || sortBy !== 'dueDate' || sortOrder !== 'asc') && (
                 <Button
                   variant="outlined"
                   size="small"
@@ -3770,8 +4047,7 @@ export default function BillingManagement() {
                                         variant="outlined"
                                         startIcon={<VisibilityIcon />}
                                         onClick={() => {
-                                          setSelectedBill(bill);
-                                          setShowBillDetails(true);
+                                          openBillDetailsDialog(bill);
                                         }}
                                         sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.7rem' }}
                                       >
@@ -3902,8 +4178,7 @@ export default function BillingManagement() {
                                 variant="outlined"
                                 startIcon={<VisibilityIcon />}
                                 onClick={() => {
-                                  setSelectedBill(bill);
-                                  setShowBillDetails(true);
+                                  openBillDetailsDialog(bill);
                                 }}
                                 sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '0.75rem' }}
                               >
@@ -4095,7 +4370,7 @@ export default function BillingManagement() {
       {/* Bill Details Dialog */}
       <Dialog
         open={showBillDetails}
-        onClose={() => setShowBillDetails(false)}
+        onClose={handleCloseBillDetailsDialog}
         maxWidth="md"
         fullWidth
       >
@@ -4116,22 +4391,39 @@ export default function BillingManagement() {
               Billing Details
             </Typography>
             <Typography variant="subtitle2" sx={{ opacity: 0.9 }}>
-              {selectedBill?.tenantCompany || selectedBill?.tenantName} • {selectedBill && generateInvoiceNumber(selectedBill)}
+              {(billDetailsEditMode
+                ? (billDetailsDraft?.tenantCompany || billDetailsDraft?.tenantName)
+                : (selectedBill?.tenantCompany || selectedBill?.tenantName)
+              )} • {selectedBill && generateInvoiceNumber(selectedBill)}
             </Typography>
           </Box>
           <Box>
+            <Tooltip title={billDetailsEditMode ? 'Editing' : 'Edit Invoice'}>
+              <span>
+                <IconButton
+                  onClick={handleStartBillDetailsEdit}
+                  aria-label="edit"
+                  size="large"
+                  disabled={billDetailsEditMode || billDetailsSaving}
+                  sx={{ mr: 1, color: 'white' }}
+                >
+                  <EditIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
             <Tooltip title="Print Invoice">
               <IconButton
                 onClick={handlePrint}
                 aria-label="print"
                 size="large"
+                disabled={billDetailsEditMode}
                 sx={{ mr: 1, color: 'white' }}
               >
                 <PrintIcon />
               </IconButton>
             </Tooltip>
             <IconButton
-              onClick={() => setShowBillDetails(false)}
+              onClick={handleCloseBillDetailsDialog}
               aria-label="close"
               size="large"
               sx={{ color: 'white' }}
@@ -4143,21 +4435,114 @@ export default function BillingManagement() {
         <DialogContent>
           {selectedBill && (
             <Box>
+              {billDetailsEditMode && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Edits here update this invoice record only.
+                </Alert>
+              )}
               <Grid container spacing={3}>
                 <Grid item xs={12} md={6}>
                   <Typography variant="h6" gutterBottom>Tenant Information</Typography>
-                  <Typography><strong>Name:</strong> {selectedBill.tenantName}</Typography>
-                  <Typography><strong>Company:</strong> {selectedBill.tenantCompany}</Typography>
-                  <Typography><strong>Email:</strong> {selectedBill.tenantEmail}</Typography>
+                  {billDetailsEditMode ? (
+                    <Stack spacing={2}>
+                      <TextField
+                        label="Name"
+                        value={billDetailsDraft?.tenantName || ''}
+                        onChange={(e) => handleBillDetailsDraftChange('tenantName', e.target.value)}
+                        fullWidth
+                        size="small"
+                      />
+                      <TextField
+                        label="Company"
+                        value={billDetailsDraft?.tenantCompany || ''}
+                        onChange={(e) => handleBillDetailsDraftChange('tenantCompany', e.target.value)}
+                        fullWidth
+                        size="small"
+                      />
+                      <TextField
+                        label="Email"
+                        type="email"
+                        value={billDetailsDraft?.tenantEmail || ''}
+                        onChange={(e) => handleBillDetailsDraftChange('tenantEmail', e.target.value)}
+                        fullWidth
+                        size="small"
+                        error={Boolean(billDetailsErrors.tenantEmail)}
+                        helperText={billDetailsErrors.tenantEmail}
+                      />
+                    </Stack>
+                  ) : (
+                    <>
+                      <Typography><strong>Name:</strong> {selectedBill.tenantName}</Typography>
+                      <Typography><strong>Company:</strong> {selectedBill.tenantCompany}</Typography>
+                      <Typography><strong>Email:</strong> {selectedBill.tenantEmail}</Typography>
+                    </>
+                  )}
                   <Typography><strong>Type:</strong> {selectedBill.tenantType}</Typography>
                 </Grid>
 
                 <Grid item xs={12} md={6}>
                   <Typography variant="h6" gutterBottom>Billing Information</Typography>
                   <Typography><strong>Billing Month:</strong> {selectedBill.billingMonth}</Typography>
-                  <Typography><strong>Due Date:</strong> {new Date(selectedBill.dueDate).toLocaleDateString()}</Typography>
-                  <Typography><strong>Status:</strong> {selectedBill.status}</Typography>
-                  <Typography><strong>Payment Method:</strong> {selectedBill.paymentMethod}</Typography>
+                  {billDetailsEditMode ? (
+                    <Stack spacing={2}>
+                      <TextField
+                        label="Due Date"
+                        type="date"
+                        value={billDetailsDraft?.dueDate || ''}
+                        onChange={(e) => handleBillDetailsDraftChange('dueDate', e.target.value)}
+                        fullWidth
+                        size="small"
+                        InputLabelProps={{ shrink: true }}
+                        error={Boolean(billDetailsErrors.dueDate)}
+                        helperText={billDetailsErrors.dueDate}
+                      />
+                      <TextField
+                        select
+                        label="Status"
+                        value={billDetailsDraft?.status || ''}
+                        onChange={(e) => handleBillDetailsDraftChange('status', e.target.value)}
+                        fullWidth
+                        size="small"
+                        disabled={(selectedBill.status || '').toLowerCase() === 'paid'}
+                        error={Boolean(billDetailsErrors.status)}
+                        helperText={(selectedBill.status || '').toLowerCase() === 'paid'
+                          ? 'Paid status is set via Record Payment.'
+                          : (billDetailsErrors.status || ' ')
+                        }
+                      >
+                        {(selectedBill.status || '').toLowerCase() === 'paid' && (
+                          <MenuItem value="paid">Paid</MenuItem>
+                        )}
+                        {BILL_DETAILS_STATUS_OPTIONS.map((statusOption) => (
+                          <MenuItem key={statusOption} value={statusOption}>
+                            {statusOption.toUpperCase()}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                      <TextField
+                        select
+                        label="Payment Method"
+                        value={billDetailsDraft?.paymentMethod || ''}
+                        onChange={(e) => handleBillDetailsDraftChange('paymentMethod', e.target.value)}
+                        fullWidth
+                        size="small"
+                        error={Boolean(billDetailsErrors.paymentMethod)}
+                        helperText={billDetailsErrors.paymentMethod}
+                      >
+                        {BILL_DETAILS_PAYMENT_METHOD_OPTIONS.map((methodOption) => (
+                          <MenuItem key={methodOption} value={methodOption}>
+                            {methodOption.toUpperCase()}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                    </Stack>
+                  ) : (
+                    <>
+                      <Typography><strong>Due Date:</strong> {new Date(selectedBill.dueDate).toLocaleDateString()}</Typography>
+                      <Typography><strong>Status:</strong> {selectedBill.status}</Typography>
+                      <Typography><strong>Payment Method:</strong> {selectedBill.paymentMethod}</Typography>
+                    </>
+                  )}
                   {selectedBill.penaltyFee > 0 && (
                     <Typography color="warning.main"><strong>Penalty Fee:</strong> {formatPHP(selectedBill.penaltyFee)}</Typography>
                   )}
@@ -4228,7 +4613,22 @@ export default function BillingManagement() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setShowBillDetails(false)}>Close</Button>
+          {billDetailsEditMode ? (
+            <>
+              <Button onClick={handleCancelBillDetailsEdit} disabled={billDetailsSaving}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveBillDetailsChanges}
+                variant="contained"
+                disabled={billDetailsSaving}
+              >
+                {billDetailsSaving ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </>
+          ) : (
+            <Button onClick={handleCloseBillDetailsDialog}>Close</Button>
+          )}
         </DialogActions>
       </Dialog>
 
