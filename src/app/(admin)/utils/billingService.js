@@ -967,8 +967,8 @@ export async function updateTenantBillingDefaults() {
 
         const querySnapshot = await getDocs(tenantsQuery);
 
-        for (const doc of querySnapshot.docs) {
-          const tenant = { id: doc.id, ...doc.data() };
+        for (const docSnapshot of querySnapshot.docs) {
+          const tenant = { id: docSnapshot.id, ...docSnapshot.data() };
 
           try {
             const needsUpdate = !tenant.billing || !tenant.billing.rate || parseFloat(tenant.billing.rate) === 0;
